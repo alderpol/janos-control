@@ -1,0 +1,26 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output
+node_modules/
+dist/
+.vercel/
+
+# Client data and local exports
+*.csv
+*.xlsx
+*.xls
+*.json
+!package.json
+!vercel.json
+!supabase/**/*.json
+backups/
+exports/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

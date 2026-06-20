@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#5b2a86">
+  <title>Janos Control</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">J</div>
+        <div><strong>Janos Control</strong><span>Foto y video</span></div>
+      </div>
+      <nav id="mainNav" aria-label="Navegación principal">
+        <button class="nav-item active" data-view="dashboard"><span>⌂</span> Inicio</button>
+        <button class="nav-item" data-view="clients"><span>◎</span> Clientes</button>
+        <button class="nav-item" data-view="renditions"><span>✓</span> Rendiciones <b id="navRenditionCount">0</b></button>
+        <button class="nav-item" data-view="settings"><span>⚙</span> Configuración</button>
+      </nav>
+      <div class="sidebar-note">Los datos se guardan en este navegador.</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button id="mobileMenu" class="icon-btn mobile-only" aria-label="Abrir menú">☰</button>
+        <div>
+          <p class="eyebrow" id="viewEyebrow">Resumen operativo</p>
+          <h1 id="viewTitle">Inicio</h1>
+        </div>
+        <button class="primary-btn" id="newClientBtn">+ Nuevo cliente</button>
+      </header>
+
+      <section id="dashboardView" class="view active"></section>
+      <section id="clientsView" class="view"></section>
+      <section id="renditionsView" class="view"></section>
+      <section id="settingsView" class="view"></section>
+    </main>
+  </div>
+
+  <dialog id="clientDialog" class="modal">
+    <form id="clientForm" method="dialog">
+      <div class="modal-head">
+        <div><p class="eyebrow">Ficha del evento</p><h2 id="clientDialogTitle">Nuevo cliente</h2></div>
+        <button class="icon-btn" type="button" data-close-client-form aria-label="Cerrar">×</button>
+      </div>
+      <input type="hidden" name="id">
+      <div class="form-grid">
+        <label>Código del evento<input name="code" required inputmode="numeric" placeholder="Ej. 43828"></label>
+        <label>Fecha del evento<input name="eventDate" required type="date"></label>
+        <label>Salón<select name="salon" required><option value="">Seleccionar</option><option>Quinta</option><option>Pilar Hotel</option><option>Otro</option></select></label>
+        <label>Tipo de evento<select name="type"><option>15</option><option>Boda</option><option>Cumpleaños</option><option>Corporativo</option><option>Egresados</option><option>Otro</option></select></label>
+        <label>Homenajeado/a<input name="honoree" required placeholder="Nombre visible del evento"></label>
+        <label>Cliente<input name="clientName" placeholder="Nombre de contacto"></label>
+        <label>Invitados<input name="guests" type="number" min="0" placeholder="100"></label>
+        <label>Pack vigente<select name="pack" required><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select></label>
+      </div>
+      <fieldset>
+        <legend>Adicionales contratados</legend>
+        <div class="check-grid" id="addonChecks"></div>
+      </fieldset>
+      <fieldset id="flexField" class="hidden">
+        <legend>Servicios elegidos en Mini Flex / Flex <span id="flexLimitHelp"></span></legend>
+        <div class="check-grid compact" id="flexChecks"></div>
+      </fieldset>
+      <label class="full-label">Notas iniciales<textarea name="notes" rows="3" placeholder="Cambios de pack, acuerdos o información importante"></textarea></label>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" data-close-client-form>Cancelar</button>
+        <button class="primary-btn" type="submit" id="saveClientBtn">Guardar cliente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="detailDialog" class="modal detail-modal">
+    <div id="clientDetail"></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
