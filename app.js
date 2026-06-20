@@ -1,3 +1,5 @@
+import { cloudEnabled, getSession, loadCloudState, signIn, signOut, syncCloudState } from "./cloud.js";
+
 const STORAGE_KEY = "janos-control-v1";
 const STATUS_LABELS = { pending: "Pendiente", waiting: "Esperando cliente", progress: "En proceso", done: "Terminado", na: "No corresponde" };
 const RENDITION_STATUS = { pending: "Pendiente", submitted: "Rendido", approved: "Aprobado", paid: "Pagado" };
@@ -73,13 +75,16 @@ function initialState() {
 
 let state = loadState();
 let activeView = "dashboard";
+let currentUser = null;
+let cloudTimer = null;
+let cloudSyncing = false;
 
 function loadState() {
   try { return { ...initialState(), ...JSON.parse(localStorage.getItem(STORAGE_KEY)) }; }
   catch { return initialState(); }
 }
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); }
-function uid(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; }
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); scheduleCloudSync(); }
+function uid() { return crypto.randomUUID(); }
 function escapeHtml(value = "") { return String(value).replace(/[&<>'"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[c])); }
 function parseDate(value) { return value ? new Date(`${value}T12:00:00`) : new Date(); }
 function dateText(value) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parseDate(value)); }
@@ -185,6 +190,12 @@ function saveClient(form) {
 }
 function syncTasks(client) { const existing=new Map(client.tasks.map(t=>[t.key,t])); client.tasks=createTasks(client).map(t=>existing.has(t.key)?{...t,...existing.get(t.key)}:t); client.history.push({date:new Date().toISOString(),text:"Datos del cliente actualizados"}); }
 
+function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));}
+function normalizeIds(){const clientMap=new Map(),taskMap=new Map();state.clients.forEach(client=>{if(!isUuid(client.id)){const old=client.id;client.id=uid();clientMap.set(old,client.id);}client.tasks.forEach(task=>{if(!isUuid(task.id)){const old=task.id;task.id=uid();taskMap.set(old,task.id);}});});state.renditions.forEach(item=>{if(clientMap.has(item.clientId))item.clientId=clientMap.get(item.clientId);if(taskMap.has(item.taskId))item.taskId=taskMap.get(item.taskId);if(!isUuid(item.id))item.id=uid();});}
+function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;}
+function scheduleCloudSync(){if(!cloudEnabled||!currentUser)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(runCloudSync,650);}
+async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(STORAGE_KEY,JSON.stringify(state));await syncCloudState(state,currentUser);setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
+
 function parseCsv(text) {
   const firstLine=(text.split(/\r?\n/,1)[0]||"");
   const delimiter=(firstLine.match(/;/g)||[]).length>(firstLine.match(/,/g)||[]).length?";":",";
@@ -253,5 +264,19 @@ document.getElementById("mobileMenu").addEventListener("click",()=>document.quer
 document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
 document.getElementById("clientDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
 document.getElementById("detailDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
+document.getElementById("loginForm").addEventListener("submit",async e=>{e.preventDefault();const form=e.currentTarget,errorEl=document.getElementById("loginError"),button=form.querySelector("button");errorEl.classList.add("hidden");button.disabled=true;button.textContent="Ingresando…";try{const session=await signIn(form.elements.email.value.trim(),form.elements.password.value);await startApplication(session);}catch(error){errorEl.textContent=error.message.includes("Invalid login")?"Correo o contraseña incorrectos.":error.message;errorEl.classList.remove("hidden");}finally{button.disabled=false;button.textContent="Ingresar";}});
+document.getElementById("signOutBtn").addEventListener("click",async()=>{await runCloudSync();await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");document.getElementById("loginForm").reset();});
 
-render(); setView(activeView);
+async function startApplication(session){
+  currentUser=session?.user||null;
+  if(cloudEnabled&&currentUser){setSyncStatus("Cargando datos…");try{const cloudState=await loadCloudState(BASE_RATES);if(cloudState.clients.length||cloudState.renditions.length)state={...initialState(),...cloudState};else{normalizeIds();await syncCloudState(state,currentUser);}localStorage.setItem(STORAGE_KEY,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  document.getElementById("signedInUser").textContent=currentUser?.email||"Modo local";
+  document.getElementById("authGate").classList.add("hidden");document.getElementById("appShell").classList.remove("hidden");render();setView(activeView);
+}
+
+async function bootstrap(){
+  if(!cloudEnabled){await startApplication(null);setSyncStatus("Modo local · Supabase sin configurar");return;}
+  try{const session=await getSession();if(session)await startApplication(session);else document.getElementById("authGate").classList.remove("hidden");}catch(error){console.error(error);document.getElementById("authGate").classList.remove("hidden");document.getElementById("loginError").textContent="No se pudo conectar con Supabase.";document.getElementById("loginError").classList.remove("hidden");}
+}
+
+bootstrap();

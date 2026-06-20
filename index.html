@@ -8,7 +8,22 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
+  <section id="authGate" class="auth-gate hidden">
+    <div class="auth-card">
+      <div class="brand-mark auth-logo">J</div>
+      <p class="eyebrow">Gestión de fotografía y video</p>
+      <h1>Ingresar a Janos Control</h1>
+      <p class="auth-copy">Tus clientes, tareas y rendiciones sincronizados en un solo lugar.</p>
+      <form id="loginForm">
+        <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
+        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+        <p id="loginError" class="form-error hidden"></p>
+        <button class="primary-btn" type="submit">Ingresar</button>
+      </form>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">J</div>
@@ -20,7 +35,8 @@
         <button class="nav-item" data-view="renditions"><span>✓</span> Rendiciones <b id="navRenditionCount">0</b></button>
         <button class="nav-item" data-view="settings"><span>⚙</span> Configuración</button>
       </nav>
-      <div class="sidebar-note">Los datos se guardan en este navegador.</div>
+      <div class="sidebar-user"><span id="signedInUser">Usuario</span><button id="signOutBtn">Cerrar sesión</button></div>
+      <div class="sidebar-note"><span id="syncStatus">Conectando con la nube…</span></div>
     </aside>
 
     <main class="main-content">
@@ -78,6 +94,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

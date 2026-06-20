@@ -4,9 +4,14 @@ MVP local para seguimiento de clientes, tareas y rendiciones de fotografía y vi
 
 ## Uso
 
-Abrir `index.html` en un navegador moderno o servir la carpeta con un servidor HTTP local.
+Crear `.env.local` a partir de `.env.example` y ejecutar:
 
-Los datos se guardan en `localStorage` del navegador. Desde Configuración se puede exportar e importar una copia JSON.
+```bash
+npm install
+npm run dev
+```
+
+Con variables de Supabase configuradas, los datos se sincronizan con la nube y `localStorage` funciona como respaldo local. Desde Configuración se puede exportar e importar una copia JSON.
 
 El esquema preparado para la migración a Supabase está en `supabase/migrations/20260619_initial_schema.sql` e incluye RLS para aislar los datos de cada usuario.
 
