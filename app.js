@@ -314,7 +314,8 @@ function authErrorMessage(error, fallback = "No pudimos completar la operación.
   if(message.includes("rate") || message.includes("seconds")) return "Esperá un minuto antes de pedir otro código.";
   if(message.includes("signup") || message.includes("signups") || message.includes("registration")) return "El registro por email está desactivado en Supabase.";
   if(message.includes("email") && (message.includes("send") || message.includes("smtp") || message.includes("magic link"))) return "Supabase no pudo enviar el email. Revisá la configuración SMTP de Gmail.";
-  return fallback;
+  const detail = String(error?.message || "").trim();
+  return detail ? `${fallback} Detalle: ${detail}` : fallback;
 }
 
 function setFormError(id, message = "") {
@@ -357,6 +358,7 @@ async function sendOtp(request, button) {
     showOtpForm(request);
     return true;
   } catch(error) {
+    console.error("Error al solicitar código de acceso", error);
     return error;
   } finally {
     button.disabled = false;
