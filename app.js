@@ -78,6 +78,8 @@ function initialState() {
 
 let state = loadState();
 let activeView = "dashboard";
+let clientViewMode = "upcoming";
+let renditionViewMode = "active";
 let currentUser = null;
 let cloudTimer = null;
 let cloudSyncing = false;
@@ -119,7 +121,8 @@ function createTasks(client) {
 }
 
 function isoDate(value){return value?String(value).slice(0,10):"";}
-function todayIso(){return new Date().toISOString().slice(0,10);}
+function todayIso(){const date=new Date();return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;}
+function isPastEvent(client){return String(client?.eventDate||"")<todayIso();}
 function periodEndFor(workDate){const date=parseDate(workDate);if(date.getDate()>20)date.setMonth(date.getMonth()+1);date.setDate(20);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-20`;}
 
 function render() {
@@ -128,20 +131,21 @@ function render() {
 }
 
 function renderDashboard() {
+  const activeClients = state.clients.filter(c => !isPastEvent(c));
   const pendingTasks = state.clients.flatMap(c => c.tasks).filter(t => !["done", "na"].includes(t.status)).length;
-  const pendingR = state.renditions.filter(r => r.status === "pending");
-  const nextEvents = [...state.clients].filter(c => daysUntil(c.eventDate) >= -30).sort((a,b) => parseDate(a.eventDate) - parseDate(b.eventDate)).slice(0, 7);
+  const pendingR = state.renditions.filter(r => r.status === "pending" && !r.archivedAt);
+  const nextEvents = activeClients.sort((a,b) => parseDate(a.eventDate) - parseDate(b.eventDate)).slice(0, 7);
   const waiting = state.clients.flatMap(c => c.tasks).filter(t => t.status === "waiting").length;
   document.getElementById("dashboardView").innerHTML = `
     <div class="kpi-grid">
-      ${kpi("Clientes activos", state.clients.length, "eventos registrados")}
+      ${kpi("Clientes activos", activeClients.length, "eventos próximos")}
       ${kpi("Tareas pendientes", pendingTasks, waiting ? `${waiting} esperando al cliente` : "sin bloqueos registrados")}
       ${kpi("Para rendir", pendingR.length, money(pendingR.reduce((s,r)=>s+r.amount,0)))}
       ${kpi("Próximos 30 días", state.clients.filter(c => { const d=daysUntil(c.eventDate); return d>=0&&d<=30; }).length, "eventos por preparar")}
     </div>
     <div class="content-grid">
       <div class="panel"><div class="panel-head"><h2>Próximos eventos</h2><button class="ghost-btn" data-go="clients">Ver todos</button></div>
-        ${nextEvents.length ? `<div>${nextEvents.map(eventRow).join("")}</div>` : empty("Todavía no hay clientes", "Cargá el primero para generar su plan de trabajo.")}
+        ${nextEvents.length ? `<div>${nextEvents.map(eventRow).join("")}</div>` : empty("No hay eventos próximos", "Los eventos que ya pasaron están en Clientes → Realizados.")}
       </div>
       <div class="panel"><div class="panel-head"><h2>Atención requerida</h2></div><div class="panel-body stack">
         ${attentionItems() || `<div class="empty"><strong>Todo en orden</strong>No hay alertas urgentes.</div>`}
@@ -160,22 +164,30 @@ function attentionItems() {
 }
 
 function renderClients() {
+  const modeClients=state.clients.filter(c=>clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c));
   const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
-  const months=[...new Set(state.clients.map(c=>monthKey(c.eventDate)).filter(Boolean))].sort();
-  document.getElementById("clientsView").innerHTML = `<div class="client-filters"><div class="filter-heading"><div><p class="eyebrow">Organizar eventos</p><strong>Elegí un salón y un mes</strong></div><span id="clientResultCount" class="muted">${eventCountLabel(state.clients.length)}</span></div><div class="toolbar"><div class="search"><input id="clientSearch" placeholder="Buscar por nombre o código"></div><select id="clientSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select><select id="clientMonthFilter" aria-label="Filtrar por mes"><option value="">Todos los meses</option>${months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join("")}</select><select id="clientPackFilter" aria-label="Filtrar por pack"><option value="">Todos los packs</option><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select></div></div><div class="client-actions"><button class="secondary-btn" id="downloadClientTemplate">Plantilla CSV</button><button class="primary-btn" id="importClientsBtn">Importar lote</button><input id="clientCsvInput" type="file" accept=".csv,text/csv" hidden></div><div id="clientGrid" class="client-grid">${clientCards(state.clients)}</div>`;
+  const months=[...new Set(modeClients.map(c=>monthKey(c.eventDate)).filter(Boolean))].sort();
+  const upcomingCount=state.clients.filter(c=>!isPastEvent(c)).length,archivedCount=state.clients.length-upcomingCount;
+  document.getElementById("clientsView").innerHTML = `<div class="view-switch" aria-label="Archivo de eventos"><button class="${clientViewMode==="upcoming"?"active":""}" data-client-view="upcoming">Próximos <b>${upcomingCount}</b></button><button class="${clientViewMode==="archived"?"active":""}" data-client-view="archived">Realizados <b>${archivedCount}</b></button></div><div class="client-filters"><div class="filter-heading"><div><p class="eyebrow">${clientViewMode==="archived"?"Archivo de eventos":"Organizar eventos"}</p><strong>${clientViewMode==="archived"?"Eventos cuya fecha ya pasó":"Elegí un salón y un mes"}</strong></div><span id="clientResultCount" class="muted">${eventCountLabel(modeClients.length)}</span></div><div class="toolbar"><div class="search"><input id="clientSearch" placeholder="Buscar por nombre o código"></div><select id="clientSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select><select id="clientMonthFilter" aria-label="Filtrar por mes"><option value="">Todos los meses</option>${months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join("")}</select><select id="clientPackFilter" aria-label="Filtrar por pack"><option value="">Todos los packs</option><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select></div></div><div class="client-actions"><button class="secondary-btn" id="downloadClientTemplate">Plantilla CSV</button><button class="primary-btn" id="importClientsBtn">Importar lote</button><input id="clientCsvInput" type="file" accept=".csv,text/csv" hidden></div><div id="clientGrid" class="client-grid">${clientCards(modeClients)}</div>`;
 }
 function monthKey(value){return /^\d{4}-\d{2}/.test(String(value||""))?String(value).slice(0,7):"";}
 function monthLabel(value){const [year,month]=String(value).split("-");if(!year||!month)return value;const label=new Intl.DateTimeFormat("es-AR",{month:"long",year:"numeric"}).format(new Date(Number(year),Number(month)-1,1));return label.charAt(0).toUpperCase()+label.slice(1);}
 function eventCountLabel(count){return `${count} ${count===1?"evento":"eventos"}`;}
-function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card"><div class="client-card-top"><span class="tag">${packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty("No hay eventos para estos filtros", "Probá otro salón, mes o criterio de búsqueda."); }
+function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag">${isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
 function progress(c) { const applicable=c.tasks.filter(t=>t.status!=="na"); return applicable.length ? Math.round(applicable.filter(t=>t.status==="done").length/applicable.length*100) : 0; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
 
 function renderRenditions() {
-  const rows=[...state.renditions].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
-  document.getElementById("renditionsView").innerHTML = `<div class="toolbar"><select id="renditionFilter"><option value="">Todos los estados</option>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div><div class="panel"><div class="rendition-row header"><span>Trabajo</span><span>Evento</span><span>Categoría</span><span>Importe</span><span>Estado</span></div><div id="renditionRows">${renditionRows(rows)}</div></div>`;
+  const activeCount=state.renditions.filter(r=>!r.archivedAt).length,archivedCount=state.renditions.length-activeCount;
+  const rows=state.renditions.filter(r=>renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+  document.getElementById("renditionsView").innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Archivo de rendiciones"><button class="${renditionViewMode==="active"?"active":""}" data-rendition-view="active">Activas <b>${activeCount}</b></button><button class="${renditionViewMode==="archived"?"active":""}" data-rendition-view="archived">Archivadas <b>${archivedCount}</b></button></div><select id="renditionFilter"><option value="">Todos los estados</option>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div><div class="panel"><div class="rendition-row header"><span>Trabajo</span><span>Evento</span><span>Categoría</span><span>Importe</span><span>Estado</span><span>Acciones</span></div><div id="renditionRows">${renditionRows(rows)}</div></div>`;
 }
-function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId); return `<div class="rendition-row"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(c?.honoree||"Cliente eliminado")} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div><span>${c?dateText(c.eventDate):"-"}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}">${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select></div>`;}).join("") : empty("Sin rendiciones", "Al completar un trabajo remunerado aparecerá aquí."); }
+function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId),processed=r.status!=="pending";const actions=r.archivedAt?`<button class="small-btn" data-restore-rendition="${r.id}">Restaurar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:processed?`<button class="small-btn" data-archive-rendition="${r.id}">Archivar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:`<span class="muted">Rendila para archivar</span>`; return `<div class="rendition-row"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(c?.honoree||"Cliente eliminado")} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div><span>${c?dateText(c.eventDate):"-"}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}" ${r.archivedAt?"disabled title=\"Restaurá la rendición para cambiar su estado\"":""}>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select><div class="rendition-actions">${actions}</div></div>`;}).join("") : empty(renditionViewMode==="archived"?"No hay rendiciones archivadas":"Sin rendiciones activas", renditionViewMode==="archived"?"Las rendiciones que archives aparecerán aquí.":"Al completar un trabajo remunerado aparecerá aquí."); }
+
+function logRenditionArchive(item, archived){const client=state.clients.find(c=>c.id===item.clientId);if(!client)return;client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición ${archived?"archivada":"restaurada"}: ${item.work}`,type:"rendition_archive",renditionId:item.id,archived});}
+function archiveRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;if(item.status==="pending"){toast("Primero marcá la rendición como rendida.");return;}item.archivedAt=new Date().toISOString();logRenditionArchive(item,true);saveState();toast("Rendición archivada");}
+function restoreRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;item.archivedAt="";logRenditionArchive(item,false);saveState();toast("Rendición restaurada");}
+function deleteRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;const client=state.clients.find(c=>c.id===item.clientId);if(client){client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición eliminada: ${item.work}`,type:"rendition_delete",renditionId:item.id});}state.renditions=state.renditions.filter(r=>r.id!==id);saveState();toast("Rendición eliminada");}
 
 function renderSettings() {
   document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><div class="panel"><div class="panel-head"><h2>Tarifas vigentes</h2><span class="muted">Editables</span></div><div class="panel-body">${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}</span><input type="number" min="0" data-rate="${key}" value="${val}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></div><div class="panel"><div class="panel-head"><h2>Datos</h2></div><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></div></div>`;
@@ -254,11 +266,16 @@ function toast(msg){const el=document.getElementById("toast");el.textContent=msg
 document.addEventListener("click", e => {
   const nav=e.target.closest("[data-view]"); if(nav)setView(nav.dataset.view);
   const go=e.target.closest("[data-go]"); if(go)setView(go.dataset.go);
+  const clientView=e.target.closest("[data-client-view]");if(clientView){clientViewMode=clientView.dataset.clientView;renderClients();}
+  const renditionView=e.target.closest("[data-rendition-view]");if(renditionView){renditionViewMode=renditionView.dataset.renditionView;renderRenditions();}
   const open=e.target.closest("[data-open-client]"); if(open)openClientDetail(open.dataset.openClient);
   const edit=e.target.closest("[data-edit-client]"); if(edit){document.getElementById("detailDialog").close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient));}
   if(e.target.closest("[data-close-detail]"))document.getElementById("detailDialog").close();
   if(e.target.closest("[data-close-client-form]"))document.getElementById("clientDialog").close();
   const del=e.target.closest("[data-delete-client]"); if(del&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(del.dataset.deleteClient);
+  const archive=e.target.closest("[data-archive-rendition]");if(archive)archiveRendition(archive.dataset.archiveRendition);
+  const restore=e.target.closest("[data-restore-rendition]");if(restore)restoreRendition(restore.dataset.restoreRendition);
+  const deleteWork=e.target.closest("[data-delete-rendition]");if(deleteWork&&confirm("¿Eliminar definitivamente esta rendición? La tarea del cliente se conservará."))deleteRendition(deleteWork.dataset.deleteRendition);
   if(e.target.id==="deleteClientFromForm"){const id=document.getElementById("clientForm").elements.id.value;if(id&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(id);}
   if(e.target.id==="saveRates"){document.querySelectorAll("[data-rate]").forEach(i=>state.rates[i.dataset.rate]=Number(i.value||0));saveState();toast("Tarifas actualizadas");}
   if(e.target.id==="downloadClientTemplate")downloadClientTemplate();
@@ -274,14 +291,15 @@ document.addEventListener("change", e => {
   if(e.target.dataset.taskDate){const [c,t]=e.target.dataset.taskDate.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.completedAt=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition&&e.target.value){rendition.workDate=e.target.value;rendition.periodEnd=periodEndFor(e.target.value);}saveState();}}
   if(e.target.dataset.taskNotes){const [c,t]=e.target.dataset.taskNotes.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.notes=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition)rendition.observations=e.target.value;saveState();}}
   if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
-  if(e.target.id==="renditionFilter"){document.getElementById("renditionRows").innerHTML=renditionRows(state.renditions.filter(r=>!e.target.value||r.status===e.target.value));}
+  if(e.target.id==="renditionFilter")filterRenditions();
   if(["clientSalonFilter","clientMonthFilter","clientPackFilter"].includes(e.target.id))filterClients();
   if(e.target.id==="importBackup"){const file=e.target.files[0];if(file){file.text().then(text=>{try{state={...initialState(),...JSON.parse(text)};saveState();toast("Copia importada");}catch{toast("El archivo no es una copia válida");}});}}
   if(e.target.id==="clientCsvInput"&&e.target.files[0])importClientCsv(e.target.files[0]).finally(()=>{e.target.value="";});
 });
 document.addEventListener("input",e=>{if(e.target.id==="clientSearch")filterClients();});
 document.addEventListener("change",e=>{if(e.target.dataset.taskCheck){const[c,t]=e.target.dataset.taskCheck.split("|");updateTask(c,t,e.target.checked?"done":"pending");}});
-function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"";const filtered=state.clients.filter(c=>(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
+function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"";const filtered=state.clients.filter(c=>(clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c))&&(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
+function filterRenditions(){const status=document.getElementById("renditionFilter")?.value||"";const filtered=state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!status||r.status===status)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));document.getElementById("renditionRows").innerHTML=renditionRows(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
 document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});

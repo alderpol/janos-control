@@ -100,6 +100,16 @@ export async function loadCloudState(defaultRates) {
     createdAt: row.created_at,
   }));
 
+  const renditionArchiveState = new Map();
+  clients.forEach((client) => {
+    (client.history || []).forEach((entry) => {
+      if (entry?.type === "rendition_archive" && entry.renditionId) {
+        renditionArchiveState.set(entry.renditionId, entry.archived ? entry.date || "archived" : "");
+      }
+    });
+  });
+  renditions.forEach((item) => { item.archivedAt = renditionArchiveState.get(item.id) || ""; });
+
   const rates = { ...defaultRates };
   rateRows.forEach((row) => { rates[row.rate_key] = Number(row.amount); });
   return { clients, renditions, rates, settings: { currency: "ARS" }, rateEffectiveDate: "2026-08-01" };
