@@ -4,9 +4,11 @@
   --purple-soft: #f3ecf8;
   --ink: #1f1a24;
   --muted: #716b78;
-  --line: #e7e2ea;
-  --surface: #ffffff;
-  --bg: #f6f4f7;
+  --line: #ddd7e2;
+  --surface: #f8f6fa;
+  --surface-soft: #f2eef4;
+  --input: #fcfafc;
+  --bg: #ece8ef;
   --green: #26825e;
   --green-soft: #e8f5ef;
   --amber: #a56612;
@@ -38,7 +40,7 @@ nav { display: grid; gap: 7px; }
 .sidebar-user button { border: 0; background: transparent; color: #a998b4; font-size: 11px; padding: 5px 0 0; text-decoration: underline; }
 .sidebar-user + .sidebar-note { margin-top: 0; }
 .auth-gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top, #f4eafa, #f6f4f7 55%); }
-.auth-card { width: min(420px, 100%); background: white; border: 1px solid var(--line); border-radius: 20px; padding: 32px; box-shadow: 0 24px 70px rgba(46,25,58,.14); }
+.auth-card { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 32px; box-shadow: 0 24px 70px rgba(46,25,58,.14); }
 .auth-logo { color: white; margin-bottom: 20px; }
 .auth-card h1 { margin: 8px 0 7px; font-size: 25px; }
 .auth-copy { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 22px; }
@@ -55,7 +57,7 @@ nav { display: grid; gap: 7px; }
 .primary-btn, .secondary-btn, .ghost-btn, .danger-btn { border-radius: 9px; padding: 10px 14px; border: 1px solid transparent; font-weight: 700; }
 .primary-btn { color: white; background: var(--purple); box-shadow: 0 5px 12px rgba(91,42,134,.2); }
 .primary-btn:hover { background: #4b2171; }
-.secondary-btn { color: var(--purple); background: white; border-color: #cfc3d8; }
+.secondary-btn { color: var(--purple); background: var(--input); border-color: #cfc3d8; }
 .ghost-btn { color: var(--muted); background: transparent; border-color: var(--line); }
 .danger-btn { color: var(--red); background: var(--red-soft); }
 .icon-btn { border: 0; background: transparent; color: var(--muted); font-size: 24px; padding: 4px 8px; }
@@ -73,7 +75,7 @@ nav { display: grid; gap: 7px; }
 .stack { display: grid; gap: 10px; }
 .event-row { display: grid; grid-template-columns: 54px minmax(140px, 1fr) 120px 120px auto; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
 .event-row:last-child { border-bottom: 0; }
-.event-row:hover { background: #fbfafc; }
+.event-row:hover { background: var(--surface-soft); }
 .date-box { border-radius: 10px; background: var(--purple-soft); color: var(--purple); text-align: center; padding: 6px 4px; }
 .date-box strong, .date-box span { display: block; }
 .date-box strong { font-size: 19px; }.date-box span { font-size: 10px; text-transform: uppercase; }
@@ -91,9 +93,9 @@ nav { display: grid; gap: 7px; }
 .empty strong { display: block; color: var(--ink); margin-bottom: 6px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
 .search { flex: 1; max-width: 460px; position: relative; }
-.search input, .toolbar select { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: white; padding: 11px 13px; }
+.search input, .toolbar select { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--input); padding: 11px 13px; }
 .client-grid { display: grid; grid-template-columns: repeat(3, minmax(240px, 1fr)); gap: 15px; }
-.client-card { background: white; border: 1px solid var(--line); border-radius: 15px; padding: 17px; box-shadow: var(--shadow); }
+.client-card { background: var(--surface); border: 1px solid var(--line); border-radius: 15px; padding: 17px; box-shadow: var(--shadow); }
 .client-card-top { display: flex; justify-content: space-between; gap: 10px; }
 .client-card h3 { margin: 7px 0 3px; font-size: 17px; }.client-card p { margin: 0; color: var(--muted); font-size: 12px; }
 .progress-line { height: 7px; border-radius: 20px; background: #eee9f1; overflow: hidden; margin: 16px 0 8px; }
@@ -102,7 +104,7 @@ nav { display: grid; gap: 7px; }
 .card-actions { display: flex; gap: 8px; margin-top: 14px; }
 .card-actions button { flex: 1; padding: 8px; }
 .rendition-row { display: grid; grid-template-columns: minmax(180px, 1.5fr) 140px 150px 120px 130px; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
-.rendition-row.header { color: var(--muted); font-size: 11px; font-weight: 750; text-transform: uppercase; background: #fbfafc; }
+.rendition-row.header { color: var(--muted); font-size: 11px; font-weight: 750; text-transform: uppercase; background: var(--surface-soft); }
 .rendition-row strong { display: block; font-size: 13px; }.rendition-row small { color: var(--muted); }
 .money { font-variant-numeric: tabular-nums; font-weight: 750; }
 .modal { width: min(760px, calc(100vw - 28px)); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 25px 80px rgba(32,15,43,.28); }
@@ -112,7 +114,7 @@ nav { display: grid; gap: 7px; }
 .modal-head h2 { margin: 4px 0 0; }.modal-head .icon-btn { margin-top: -8px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 label, legend { color: #4c4551; font-size: 12px; font-weight: 700; }
-label input, label select, label textarea { width: 100%; display: block; margin-top: 6px; border: 1px solid #d9d2dd; border-radius: 9px; padding: 10px 11px; color: var(--ink); background: white; }
+label input, label select, label textarea { width: 100%; display: block; margin-top: 6px; border: 1px solid #d9d2dd; border-radius: 9px; padding: 10px 11px; color: var(--ink); background: var(--input); }
 fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 13px; margin: 18px 0 0; }
 legend { padding: 0 7px; }
 .check-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
@@ -134,7 +136,7 @@ legend { padding: 0 7px; }
 .task-check { width: 23px; height: 23px; accent-color: var(--green); }
 .task-row.done .task-title { text-decoration: line-through; color: var(--muted); }
 .task-title strong, .task-title small { display: block; }.task-title small { color: var(--muted); margin-top: 2px; }
-.task-row select, .task-row input { border: 1px solid var(--line); border-radius: 8px; padding: 7px; width: 100%; background: white; font-size: 12px; }
+.task-row select, .task-row input { border: 1px solid var(--line); border-radius: 8px; padding: 7px; width: 100%; background: var(--input); font-size: 12px; }
 .settings-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 20px; }
 .rate-row { display: grid; grid-template-columns: 1fr 150px; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .rate-row input { border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: right; }
