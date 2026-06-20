@@ -73,6 +73,14 @@ nav { display: grid; gap: 7px; }
 .panel-head h2, .panel-head h3 { margin: 0; font-size: 16px; }
 .panel-body { padding: 18px; }
 .stack { display: grid; gap: 10px; }
+.attention-alert { width: 100%; border-radius: 10px; padding: 13px 14px; text-align: center; }
+.attention-alert strong, .attention-alert span, .attention-alert small { display: block; }
+.attention-alert span { margin-top: 4px; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.attention-alert small { margin-top: 5px; line-height: 1.4; }
+.attention-alert.book-warning { color: var(--ink); border: 1px solid #bfb4c5; background: #fff; box-shadow: 0 6px 16px rgba(46,25,58,.08); }
+.attention-alert.book-warning small { color: var(--muted); }
+.attention-alert.book-urgent { color: #fff; border: 1px solid #a80f28; background: #cf1635; box-shadow: 0 8px 20px rgba(177,15,42,.28); }
+.attention-alert.book-urgent small { color: #fff; }
 .event-row { display: grid; grid-template-columns: 54px minmax(140px, 1fr) 120px 120px auto; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
 .event-row:last-child { border-bottom: 0; }
 .event-row:hover { background: var(--surface-soft); }

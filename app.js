@@ -95,7 +95,7 @@ function parseDate(value) { return value ? new Date(`${value}T12:00:00`) : new D
 function dateText(value) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parseDate(value)); }
 function monthText(value) { return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(parseDate(value)).replace(".", ""); }
 function money(value) { return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value || 0); }
-function daysUntil(value) { return Math.ceil((parseDate(value) - new Date()) / 86400000); }
+function daysUntil(value) { return Math.round((parseDate(value) - parseDate(todayIso())) / 86400000); }
 function packLabel(pack) { return ({ silver: "Silver", gold: "Golden / All Inclusive", vip: "VIP", informal: "Informal" })[pack] || pack; }
 
 function createTasks(client) {
@@ -157,10 +157,11 @@ function eventRow(c) { const d=parseDate(c.eventDate), pct=progress(c); return `
 function attentionItems() {
   const items=[];
   state.clients.forEach(c => {
-    const days=daysUntil(c.eventDate), incomplete=c.tasks.filter(t=>!["done","na"].includes(t.status));
-    if(days>=0&&days<=14&&incomplete.length) items.push(`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`);
-    if(days<0&&c.tasks.some(t=>t.key==="coverage"&&t.status!=="done")) items.push(`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`);
-  }); return items.slice(0,6).join("");
+    const days=daysUntil(c.eventDate), incomplete=c.tasks.filter(t=>!["done","na"].includes(t.status)),hasPrintedBook=(c.addons||[]).includes("libro"),bookDue=hasPrintedBook&&days>=0&&days<=30;
+    if(bookDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
+    else if(days>=0&&days<=14&&incomplete.length) items.push({priority:2,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
+    if(days<0&&c.tasks.some(t=>t.key==="coverage"&&t.status!=="done")) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
+  }); return items.sort((a,b)=>a.priority-b.priority||a.days-b.days).slice(0,6).map(item=>item.html).join("");
 }
 
 function renderClients() {
