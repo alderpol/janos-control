@@ -312,7 +312,8 @@ function authErrorMessage(error, fallback = "No pudimos completar la operación.
   if(message.includes("invalid login")) return "Correo o contraseña incorrectos.";
   if(message.includes("token") || message.includes("otp") || message.includes("expired")) return "El código es incorrecto o venció. Solicitá uno nuevo.";
   if(message.includes("rate") || message.includes("seconds")) return "Esperá un minuto antes de pedir otro código.";
-  if(message.includes("signups not allowed")) return "El registro de nuevas cuentas está desactivado en Supabase.";
+  if(message.includes("signup") || message.includes("signups") || message.includes("registration")) return "El registro por email está desactivado en Supabase.";
+  if(message.includes("email") && (message.includes("send") || message.includes("smtp") || message.includes("magic link"))) return "Supabase no pudo enviar el email. Revisá la configuración SMTP de Gmail.";
   return fallback;
 }
 
