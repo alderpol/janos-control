@@ -8,6 +8,8 @@ Abrir `index.html` en un navegador moderno o servir la carpeta con un servidor H
 
 Los datos se guardan en `localStorage` del navegador. Desde Configuración se puede exportar e importar una copia JSON.
 
+El esquema preparado para la migración a Supabase está en `supabase/migrations/20260619_initial_schema.sql` e incluye RLS para aislar los datos de cada usuario.
+
 ## Alcance inicial
 
 - Alta y edición de clientes.
