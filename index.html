@@ -12,13 +12,38 @@
     <div class="auth-card">
       <div class="brand-mark auth-logo">J</div>
       <p class="eyebrow">Gestión de fotografía y video</p>
-      <h1>Ingresar a Janos Control</h1>
-      <p class="auth-copy">Tus clientes, tareas y rendiciones sincronizados en un solo lugar.</p>
-      <form id="loginForm">
+      <h1 id="authTitle">Ingresar a Janos Control</h1>
+      <p id="authCopy" class="auth-copy">Tus clientes, tareas y rendiciones sincronizados en un solo lugar.</p>
+      <div class="auth-tabs" role="tablist" aria-label="Acceso a Janos Control">
+        <button class="auth-tab active" type="button" data-auth-mode="login">Ingresar</button>
+        <button class="auth-tab" type="button" data-auth-mode="register">Crear cuenta</button>
+      </div>
+      <form id="loginForm" class="auth-form">
         <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
         <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
         <p id="loginError" class="form-error hidden"></p>
         <button class="primary-btn" type="submit">Ingresar</button>
+        <button id="requestLoginCode" class="secondary-btn" type="button">Ingresar con código por email</button>
+      </form>
+      <form id="registerForm" class="auth-form hidden">
+        <div class="auth-grid">
+          <label>Nombre<input name="firstName" autocomplete="given-name" required></label>
+          <label>Apellido<input name="lastName" autocomplete="family-name" required></label>
+        </div>
+        <label>WhatsApp<input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej. +54 9 11 1234 5678" required></label>
+        <label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>
+        <p id="signupError" class="form-error hidden"></p>
+        <button class="primary-btn" type="submit">Enviar código de seguridad</button>
+      </form>
+      <form id="otpForm" class="auth-form hidden">
+        <p class="otp-email">Enviamos un código de 6 dígitos a <strong id="otpEmail"></strong>.</p>
+        <label>Código de seguridad<input class="otp-code" name="token" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required></label>
+        <p id="otpError" class="form-error hidden"></p>
+        <button class="primary-btn" type="submit">Verificar e ingresar</button>
+        <div class="auth-actions">
+          <button id="resendOtp" class="ghost-btn" type="button">Reenviar código</button>
+          <button id="backFromOtp" class="ghost-btn" type="button">Volver</button>
+        </div>
       </form>
     </div>
   </section>

@@ -29,6 +29,26 @@ export async function signIn(email, password) {
   return data.session;
 }
 
+export async function requestEmailCode(email, { createUser = false, profile = {} } = {}) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: createUser,
+      data: createUser ? profile : {},
+    },
+  });
+  if (error) throw error;
+}
+
+export async function verifyEmailCode(email, token) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
+  if (error) throw error;
+  if (!data.session) throw new Error("No se pudo iniciar la sesión.");
+  return data.session;
+}
+
 export async function signOut() {
   if (!supabase) return;
   const { error } = await supabase.auth.signOut();
@@ -123,7 +143,9 @@ async function deleteMissing(table, ownerId, ids) {
 
 export async function syncCloudState(state, user) {
   const ownerId = user.id;
-  check(await supabase.from("profiles").upsert({ id: ownerId, display_name: user.email?.split("@")[0] || "Usuario" }), "Perfil");
+  const metadata = user.user_metadata || {};
+  const displayName = metadata.full_name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Usuario";
+  check(await supabase.from("profiles").upsert({ id: ownerId, display_name: displayName }), "Perfil");
 
   const clientRows = state.clients.map((client) => ({
     id: client.id, owner_id: ownerId, code: String(client.code), event_date: client.eventDate,
