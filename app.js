@@ -167,6 +167,7 @@ function rateLabel(k) { return ({gold:"Gold completo",silver:"Silver completo",b
 function openClientForm(client=null) {
   const form=document.getElementById("clientForm"); form.reset(); form.elements.id.value=client?.id||"";
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
+  document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
   if(client) ["code","eventDate","salon","type","honoree","clientName","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField();
 }
@@ -227,6 +228,7 @@ function openClientDetail(id) {
 }
 function taskRow(c,t){return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)}</small>`:""}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"></div>`;}
 function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.status=status;t.completedAt=status==="done"?new Date().toISOString():"";const existing=state.renditions.find(r=>r.taskId===t.id);if(status==="done"&&t.payable&&!existing)state.renditions.push({id:uid("rend"),clientId:c.id,taskId:t.id,category:t.category,work:t.work,amount:state.rates[t.rateKey]||0,status:"pending",createdAt:new Date().toISOString(),observations:""});if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();openClientDetail(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
+function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
 function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.querySelector(".sidebar").classList.remove("open");}
 function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
@@ -238,7 +240,8 @@ document.addEventListener("click", e => {
   const edit=e.target.closest("[data-edit-client]"); if(edit){document.getElementById("detailDialog").close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient));}
   if(e.target.closest("[data-close-detail]"))document.getElementById("detailDialog").close();
   if(e.target.closest("[data-close-client-form]"))document.getElementById("clientDialog").close();
-  const del=e.target.closest("[data-delete-client]"); if(del&&confirm("¿Eliminar este cliente y sus rendiciones pendientes?")){state.clients=state.clients.filter(c=>c.id!==del.dataset.deleteClient);state.renditions=state.renditions.filter(r=>r.clientId!==del.dataset.deleteClient||r.status!=="pending");document.getElementById("detailDialog").close();saveState();toast("Cliente eliminado");}
+  const del=e.target.closest("[data-delete-client]"); if(del&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(del.dataset.deleteClient);
+  if(e.target.id==="deleteClientFromForm"){const id=document.getElementById("clientForm").elements.id.value;if(id&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(id);}
   if(e.target.id==="saveRates"){document.querySelectorAll("[data-rate]").forEach(i=>state.rates[i.dataset.rate]=Number(i.value||0));saveState();toast("Tarifas actualizadas");}
   if(e.target.id==="downloadClientTemplate")downloadClientTemplate();
   if(e.target.id==="importClientsBtn")document.getElementById("clientCsvInput")?.click();

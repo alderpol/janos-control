@@ -121,6 +121,7 @@ legend { padding: 0 7px; }
 .check-grid.compact { grid-template-columns: repeat(2, 1fr); }
 .full-label { display: block; margin-top: 16px; }.full-label textarea { resize: vertical; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.modal-actions > .danger-btn:first-child { margin-right: auto; }
 .hidden { display: none !important; }
 .detail-modal { width: min(980px, calc(100vw - 28px)); }
 .detail-wrap { padding: 24px; }
