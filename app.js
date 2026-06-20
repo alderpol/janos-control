@@ -76,7 +76,8 @@ function initialState() {
   return { clients: [], renditions: [], rates: { ...BASE_RATES }, settings: { currency: "ARS" }, seeded: false };
 }
 
-let state = loadState();
+let storageKey = STORAGE_KEY;
+let state = loadState(storageKey);
 let activeView = "dashboard";
 let clientViewMode = "upcoming";
 let renditionViewMode = "active";
@@ -85,11 +86,12 @@ let pendingOtp = null;
 let cloudTimer = null;
 let cloudSyncing = false;
 
-function loadState() {
-  try { return { ...initialState(), ...JSON.parse(localStorage.getItem(STORAGE_KEY)) }; }
+function loadState(key = storageKey) {
+  try { return { ...initialState(), ...JSON.parse(localStorage.getItem(key)) }; }
   catch { return initialState(); }
 }
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); scheduleCloudSync(); }
+function saveState() { localStorage.setItem(storageKey, JSON.stringify(state)); render(); scheduleCloudSync(); }
+function storageKeyForUser(user) { return `${STORAGE_KEY}:${user.id}`; }
 function uid() { return crypto.randomUUID(); }
 function escapeHtml(value = "") { return String(value).replace(/[&<>'"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[c])); }
 function parseDate(value) { return value ? new Date(`${value}T12:00:00`) : new Date(); }
@@ -227,7 +229,7 @@ function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][
 function normalizeIds(){const clientMap=new Map(),taskMap=new Map();state.clients.forEach(client=>{if(!isUuid(client.id)){const old=client.id;client.id=uid();clientMap.set(old,client.id);}client.tasks.forEach(task=>{if(!isUuid(task.id)){const old=task.id;task.id=uid();taskMap.set(old,task.id);}});});state.renditions.forEach(item=>{if(clientMap.has(item.clientId))item.clientId=clientMap.get(item.clientId);if(taskMap.has(item.taskId))item.taskId=taskMap.get(item.taskId);if(!isUuid(item.id))item.id=uid();});}
 function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;}
 function scheduleCloudSync(){if(!cloudEnabled||!currentUser)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(runCloudSync,650);}
-async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(STORAGE_KEY,JSON.stringify(state));await syncCloudState(state,currentUser);setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
+async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(storageKey,JSON.stringify(state));await syncCloudState(state,currentUser);setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
 
 function parseCsv(text) {
   const firstLine=(text.split(/\r?\n/,1)[0]||"");
@@ -283,7 +285,7 @@ document.addEventListener("click", e => {
   if(e.target.id==="downloadClientTemplate")downloadClientTemplate();
   if(e.target.id==="importClientsBtn")document.getElementById("clientCsvInput")?.click();
   if(e.target.id==="exportBackup"){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`janos-control-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}
-  if(e.target.id==="clearData"&&confirm("¿Borrar todos los clientes, tareas y rendiciones de esta app?")){state=initialState();saveState();toast("Datos eliminados");}
+  if(e.target.id==="clearData"){const account=currentUser?.email||"modo local";if(confirm(`¿Borrar todos los clientes, tareas y rendiciones de la cuenta ${account}?`)){state=initialState();saveState();toast("Datos eliminados de esta cuenta");}}
 });
 document.addEventListener("change", e => {
   if(e.target.matches('[name="addons"][value="miniflex"], [name="addons"][value="flex"]')&&e.target.checked){const other=e.target.value==="flex"?"miniflex":"flex";const otherInput=document.querySelector(`[name="addons"][value="${other}"]`);if(otherInput)otherInput.checked=false;}
@@ -447,11 +449,12 @@ document.getElementById("resendOtp").addEventListener("click", async event => {
 
 document.getElementById("backFromOtp").addEventListener("click", () => setAuthMode(pendingOtp?.createUser ? "register" : "login"));
 
-document.getElementById("signOutBtn").addEventListener("click",async()=>{await runCloudSync();await signOut();currentUser=null;pendingOtp=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");document.getElementById("loginForm").reset();document.getElementById("registerForm").reset();setAuthMode("login");});
+document.getElementById("signOutBtn").addEventListener("click",async()=>{await runCloudSync();await signOut();currentUser=null;pendingOtp=null;storageKey=STORAGE_KEY;state=initialState();document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");document.getElementById("loginForm").reset();document.getElementById("registerForm").reset();setAuthMode("login");});
 
 async function startApplication(session){
   currentUser=session?.user||null;
-  if(cloudEnabled&&currentUser){setSyncStatus("Cargando datos…");try{const cloudState=await loadCloudState(BASE_RATES);if(cloudState.clients.length||cloudState.renditions.length)state={...initialState(),...cloudState};else{normalizeIds();await syncCloudState(state,currentUser);}localStorage.setItem(STORAGE_KEY,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
   const metadata = currentUser?.user_metadata || {};
   document.getElementById("signedInUser").textContent=metadata.full_name||currentUser?.email||"Modo local";
   document.getElementById("authGate").classList.add("hidden");document.getElementById("appShell").classList.remove("hidden");render();setView(activeView);
