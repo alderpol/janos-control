@@ -125,14 +125,14 @@ legend { padding: 0 7px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .modal-actions > .danger-btn:first-child { margin-right: auto; }
 .hidden { display: none !important; }
-.detail-modal { width: min(980px, calc(100vw - 28px)); }
+.detail-modal { width: min(1220px, calc(100vw - 28px)); }
 .detail-wrap { padding: 24px; }
 .detail-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .detail-title h2 { margin: 5px 0; }.detail-title p { margin: 0; color: var(--muted); }
 .detail-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0; }
 .summary-box { background: var(--bg); border-radius: 10px; padding: 12px; }.summary-box span, .summary-box strong { display: block; }.summary-box span { color: var(--muted); font-size: 10px; }.summary-box strong { margin-top: 4px; font-size: 13px; }
 .phase-title { font-size: 12px; color: var(--purple); text-transform: uppercase; letter-spacing: .08em; margin: 21px 0 8px; }
-.task-row { display: grid; grid-template-columns: 32px minmax(180px, 1fr) 145px 150px; gap: 10px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.task-row { display: grid; grid-template-columns: 32px minmax(190px, 1fr) 135px 138px 145px 175px; gap: 9px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); }
 .task-check { width: 23px; height: 23px; accent-color: var(--green); }
 .task-row.done .task-title { text-decoration: line-through; color: var(--muted); }
 .task-title strong, .task-title small { display: block; }.task-title small { color: var(--muted); margin-top: 2px; }

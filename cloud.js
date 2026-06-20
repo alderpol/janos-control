@@ -95,6 +95,8 @@ export async function loadCloudState(defaultRates) {
     amount: Number(row.amount),
     status: row.status,
     observations: row.observations || "",
+    workDate: row.work_date,
+    periodEnd: row.period_end,
     createdAt: row.created_at,
   }));
 
@@ -135,6 +137,8 @@ export async function syncCloudState(state, user) {
     id: item.id, owner_id: ownerId, client_id: item.clientId, task_id: item.taskId || null,
     category: item.category, work: item.work, amount: Number(item.amount || 0), status: item.status,
     observations: item.observations || null,
+    work_date: item.workDate,
+    period_end: item.periodEnd,
     submitted_at: item.status === "submitted" ? new Date().toISOString() : null,
     paid_at: item.status === "paid" ? new Date().toISOString() : null,
   }));
@@ -150,4 +154,3 @@ export async function syncCloudState(state, user) {
   await deleteMissing("tasks", ownerId, taskRows.map((row) => row.id));
   await deleteMissing("clients", ownerId, state.clients.map((row) => row.id));
 }
-
