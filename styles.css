@@ -129,7 +129,9 @@ nav { display: grid; gap: 7px; }
 .progress-line i { display: block; height: 100%; background: linear-gradient(90deg, var(--purple), #aa61cc); }
 .card-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
 .card-actions { display: flex; gap: 8px; margin-top: 14px; }
-.card-actions button { flex: 1; padding: 8px; }
+.card-actions button, .card-actions a { flex: 1; padding: 8px; }
+.whatsapp-btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid #178c4d; border-radius: 9px; color: white; background: #1fa85b; font-size: 12px; font-weight: 750; text-decoration: none; }
+.whatsapp-btn:hover { background: #178c4d; }
 .rendition-controls { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
 .rendition-controls .view-switch { margin-bottom: 0; }
 .rendition-controls > select { min-width: 220px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); background: var(--input); }
