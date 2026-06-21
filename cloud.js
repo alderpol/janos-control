@@ -49,6 +49,21 @@ export async function verifyEmailCode(email, token) {
   return data.session;
 }
 
+export async function requestPasswordReset(email) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/`,
+  });
+  if (error) throw error;
+}
+
+export async function updatePassword(password) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+  return data.user;
+}
+
 export async function signOut() {
   if (!supabase) return;
   const { error } = await supabase.auth.signOut();

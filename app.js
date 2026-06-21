@@ -1,4 +1,4 @@
-import { cloudEnabled, getSession, loadCloudState, requestEmailCode, signIn, signOut, syncCloudState, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, getSession, loadCloudState, requestEmailCode, requestPasswordReset, signIn, signOut, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const STORAGE_KEY = "janos-control-v1";
 const MANAGED_SALONS = ["Quinta", "Pilar Hotel"];
@@ -315,7 +315,7 @@ function authErrorMessage(error, fallback = "No pudimos completar la operación.
   if(message.includes("token") || message.includes("otp") || message.includes("expired")) return "El código es incorrecto o venció. Solicitá uno nuevo.";
   if(message.includes("rate") || message.includes("seconds")) return "Esperá un minuto antes de pedir otro código.";
   if(message.includes("signup") || message.includes("signups") || message.includes("registration")) return "El registro por email está desactivado en Supabase.";
-  if(message.includes("email") && (message.includes("send") || message.includes("smtp") || message.includes("magic link"))) return "Supabase no pudo enviar el email. Revisá la configuración SMTP de Gmail.";
+  if(message.includes("email") && (message.includes("send") || message.includes("smtp") || message.includes("magic link"))) return "Supabase no pudo enviar el email. Revisá la configuración del servicio de correo.";
   const detail = String(error?.message || "").trim();
   return detail ? `${fallback} Detalle: ${detail}` : fallback;
 }
@@ -326,21 +326,30 @@ function setFormError(id, message = "") {
   element.classList.toggle("hidden", !message);
 }
 
+function setFormSuccess(id, message = "") {
+  const element = document.getElementById(id);
+  element.textContent = message;
+  element.classList.toggle("hidden", !message);
+}
+
 function setAuthMode(mode) {
-  const isOtp = mode === "otp";
+  const isSpecialMode = mode === "otp" || mode === "reset";
   document.getElementById("loginForm").classList.toggle("hidden", mode !== "login");
   document.getElementById("registerForm").classList.toggle("hidden", mode !== "register");
-  document.getElementById("otpForm").classList.toggle("hidden", !isOtp);
-  document.querySelector(".auth-tabs").classList.toggle("hidden", isOtp);
+  document.getElementById("otpForm").classList.toggle("hidden", mode !== "otp");
+  document.getElementById("resetPasswordForm").classList.toggle("hidden", mode !== "reset");
+  document.querySelector(".auth-tabs").classList.toggle("hidden", isSpecialMode);
   document.querySelectorAll("[data-auth-mode]").forEach(button => button.classList.toggle("active", button.dataset.authMode === mode));
   const content = {
     login: ["Ingresar a Janos Control", "Accedé con tu contraseña o recibí un código en tu email."],
     register: ["Crear una cuenta", "Cada colega tendrá su espacio privado de clientes, tareas y rendiciones."],
     otp: ["Verificá tu email", "Este paso confirma que la dirección de correo realmente te pertenece."],
+    reset: ["Creá una nueva contraseña", "Elegí una contraseña segura de al menos 8 caracteres."],
   }[mode];
   document.getElementById("authTitle").textContent = content[0];
   document.getElementById("authCopy").textContent = content[1];
-  ["loginError", "signupError", "otpError"].forEach(id => setFormError(id));
+  ["loginError", "signupError", "otpError", "resetError"].forEach(id => setFormError(id));
+  setFormSuccess("loginNotice");
 }
 
 function showOtpForm(request) {
@@ -397,6 +406,27 @@ document.getElementById("requestLoginCode").addEventListener("click", async even
   if(result instanceof Error) setFormError("loginError", authErrorMessage(result, "No pudimos enviar el código. Revisá el email."));
 });
 
+document.getElementById("forgotPassword").addEventListener("click", async event => {
+  const form = document.getElementById("loginForm");
+  const emailInput = form.elements.email;
+  if(!emailInput.value.trim() || !emailInput.checkValidity()) { emailInput.reportValidity(); return; }
+  const button = event.currentTarget;
+  const originalText = button.textContent;
+  setFormError("loginError");
+  setFormSuccess("loginNotice");
+  button.disabled = true;
+  button.textContent = "Enviando…";
+  try {
+    await requestPasswordReset(emailInput.value.trim().toLowerCase());
+    setFormSuccess("loginNotice", "Te enviamos un enlace para crear una contraseña nueva. Revisá también Spam.");
+  } catch(error) {
+    setFormError("loginError", authErrorMessage(error, "No pudimos enviar el correo de recuperación."));
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
+
 document.getElementById("registerForm").addEventListener("submit", async event => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -449,7 +479,33 @@ document.getElementById("resendOtp").addEventListener("click", async event => {
 
 document.getElementById("backFromOtp").addEventListener("click", () => setAuthMode(pendingOtp?.createUser ? "register" : "login"));
 
-document.getElementById("signOutBtn").addEventListener("click",async()=>{await runCloudSync();await signOut();currentUser=null;pendingOtp=null;storageKey=STORAGE_KEY;state=initialState();document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");document.getElementById("loginForm").reset();document.getElementById("registerForm").reset();setAuthMode("login");});
+document.getElementById("resetPasswordForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const password = form.elements.password.value;
+  const confirmation = form.elements.passwordConfirm.value;
+  const button = form.querySelector('button[type="submit"]');
+  setFormError("resetError");
+  if(password.length < 8) { setFormError("resetError", "La contraseña debe tener al menos 8 caracteres."); return; }
+  if(password !== confirmation) { setFormError("resetError", "Las contraseñas no coinciden."); return; }
+  button.disabled = true;
+  button.textContent = "Guardando…";
+  try {
+    await updatePassword(password);
+    window.history.replaceState({}, document.title, window.location.pathname);
+    const session = await getSession();
+    form.reset();
+    await startApplication(session);
+    toast("Contraseña actualizada");
+  } catch(error) {
+    setFormError("resetError", authErrorMessage(error, "No pudimos actualizar la contraseña."));
+  } finally {
+    button.disabled = false;
+    button.textContent = "Guardar nueva contraseña";
+  }
+});
+
+document.getElementById("signOutBtn").addEventListener("click",async()=>{await runCloudSync();await signOut();currentUser=null;pendingOtp=null;storageKey=STORAGE_KEY;state=initialState();document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");document.getElementById("loginForm").reset();document.getElementById("registerForm").reset();document.getElementById("resetPasswordForm").reset();setAuthMode("login");});
 
 async function startApplication(session){
   currentUser=session?.user||null;
@@ -462,7 +518,7 @@ async function startApplication(session){
 
 async function bootstrap(){
   if(!cloudEnabled){await startApplication(null);setSyncStatus("Modo local · Supabase sin configurar");return;}
-  try{const session=await getSession();if(session)await startApplication(session);else{document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");}}catch(error){console.error(error);document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","No se pudo conectar con Supabase.");}
+  try{const recoveryType=new URLSearchParams(window.location.hash.replace(/^#/,"")).get("type");const session=await getSession();if(session&&recoveryType==="recovery"){currentUser=session.user;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("reset");}else if(session)await startApplication(session);else{document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");}}catch(error){console.error(error);document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","No se pudo conectar con Supabase.");}
 }
 
 bootstrap();

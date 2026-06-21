@@ -55,6 +55,7 @@ nav { display: grid; gap: 7px; }
 .otp-email strong { color: var(--ink); overflow-wrap: anywhere; }
 .otp-code { text-align: center; letter-spacing: .35em; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .form-error { color: var(--red); background: var(--red-soft); border-radius: 8px; padding: 9px; margin: 0; font-size: 12px; }
+.form-success { color: var(--green); background: var(--green-soft); border-radius: 8px; padding: 9px; margin: 0; font-size: 12px; }
 .main-content { min-width: 0; padding: 0 36px 50px; }
 .topbar { height: 112px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid var(--line); margin-bottom: 30px; }
 .topbar h1 { margin: 2px 0 0; font-size: 29px; letter-spacing: -.02em; }

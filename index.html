@@ -22,8 +22,10 @@
         <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
         <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
         <p id="loginError" class="form-error hidden"></p>
+        <p id="loginNotice" class="form-success hidden"></p>
         <button class="primary-btn" type="submit">Ingresar</button>
         <button id="requestLoginCode" class="secondary-btn" type="button">Ingresar con código por email</button>
+        <button id="forgotPassword" class="ghost-btn" type="button">Olvidé mi contraseña</button>
       </form>
       <form id="registerForm" class="auth-form hidden">
         <div class="auth-grid">
@@ -44,6 +46,12 @@
           <button id="resendOtp" class="ghost-btn" type="button">Reenviar código</button>
           <button id="backFromOtp" class="ghost-btn" type="button">Volver</button>
         </div>
+      </form>
+      <form id="resetPasswordForm" class="auth-form hidden">
+        <label>Nueva contraseña<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Repetir contraseña<input name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" required></label>
+        <p id="resetError" class="form-error hidden"></p>
+        <button class="primary-btn" type="submit">Guardar nueva contraseña</button>
       </form>
     </div>
   </section>
