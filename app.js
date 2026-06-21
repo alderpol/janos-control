@@ -1,5 +1,10 @@
 import { cloudEnabled, getSession, loadCloudState, requestEmailCode, requestPasswordReset, signIn, signOut, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
+const PRODUCTION_HOST = "janos-control.vercel.app";
+if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
+  window.location.replace(`https://${PRODUCTION_HOST}${window.location.pathname}${window.location.search}${window.location.hash}`);
+}
+
 const STORAGE_KEY = "janos-control-v1";
 const MANAGED_SALONS = ["Quinta", "Pilar Hotel"];
 const STATUS_LABELS = { pending: "Pendiente", waiting: "Esperando cliente", progress: "En proceso", done: "Terminado", na: "No corresponde" };
