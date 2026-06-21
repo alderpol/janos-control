@@ -36,8 +36,8 @@
         <button class="primary-btn" type="submit">Enviar código de seguridad</button>
       </form>
       <form id="otpForm" class="auth-form hidden">
-        <p class="otp-email">Enviamos un código de 6 dígitos a <strong id="otpEmail"></strong>.</p>
-        <label>Código de seguridad<input class="otp-code" name="token" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required></label>
+        <p class="otp-email">Enviamos un código de seguridad a <strong id="otpEmail"></strong>.</p>
+        <label>Código de seguridad<input class="otp-code" name="token" inputmode="numeric" autocomplete="one-time-code" maxlength="8" pattern="[0-9]{6,8}" placeholder="00000000" required></label>
         <p id="otpError" class="form-error hidden"></p>
         <button class="primary-btn" type="submit">Verificar e ingresar</button>
         <div class="auth-actions">

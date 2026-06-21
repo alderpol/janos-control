@@ -424,7 +424,7 @@ document.getElementById("otpForm").addEventListener("submit", async event => {
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   const token = form.elements.token.value.replace(/\D/g, "");
-  if(token.length !== 6) { setFormError("otpError", "Ingresá los 6 dígitos del código."); return; }
+  if(token.length < 6 || token.length > 8) { setFormError("otpError", "Ingresá todos los dígitos del código recibido."); return; }
   button.disabled = true;
   button.textContent = "Verificando…";
   setFormError("otpError");
