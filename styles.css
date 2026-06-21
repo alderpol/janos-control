@@ -180,6 +180,10 @@ legend { padding: 0 7px; }
 .task-title strong, .task-title small { display: block; }.task-title small { color: var(--muted); margin-top: 2px; }
 .task-row select, .task-row input { border: 1px solid var(--line); border-radius: 8px; padding: 7px; width: 100%; background: var(--input); font-size: 12px; }
 .settings-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 20px; }
+.whatsapp-settings { grid-column: 1 / -1; }
+.whatsapp-settings textarea { resize: vertical; }
+.template-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.template-help code { display: inline-block; margin-right: 4px; padding: 1px 5px; border-radius: 5px; color: var(--purple); background: var(--surface-soft); }
 .rate-row { display: grid; grid-template-columns: 1fr 150px; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .rate-row input { border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: right; color: var(--ink); background: var(--input); }
 .toast { position: fixed; right: 24px; bottom: 24px; background: #261632; color: white; border-radius: 10px; padding: 12px 16px; box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); pointer-events: none; transition: .2s; }
