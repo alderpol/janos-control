@@ -71,13 +71,15 @@ export async function signOut() {
 }
 
 export async function loadCloudState(defaultRates) {
-  const [clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
+  const [profileResult, clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
+    supabase.from("profiles").select("settings").maybeSingle(),
     supabase.from("clients").select("*").order("event_date"),
     supabase.from("tasks").select("*").order("sort_order"),
     supabase.from("renditions").select("*").order("created_at", { ascending: false }),
     supabase.from("rates").select("*").order("valid_from"),
   ]);
 
+  const profileRow = check(profileResult, "Perfil");
   const clientRows = check(clientsResult, "Clientes");
   const taskRows = check(tasksResult, "Tareas");
   const renditionRows = check(renditionsResult, "Rendiciones");
@@ -111,6 +113,8 @@ export async function loadCloudState(defaultRates) {
     type: row.event_type,
     honoree: row.honoree,
     clientName: row.client_name || "",
+    clientPhone: row.client_phone || "",
+    contactedAt: row.contacted_at || "",
     guests: row.guests,
     pack: row.pack,
     addons: row.addons || [],
@@ -147,29 +151,43 @@ export async function loadCloudState(defaultRates) {
 
   const rates = { ...defaultRates };
   rateRows.forEach((row) => { rates[row.rate_key] = Number(row.amount); });
-  return { clients, renditions, rates, settings: { currency: "ARS" }, rateEffectiveDate: "2026-08-01" };
+  return { clients, renditions, rates, settings: { currency: "ARS", ...(profileRow?.settings || {}) }, rateEffectiveDate: "2026-08-01" };
+}
+
+function chunks(rows, size = 150) {
+  const result = [];
+  for (let index = 0; index < rows.length; index += size) result.push(rows.slice(index, index + size));
+  return result;
+}
+
+async function upsertInBatches(table, rows, label, options) {
+  for (const batch of chunks(rows)) check(await supabase.from(table).upsert(batch, options), label);
 }
 
 async function deleteMissing(table, ownerId, ids) {
-  let query = supabase.from(table).delete().eq("owner_id", ownerId);
-  if (ids.length) query = query.not("id", "in", `(${ids.join(",")})`);
-  check(await query, `Limpieza de ${table}`);
+  const existingRows = check(await supabase.from(table).select("id").eq("owner_id", ownerId), `Lectura de ${table}`);
+  const validIds = new Set(ids);
+  const obsoleteIds = existingRows.map(row => row.id).filter(id => !validIds.has(id));
+  for (const batch of chunks(obsoleteIds)) {
+    check(await supabase.from(table).delete().eq("owner_id", ownerId).in("id", batch), `Limpieza de ${table}`);
+  }
 }
 
 export async function syncCloudState(state, user) {
   const ownerId = user.id;
   const metadata = user.user_metadata || {};
   const displayName = metadata.full_name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Usuario";
-  check(await supabase.from("profiles").upsert({ id: ownerId, display_name: displayName }), "Perfil");
+  check(await supabase.from("profiles").upsert({ id: ownerId, display_name: displayName, settings: state.settings || {} }), "Perfil");
 
   const clientRows = state.clients.map((client) => ({
     id: client.id, owner_id: ownerId, code: String(client.code), event_date: client.eventDate,
     salon: client.salon, event_type: client.type, honoree: client.honoree,
-    client_name: client.clientName || null, guests: Number(client.guests || 0), pack: client.pack,
+    client_name: client.clientName || null, client_phone: client.clientPhone || null,
+    contacted_at: client.contactedAt || null, guests: Number(client.guests || 0), pack: client.pack,
     addons: client.addons || [], flex_services: client.flexServices || [], notes: client.notes || null,
     history: client.history || [],
   }));
-  if (clientRows.length) check(await supabase.from("clients").upsert(clientRows), "Guardado de clientes");
+  if (clientRows.length) await upsertInBatches("clients", clientRows, "Guardado de clientes");
 
   const taskRows = state.clients.flatMap((client) => client.tasks.map((task, index) => ({
     id: task.id, owner_id: ownerId, client_id: client.id, task_key: task.key, title: task.title,
@@ -178,7 +196,7 @@ export async function syncCloudState(state, user) {
     rendition_category: task.category || null, rendition_work: task.work || null,
     rate_key: task.rateKey || null, sort_order: index,
   })));
-  if (taskRows.length) check(await supabase.from("tasks").upsert(taskRows), "Guardado de tareas");
+  if (taskRows.length) await upsertInBatches("tasks", taskRows, "Guardado de tareas");
 
   const renditionRows = state.renditions.map((item) => ({
     id: item.id, owner_id: ownerId, client_id: item.clientId, task_id: item.taskId || null,
@@ -189,13 +207,13 @@ export async function syncCloudState(state, user) {
     submitted_at: item.status === "submitted" ? new Date().toISOString() : null,
     paid_at: item.status === "paid" ? new Date().toISOString() : null,
   }));
-  if (renditionRows.length) check(await supabase.from("renditions").upsert(renditionRows), "Guardado de rendiciones");
+  if (renditionRows.length) await upsertInBatches("renditions", renditionRows, "Guardado de rendiciones");
 
   const validFrom = state.rateEffectiveDate || "2026-08-01";
   const rateRows = Object.entries(state.rates).map(([key, amount]) => ({
     owner_id: ownerId, rate_key: key, label: key, amount: Number(amount || 0), valid_from: validFrom,
   }));
-  check(await supabase.from("rates").upsert(rateRows, { onConflict: "owner_id,rate_key,valid_from" }), "Guardado de tarifas");
+  await upsertInBatches("rates", rateRows, "Guardado de tarifas", { onConflict: "owner_id,rate_key,valid_from" });
 
   await deleteMissing("renditions", ownerId, state.renditions.map((row) => row.id));
   await deleteMissing("tasks", ownerId, taskRows.map((row) => row.id));
