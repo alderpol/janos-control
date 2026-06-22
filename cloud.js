@@ -70,6 +70,24 @@ export async function signOut() {
   if (error) throw error;
 }
 
+export async function getAccessProfile() {
+  if (!supabase) return { role: "user", status: "active" };
+  const { data, error } = await supabase.from("profiles").select("role,status").maybeSingle();
+  if (error) throw error;
+  return data || { role: "user", status: "active" };
+}
+
+export async function listUserProfiles() {
+  const { data, error } = await supabase.from("profiles").select("id,display_name,email,whatsapp,role,status,created_at,last_seen_at").order("created_at");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function setUserStatus(userId, status) {
+  const { error } = await supabase.rpc("admin_set_user_status", { target_id: userId, new_status: status });
+  if (error) throw error;
+}
+
 export async function loadCloudState(defaultRates) {
   const [profileResult, clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
     supabase.from("profiles").select("settings").maybeSingle(),
@@ -177,7 +195,7 @@ export async function syncCloudState(state, user) {
   const ownerId = user.id;
   const metadata = user.user_metadata || {};
   const displayName = metadata.full_name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Usuario";
-  check(await supabase.from("profiles").upsert({ id: ownerId, display_name: displayName, settings: state.settings || {} }), "Perfil");
+  check(await supabase.from("profiles").upsert({ id: ownerId, display_name: displayName, email: user.email || null, whatsapp: metadata.whatsapp || null, last_seen_at: new Date().toISOString(), settings: state.settings || {} }), "Perfil");
 
   const clientRows = state.clients.map((client) => ({
     id: client.id, owner_id: ownerId, code: String(client.code), event_date: client.eventDate,
