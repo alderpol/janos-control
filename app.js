@@ -9,7 +9,19 @@ const STORAGE_KEY = "janos-control-v1";
 const MANAGED_SALONS = ["Quinta", "Pilar Hotel"];
 const STATUS_LABELS = { pending: "Pendiente", waiting: "Esperando cliente", progress: "En proceso", done: "Terminado", na: "No corresponde" };
 const RENDITION_STATUS = { pending: "Pendiente", submitted: "Rendido", approved: "Aprobado", paid: "Pagado" };
-const DEFAULT_WHATSAPP_TEMPLATE = "Hola {nombre}, ¿cómo estás? Te saluda {remitente} de Fotografía y Video de Janos. Me comunico por el evento de {homenajeado}, programado para el {fecha} en {salon}. Este será nuestro canal de contacto para coordinar todo lo relacionado con fotografía y video. ¡Un gusto acompañarte!";
+const DEFAULT_WHATSAPP_TEMPLATE = `Hola {nombre}, ¡buenos días!
+
+Mi nombre es {remitente}, del Departamento de Fotografía de Janos. ¡Es un gusto poder comenzar a trabajar juntos!
+
+Te escribo para presentarme y contarte que nuestro equipo realizará la cobertura de fotografía y video del evento de {homenajeado}, programado para el {fecha} en {salon}.
+
+He creado un grupo de WhatsApp para que podamos estar en contacto permanente y evacuar cualquier duda relacionada con fotografía y video.
+
+En breve te enviaré el enlace de acceso. Podés compartirlo con quienes corresponda: mamá, papá, agasajado/a u otra persona responsable.
+
+Una vez que todos hayan ingresado al grupo, enviame un mensaje por allí para que pueda compartirles información importante.
+
+¡Estamos a su entera disposición! ¡Muchas gracias!`;
 
 const ADDONS = [
   ["pant", "Pantalla"], ["pixel", "Pixel"], ["miniflex", "Mini Flex"], ["flex", "Flex"],
