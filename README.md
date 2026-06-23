@@ -7,8 +7,8 @@ MVP local para seguimiento de clientes, tareas y rendiciones de fotografía y vi
 Crear `.env.local` a partir de `.env.example` y ejecutar:
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Con variables de Supabase configuradas, los datos se sincronizan con la nube y `localStorage` funciona como respaldo local. Desde Configuración se puede exportar e importar una copia JSON.
