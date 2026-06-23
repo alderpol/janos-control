@@ -320,8 +320,15 @@ legend { padding: 0 6px; }
   .form-grid, .check-grid, .check-grid.compact, .detail-summary { grid-template-columns: 1fr 1fr; }
   .photo-session-panel { align-items: stretch; flex-direction: column; }
   .photo-session-panel .secondary-btn { width: 100%; }
-  .task-row { grid-template-columns: 28px 1fr; }
-  .task-row select, .task-row input { grid-column: 2; }
+  .task-row {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px 8px; border-bottom: 1px solid var(--line);
+  }
+  .task-row > * { width: 100%; }
+  .task-check { width: 22px; height: 22px; }
+  .task-title { display: flex; align-items: flex-start; gap: 10px; }
+  .task-title strong { font-size: 13px; white-space: normal; line-height: 1.4; }
+  .task-row select, .task-row input { grid-column: unset; }
   .rendition-row { grid-template-columns: 1fr 1fr; }
   .rendition-row > :first-child, .rendition-actions { grid-column: 1 / -1; }
   .rendition-row > :nth-child(2), .rendition-row > :nth-child(3), .rendition-row.header { display: none; }
