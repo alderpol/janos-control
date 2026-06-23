@@ -1,4 +1,4 @@
-import { cloudEnabled, deleteUser, getAccessProfile, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, deleteUser, getAccessProfile, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -518,20 +518,35 @@ document.getElementById("registerForm").addEventListener("submit", async event =
   const firstName = form.elements.firstName.value.trim();
   const lastName = form.elements.lastName.value.trim();
   const whatsapp = form.elements.whatsapp.value.trim();
+  const password = form.elements.password.value;
   const phoneDigits = whatsapp.replace(/\D/g, "");
   if(phoneDigits.length < 8 || phoneDigits.length > 15) {
     setFormError("signupError", "Ingresá un número de WhatsApp válido, con código de área.");
     form.elements.whatsapp.focus();
     return;
   }
+  if(password.length < 8) {
+    setFormError("signupError", "La contraseña debe tener al menos 8 caracteres.");
+    form.elements.password.focus();
+    return;
+  }
   setFormError("signupError");
-  const request = {
-    email: form.elements.email.value.trim().toLowerCase(),
-    createUser: true,
-    profile: { first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`, whatsapp },
-  };
-  const result = await sendOtp(request, form.querySelector('button[type="submit"]'));
-  if(result instanceof Error) setFormError("signupError", authErrorMessage(result, "No pudimos crear la cuenta ni enviar el código."));
+  const button = form.querySelector('button[type="submit"]');
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Creando cuenta…";
+  try {
+    await signUp(form.elements.email.value.trim().toLowerCase(), password, {
+      first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`, whatsapp
+    });
+    setFormWarning("signupError", "¡Cuenta creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");
+    form.reset();
+  } catch(error) {
+    setFormError("signupError", authErrorMessage(error, "No pudimos crear la cuenta."));
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 });
 
 document.getElementById("otpForm").addEventListener("submit", async event => {

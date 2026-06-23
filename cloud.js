@@ -29,6 +29,17 @@ export async function signIn(email, password) {
   return data.session;
 }
 
+
+export async function signUp(email, password, profile = {}) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: profile },
+  });
+  if (error) throw error;
+  return data;
+}
 export async function requestEmailCode(email, { createUser = false, profile = {} } = {}) {
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { error } = await supabase.auth.signInWithOtp({
@@ -107,19 +118,6 @@ export async function setUserStatus(userId, status) {
   if (error) throw error;
 }
 
-
-export async function deleteUser(userId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const response = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${session?.access_token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ userId }),
-  });
-  if (!response.ok) throw new Error("No se pudo eliminar el usuario");
-}
 export async function loadCloudState(defaultRates) {
   const [profileResult, clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
     supabase.from("profiles").select("settings").maybeSingle(),
