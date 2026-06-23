@@ -138,6 +138,7 @@ export async function loadCloudState(defaultRates) {
     addons: row.addons || [],
     flexServices: row.flex_services || [],
     notes: row.notes || "",
+    photoSession: row.photo_session || null,
     history: row.history || [],
     createdAt: row.created_at,
     tasks: tasksByClient.get(row.id) || [],
@@ -203,6 +204,7 @@ export async function syncCloudState(state, user) {
     client_name: client.clientName || null, client_phone: client.clientPhone || null,
     contacted_at: client.contactedAt || null, guests: Number(client.guests || 0), pack: client.pack,
     addons: client.addons || [], flex_services: client.flexServices || [], notes: client.notes || null,
+    photo_session: client.photoSession || null,
     history: client.history || [],
   }));
   if (clientRows.length) await upsertInBatches("clients", clientRows, "Guardado de clientes");

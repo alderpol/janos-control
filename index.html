@@ -130,6 +130,34 @@
     <div id="clientDetail"></div>
   </dialog>
 
+  <dialog id="photoSessionDialog" class="modal">
+    <form id="photoSessionForm" method="dialog">
+      <div class="modal-head">
+        <div><p class="eyebrow">Google Calendar</p><h2>Agendar sesión de fotos</h2></div>
+        <button class="icon-btn" type="button" data-close-photo-session aria-label="Cerrar">×</button>
+      </div>
+      <input type="hidden" name="clientId">
+      <div class="form-grid">
+        <label>Día<input name="date" required type="date"></label>
+        <label>Hora<input name="time" required type="time"></label>
+        <label>Lugar / salón<input name="location" required placeholder="Ej. Quinta, Pilar Hotel o dirección"></label>
+        <label>Duración<select name="duration"><option value="60">1 hora</option><option value="90" selected>1 hora 30 min</option><option value="120">2 horas</option><option value="180">3 horas</option></select></label>
+      </div>
+      <fieldset>
+        <legend>Opcionales no obligatorios</legend>
+        <div class="check-grid compact">
+          <label><input type="checkbox" name="includesFashionProduction">Incluye producción de moda</label>
+          <label><input type="checkbox" name="includesMakeupHair">Incluye maquillaje y peinado</label>
+        </div>
+      </fieldset>
+      <label class="full-label">Notas<textarea name="notes" rows="3" placeholder="Indicaciones para el equipo o el cliente"></textarea></label>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" data-close-photo-session>Cancelar</button>
+        <button class="primary-btn" type="submit">Agendar en Google Calendar</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/app.js"></script>
 </body>
