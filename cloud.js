@@ -79,11 +79,16 @@ export async function getAccessProfile() {
 
 export async function listUserProfiles() {
   const { data: { session } } = await supabase.auth.getSession();
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/list-profiles`, {
+  const url = supabase.supabaseUrl;
+  const response = await fetch(`${url}/functions/v1/list-profiles`, {
     headers: {
       Authorization: `Bearer ${session?.access_token}`,
       "Content-Type": "application/json",
     },
+  });
+  if (!response.ok) throw new Error("No se pudieron cargar los usuarios");
+  return await response.json();
+}
   });
   if (!response.ok) throw new Error("No se pudieron cargar los usuarios");
   return await response.json();
