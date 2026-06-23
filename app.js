@@ -421,7 +421,7 @@ function setAuthMode(mode) {
   const content = {
     login: ["Ingresar a Janos Control", "Accedé con tu contraseña o recibí un código en tu email."],
     register: ["Crear una cuenta", "Cada colega tendrá su espacio privado de clientes, tareas y rendiciones."],
-    otp: ["Verificá tu email", "Este paso confirma que la dirección de correo realmente te pertenece."],
+    otp: ["Verificá tu email", "Te enviamos un código de seguridad. Si no lo ves en tu bandeja de entrada, revisá la carpeta de Spam o Correo no deseado."],
     reset: ["Creá una nueva contraseña", "Elegí una contraseña segura de al menos 8 caracteres."],
   }[mode];
   document.getElementById("authTitle").textContent = content[0];
