@@ -78,9 +78,15 @@ export async function getAccessProfile() {
 }
 
 export async function listUserProfiles() {
-  const { data, error } = await supabase.from("profiles").select("id,display_name,email,whatsapp,role,status,created_at,last_seen_at").order("created_at");
-  if (error) throw error;
-  return data || [];
+  const { data: { session } } = await supabase.auth.getSession();
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/list-profiles`, {
+    headers: {
+      Authorization: `Bearer ${session?.access_token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) throw new Error("No se pudieron cargar los usuarios");
+  return await response.json();
 }
 
 export async function notifyUserApproved(userId, email, name) {
