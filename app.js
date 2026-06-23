@@ -1,4 +1,4 @@
-import { cloudEnabled, getAccessProfile, getSession, listUserProfiles, loadCloudState, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, getAccessProfile, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
