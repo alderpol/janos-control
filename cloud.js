@@ -83,6 +83,19 @@ export async function listUserProfiles() {
   return data || [];
 }
 
+export async function notifyUserApproved(userId, email, name) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${supabaseUrl}/functions/v1/notify-user-approved`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session?.access_token}`,
+    },
+    body: JSON.stringify({ email, name }),
+  });
+  if (!res.ok) throw new Error("No se pudo enviar el email");
+}
+
 export async function setUserStatus(userId, status) {
   const { error } = await supabase.rpc("admin_set_user_status", { target_id: userId, new_status: status });
   if (error) throw error;
