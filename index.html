@@ -39,6 +39,12 @@
         </div>
         <label>WhatsApp<input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej. 11 1234 5678" required></label>
         <label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>
+        <label>Crea una contraseña
+  <div class="password-field">
+    <input name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="Mínimo 8 caracteres">
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
         <p id="signupError" class="form-error hidden"></p>
         <button class="primary-btn" type="submit">Enviar código de seguridad</button>
       </form>
