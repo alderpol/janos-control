@@ -313,6 +313,7 @@ document.addEventListener("click", e => {
   const open=e.target.closest("[data-open-client]"); if(open)openClientDetail(open.dataset.openClient);
   const contact=e.target.closest("[data-contact-client]");if(contact)contactClient(contact.dataset.contactClient);
   const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
+  const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
   const userStatus=e.target.closest("[data-user-status]");if(userStatus)changeUserStatus(userStatus.dataset.userStatus,userStatus.dataset.nextStatus);
   const edit=e.target.closest("[data-edit-client]"); if(edit){document.getElementById("detailDialog").close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient));}
   if(e.target.closest("[data-close-detail]"))document.getElementById("detailDialog").close();
