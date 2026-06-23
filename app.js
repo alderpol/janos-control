@@ -49,7 +49,9 @@ const BASE_RATES = {
 const CORE_TASKS = [
   task("contact", "Contactar al cliente y explicar el servicio", "Preparación"),
   task("verify", "Verificar pack, upgrades y elecciones", "Preparación"),
-  task("coverage", "Realizar cobertura del evento", "Evento", true, "PERSONAL FOTOGRAFIA", "Fiesta (cobertura y edicion)", "silver"),
+  task("coveragePhoto", "Realizar cobertura fotográfica del evento", "Evento", true, "PERSONAL FOTOGRAFIA", "Fiesta (cobertura y edicion)", "silver"),
+  task("coverageVideoCapture", "Realizar cobertura de video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (cobertura sin edicion)", "eventCoverage"),
+  task("coverageVideoEdit", "Editar video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (edicion)", "eventEdit"),
   task("backup", "Completar backup del salón", "Evento"),
   task("photoEdit", "Editar fotografías del evento", "Post-evento"),
   task("video20", "Editar video principal de aproximadamente 20 minutos", "Post-evento"),
