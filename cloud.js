@@ -72,9 +72,9 @@ export async function signOut() {
 
 export async function getAccessProfile() {
   if (!supabase) return { role: "user", status: "active" };
-  const { data, error } = await supabase.from("profiles").select("role,status").maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("role,status,display_name").maybeSingle();
   if (error) throw error;
-  return data || { role: "user", status: "active" };
+  return data || { role: "user", status: "active", display_name: "" };
 }
 
 export async function listUserProfiles() {

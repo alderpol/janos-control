@@ -570,7 +570,7 @@ async function startApplication(session){
   if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","Tu cuenta está bloqueada. Contactá al administrador.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
   else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
   const metadata = currentUser?.user_metadata || {};
-  document.getElementById("signedInUser").textContent=metadata.full_name||currentUser?.email||"Modo local";
+  document.getElementById("signedInUser").textContent=accessProfile.display_name||metadata.full_name||currentUser?.email||"Modo local";
   document.getElementById("usersNav").classList.toggle("hidden",accessProfile.role!=="admin");
   document.getElementById("authGate").classList.add("hidden");document.getElementById("appShell").classList.remove("hidden");render();setView(activeView);
 }
