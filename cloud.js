@@ -107,6 +107,19 @@ export async function setUserStatus(userId, status) {
   if (error) throw error;
 }
 
+
+export async function deleteUser(userId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const response = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session?.access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+  if (!response.ok) throw new Error("No se pudo eliminar el usuario");
+}
 export async function loadCloudState(defaultRates) {
   const [profileResult, clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
     supabase.from("profiles").select("settings").maybeSingle(),
