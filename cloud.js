@@ -155,18 +155,9 @@ export async function loadCloudState(defaultRates) {
     observations: row.observations || "",
     workDate: row.work_date,
     periodEnd: row.period_end,
+    archivedAt: row.archived_at || "",
     createdAt: row.created_at,
   }));
-
-  const renditionArchiveState = new Map();
-  clients.forEach((client) => {
-    (client.history || []).forEach((entry) => {
-      if (entry?.type === "rendition_archive" && entry.renditionId) {
-        renditionArchiveState.set(entry.renditionId, entry.archived ? entry.date || "archived" : "");
-      }
-    });
-  });
-  renditions.forEach((item) => { item.archivedAt = renditionArchiveState.get(item.id) || ""; });
 
   const rates = { ...defaultRates };
   rateRows.forEach((row) => { rates[row.rate_key] = Number(row.amount); });
@@ -224,6 +215,7 @@ export async function syncCloudState(state, user) {
     observations: item.observations || null,
     work_date: item.workDate,
     period_end: item.periodEnd,
+    archived_at: item.archivedAt || null,
     submitted_at: item.status === "submitted" ? new Date().toISOString() : null,
     paid_at: item.status === "paid" ? new Date().toISOString() : null,
   }));
