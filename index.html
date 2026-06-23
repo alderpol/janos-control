@@ -20,7 +20,12 @@
       </div>
       <form id="loginForm" class="auth-form">
         <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
-        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+        <label>Contraseña
+  <div class="password-field">
+    <input name="password" type="password" autocomplete="current-password" required>
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
         <p id="loginError" class="form-error hidden"></p>
         <p id="loginNotice" class="form-success hidden"></p>
         <button class="primary-btn" type="submit">Ingresar</button>
@@ -48,8 +53,18 @@
         </div>
       </form>
       <form id="resetPasswordForm" class="auth-form hidden">
-        <label>Nueva contraseña<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
-        <label>Repetir contraseña<input name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" required></label>
+<label>Nueva contraseña
+  <div class="password-field">
+    <input name="password" type="password" autocomplete="new-password" minlength="8" required>
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
+<label>Repetir contraseña
+  <div class="password-field">
+    <input name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" required>
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
         <p id="resetError" class="form-error hidden"></p>
         <button class="primary-btn" type="submit">Guardar nueva contraseña</button>
       </form>
