@@ -268,6 +268,11 @@ legend { padding: 0 6px; }
 .photo-session-panel span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .photo-session-panel strong { margin-top: 4px; font-size: 13px; color: var(--ink); }
 .phase-title { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: .1em; margin: 20px 0 8px; font-weight: 700; }
+
+/* ── TAREAS (vista global por rol) ── */
+.task-groups { display: flex; flex-direction: column; gap: 16px; }
+.task-group .panel-head span { display: block; margin-top: 3px; }
+.task-group .panel-body .task-row:last-child { border-bottom: 0; }
 .task-row { display: grid; grid-template-columns: 32px minmax(190px, 1fr) 135px 138px 145px 175px; gap: 8px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); }
 .task-check { width: 20px; height: 20px; accent-color: var(--gold); }
 .task-row.done .task-title { text-decoration: line-through; color: var(--muted); }

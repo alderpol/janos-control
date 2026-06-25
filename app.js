@@ -94,6 +94,21 @@ function task(key, title, phase, payable = false, category = "", work = "", rate
   return { key, title, phase, payable, category, work, rateKey };
 }
 
+// Tareas que son exclusivas de un rol; lo que no figura acá se considera "ambos" (general/coordinación).
+const TASK_ROLES = {
+  coveragePhoto: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video",
+  photoEdit: "foto", video20: "video", videoSummary: "video", sendPhotos: "foto", sendVideo: "video",
+  bookCoveragePhoto: "foto", bookCoverageVideo: "video", backstage: "video", mural: "foto",
+  vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
+  flexChurch: "foto", flexCivil: "foto", flexPhotoExtra: "foto", flexVideoExtra: "video",
+  flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
+  flexSessionPhoto: "foto", flexSessionVideo: "video",
+  screenVideo: "video", pixelCheck: "foto", bookModa: "foto",
+  signatureBook: "foto", partyBookSelection: "foto", partyBook: "foto", totemDigital: "foto",
+  informal: "foto"
+};
+function taskRole(key) { return TASK_ROLES[key] || "ambos"; }
+
 function initialState() {
   return { clients: [], renditions: [], rates: { ...BASE_RATES }, settings: { currency: "ARS" }, seeded: false };
 }
@@ -103,6 +118,7 @@ let state = loadState(storageKey);
 let activeView = "dashboard";
 let clientViewMode = "upcoming";
 let clientFilters = { search: "", salon: "", month: "", pack: "", addon: "" };
+let taskRoleFilter = localStorage.getItem("janosTaskRole") || "todos";
 let renditionViewMode = "active";
 let currentUser = null;
 let pendingOtp = null;
@@ -155,7 +171,7 @@ function isPastEvent(client){return String(client?.eventDate||"")<todayIso();}
 function periodEndFor(workDate){const date=parseDate(workDate);const advance=date.getDate()>20;date.setDate(1);if(advance)date.setMonth(date.getMonth()+1);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-20`;}
 
 function render() {
-  renderDashboard(); renderClients(); renderRenditions(); renderSettings(); renderUsers();
+  renderDashboard(); renderClients(); renderTasks(); renderRenditions(); renderSettings(); renderUsers();
   document.getElementById("navRenditionCount").textContent = state.renditions.filter(r => r.status === "pending").length;
 }
 
@@ -241,6 +257,20 @@ function savePhotoSession(form){const data=Object.fromEntries(new FormData(form)
 function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag">${isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button><button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
 function progress(c) { const applicable=c.tasks.filter(t=>t.status!=="na"); return applicable.length ? Math.round(applicable.filter(t=>t.status==="done").length/applicable.length*100) : 0; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
+
+function globalTaskItems() { return state.clients.filter(c => !isPastEvent(c)).flatMap(c => c.tasks.filter(t => !["done", "na"].includes(t.status)).map(t => ({ c, t }))); }
+function filterByRole(items, role) { return role === "todos" ? items : items.filter(({ t }) => { const r = taskRole(t.key); return r === "ambos" || r === role; }); }
+function setTaskRoleFilter(role) { taskRoleFilter = role; localStorage.setItem("janosTaskRole", role); renderTasks(); }
+function renderTasks() {
+  const view = document.getElementById("tasksView"); if (!view) return;
+  const all = globalTaskItems();
+  const fotoCount = filterByRole(all, "foto").length, videoCount = filterByRole(all, "video").length, todosCount = all.length;
+  const items = filterByRole(all, taskRoleFilter).sort((a, b) => daysUntil(a.c.eventDate) - daysUntil(b.c.eventDate));
+  const groups = [];
+  items.forEach(({ c, t }) => { let g = groups.find(x => x.c.id === c.id); if (!g) { g = { c, tasks: [] }; groups.push(g); } g.tasks.push(t); });
+  const body = groups.length ? groups.map(g => `<div class="panel task-group"><div class="panel-head"><div><h3>${escapeHtml(g.c.honoree)}</h3><span class="muted">#${escapeHtml(g.c.code)} · ${dateText(g.c.eventDate)} · ${escapeHtml(g.c.salon)}</span></div><button class="ghost-btn" data-open-client="${g.c.id}">Ver ficha</button></div><div class="panel-body">${g.tasks.map(t => taskRow(g.c, t)).join("")}</div></div>`).join("") : empty("Sin tareas pendientes", "No hay tareas pendientes para este filtro.");
+  view.innerHTML = `<div class="view-switch" aria-label="Filtrar tareas por rol"><button class="${taskRoleFilter === "todos" ? "active" : ""}" data-task-role="todos">Todos <b>${todosCount}</b></button><button class="${taskRoleFilter === "foto" ? "active" : ""}" data-task-role="foto">📷 Fotógrafo <b>${fotoCount}</b></button><button class="${taskRoleFilter === "video" ? "active" : ""}" data-task-role="video">🎥 Videógrafo <b>${videoCount}</b></button></div><div class="task-groups">${body}</div>`;
+}
 
 let renditionCategoryFilter = "";
 function renderRenditions() {
@@ -347,13 +377,14 @@ function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id==
 function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);existing.amount=includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0;existing.work=t.work+(includesEdit?" + edición":"");}saveState();openClientDetail(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
 function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
-function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users");document.querySelector(".sidebar").classList.remove("open");}
+function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks");document.querySelector(".sidebar").classList.remove("open");}
 function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
 
 document.addEventListener("click", e => {
   const nav=e.target.closest("[data-view]"); if(nav)setView(nav.dataset.view);
   const go=e.target.closest("[data-go]"); if(go)setView(go.dataset.go);
   const clientView=e.target.closest("[data-client-view]");if(clientView){clientViewMode=clientView.dataset.clientView;renderClients();}
+  const taskRoleBtn=e.target.closest("[data-task-role]");if(taskRoleBtn)setTaskRoleFilter(taskRoleBtn.dataset.taskRole);
   const renditionView=e.target.closest("[data-rendition-view]");if(renditionView){renditionViewMode=renditionView.dataset.renditionView;renderRenditions();}
   const open=e.target.closest("[data-open-client]"); if(open)openClientDetail(open.dataset.openClient);
   const contact=e.target.closest("[data-contact-client]");if(contact)contactClient(contact.dataset.contactClient);
