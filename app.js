@@ -140,6 +140,7 @@ function createTasks(client) {
   if (client.addons.includes("moda")) definitions.push(task("bookModa", "Realizar adicional de book con producción de moda", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Adicional book con Moda", "bookModa"));
   if (client.addons.includes("libro")) definitions.push(
     task("signatureBook", "Diseñar libro de firmas", "Pre-evento", true, "COMPLEMENTOS", "Libro firmas (Fotografia Digital)", "signatureDesign"),
+    task("partyBookSelection", "Pedirle al cliente que envíe la selección de fotos del libro de fiesta", "Post-evento"),
     task("partyBook", "Diseñar y enviar libro de fiesta al laboratorio", "Entrega", true, "COMPLEMENTOS", "Libro Fiesta (Fotografia Digital)", "partyBookDesign")
   );
   client.flexServices.forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
