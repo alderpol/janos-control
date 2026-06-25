@@ -1,4 +1,4 @@
-import { cloudEnabled, getAccessProfile, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, deleteUser, getAccessProfile, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -251,8 +251,9 @@ function renderSettings() {
   document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><div class="panel"><div class="panel-head"><h2>Tarifas vigentes</h2><span class="muted">Editables</span></div><div class="panel-body">${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}</span><input type="number" min="0" data-rate="${key}" value="${val}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></div><div class="panel"><div class="panel-head"><h2>Datos</h2></div><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><button class="secondary-btn" id="regenerateTasks">Regenerar tareas de todos los clientes</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></div><div class="panel whatsapp-settings"><div class="panel-head"><h2>Mensaje inicial de WhatsApp</h2><span class="muted">Editable</span></div><div class="panel-body"><label>Texto del mensaje<textarea id="whatsappTemplate" rows="7">${escapeHtml(state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE)}</textarea></label><p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="secondary-btn" id="resetWhatsappTemplate">Restaurar original</button><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensaje</button></div></div></div></div>`;
 }
 function accessDate(value){return value?new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value)):"Nunca";}
-function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button>`}</div></div>`).join("")}</div>`;}
+function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
 async function changeUserStatus(id,status){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿${status==="blocked"?"Bloquear":"Reactivar"} la cuenta de ${user.display_name||user.email}?`))return;try{await setUserStatus(id,status);if(status==="active"&&user.email){try{await notifyUserApproved(id,user.email,user.display_name||"");toast("Usuario reactivado y notificado por email");}catch(e){console.error(e);toast("Usuario reactivado · no se pudo enviar el email");}}else{toast(status==="blocked"?"Usuario bloqueado":"Usuario reactivado");}adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo cambiar el acceso");}}
+async function deleteUserAccount(id){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿Eliminar definitivamente la cuenta de ${user.display_name||user.email}? Esta acción no se puede deshacer.`))return;try{await deleteUser(id);toast("Usuario eliminado");adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo eliminar el usuario");}}
 function rateLabel(k) { return ({gold:"Gold completo",silver:"Silver completo",book:"Book completo",eventCoverage:"Cobertura evento",eventEdit:"Edición evento",bookCoverage:"Cobertura book",bookEdit:"Edición book",informal:"Informal completo",informalRecording:"Informal solo grabación",ceremony:"Ceremonia completa",ceremonyRecording:"Ceremonia grabación",ceremonyEdit:"Ceremonia edición",drone:"Drone",photoExtra:"Fotógrafo extra",videoExtra:"Videógrafo extra",liveEditor:"Edición en vivo",signatureDesign:"Diseño libro firmas + mural",partyBookDesign:"Diseño libro fiesta",videoExtraClip:"Video crono/entrada",albumInteractive:"Álbum interactivo",droneEdit:"Edición drone FPV",assistant:"Asistente book",extraSheet:"Pliego extra",churchUpgrade:"Iglesia por upgrade",totemDigital:"Tótem / Televisor Fotografía Digital",bookModa:"Adicional book con Moda"})[k]||k; }
 
 function openClientForm(client=null) {
@@ -344,6 +345,7 @@ document.addEventListener("click", e => {
   const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
   const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;const _ct=c.tasks.find(t=>t.key==="coordinateSession");if(_ct&&_ct.status==="done"){_ct.status="pending";_ct.completedAt="";}c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
   const userStatus=e.target.closest("[data-user-status]");if(userStatus)changeUserStatus(userStatus.dataset.userStatus,userStatus.dataset.nextStatus);
+  const deleteUserBtn=e.target.closest("[data-delete-user]");if(deleteUserBtn)deleteUserAccount(deleteUserBtn.dataset.deleteUser);
   const edit=e.target.closest("[data-edit-client]"); if(edit){document.getElementById("detailDialog").close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient));}
   if(e.target.closest("[data-close-detail]"))document.getElementById("detailDialog").close();
   if(e.target.closest("[data-close-client-form]"))document.getElementById("clientDialog").close();
@@ -402,6 +404,13 @@ function authErrorMessage(error, fallback = "No pudimos completar la operación.
 function setFormError(id, message = "") {
   const element = document.getElementById(id);
   element.textContent = message;
+  element.classList.remove("form-warning");
+  element.classList.toggle("hidden", !message);
+}
+function setFormWarning(id, message = "") {
+  const element = document.getElementById(id);
+  element.textContent = message;
+  element.classList.add("form-warning");
   element.classList.toggle("hidden", !message);
 }
 
@@ -422,7 +431,7 @@ function setAuthMode(mode) {
   const content = {
     login: ["Ingresar a Janos Control", "Accedé con tu contraseña o recibí un código en tu email."],
     register: ["Crear una cuenta", "Cada colega tendrá su espacio privado de clientes, tareas y rendiciones."],
-    otp: ["Verificá tu email", "Este paso confirma que la dirección de correo realmente te pertenece."],
+    otp: ["Verificá tu email", "Te enviamos un código de seguridad. Si no lo ves en tu bandeja de entrada, revisá la carpeta de Spam o Correo no deseado."],
     reset: ["Creá una nueva contraseña", "Elegí una contraseña segura de al menos 8 caracteres."],
   }[mode];
   document.getElementById("authTitle").textContent = content[0];
@@ -512,20 +521,35 @@ document.getElementById("registerForm").addEventListener("submit", async event =
   const firstName = form.elements.firstName.value.trim();
   const lastName = form.elements.lastName.value.trim();
   const whatsapp = form.elements.whatsapp.value.trim();
+  const password = form.elements.password.value;
   const phoneDigits = whatsapp.replace(/\D/g, "");
   if(phoneDigits.length < 8 || phoneDigits.length > 15) {
     setFormError("signupError", "Ingresá un número de WhatsApp válido, con código de área.");
     form.elements.whatsapp.focus();
     return;
   }
+  if(password.length < 8) {
+    setFormError("signupError", "La contraseña debe tener al menos 8 caracteres.");
+    form.elements.password.focus();
+    return;
+  }
   setFormError("signupError");
-  const request = {
-    email: form.elements.email.value.trim().toLowerCase(),
-    createUser: true,
-    profile: { first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`, whatsapp },
-  };
-  const result = await sendOtp(request, form.querySelector('button[type="submit"]'));
-  if(result instanceof Error) setFormError("signupError", authErrorMessage(result, "No pudimos crear la cuenta ni enviar el código."));
+  const button = form.querySelector('button[type="submit"]');
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Creando cuenta…";
+  try {
+    await signUp(form.elements.email.value.trim().toLowerCase(), password, {
+      first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`, whatsapp
+    });
+    setFormWarning("signupError", "¡Cuenta creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");
+    form.reset();
+  } catch(error) {
+    setFormError("signupError", authErrorMessage(error, "No pudimos crear la cuenta."));
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 });
 
 document.getElementById("otpForm").addEventListener("submit", async event => {
@@ -588,7 +612,7 @@ document.getElementById("signOutBtn").addEventListener("click",async()=>{await r
 
 async function startApplication(session){
   currentUser=session?.user||null;
-  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","Tu cuenta está bloqueada. Contactá al administrador.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
   else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
   const metadata = currentUser?.user_metadata || {};
   document.getElementById("signedInUser").textContent=accessProfile.display_name||metadata.full_name||currentUser?.email||"Modo local";

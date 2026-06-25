@@ -73,6 +73,7 @@ nav { display: grid; gap: 3px; }
 .otp-code { text-align: center; letter-spacing: .35em; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .form-error { color: var(--red); background: var(--red-soft); border: 1px solid rgba(248,113,113,.2); border-radius: 8px; padding: 9px; margin: 0; font-size: 12px; }
 .form-success { color: var(--green); background: var(--green-soft); border: 1px solid rgba(52,211,153,.2); border-radius: 8px; padding: 9px; margin: 0; font-size: 12px; }
+.form-warning { color: var(--gold); background: rgba(201,168,76,.12); border: 1px solid rgba(201,168,76,.3); border-radius: 8px; padding: 9px; margin: 0; font-size: 12px; }
 
 /* ── LAYOUT ── */
 .main-content { min-width: 0; padding: 0 32px 50px; background: var(--bg); }
