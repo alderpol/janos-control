@@ -164,6 +164,7 @@ function renderDashboard() {
   const pendingR = state.renditions.filter(r => r.status === "pending" && !r.archivedAt);
   const nextEvents = activeClients.sort((a,b) => parseDate(a.eventDate) - parseDate(b.eventDate)).slice(0, 7);
   const waiting = state.clients.flatMap(c => c.tasks).filter(t => t.status === "waiting").length;
+  const contactWatch = contactWatchItems();
   document.getElementById("dashboardView").innerHTML = `
     <div class="kpi-grid">
       ${kpi("Clientes activos", activeClients.length, "eventos próximos")}
@@ -178,7 +179,8 @@ function renderDashboard() {
       <div class="panel"><div class="panel-head"><h2>Atención requerida</h2></div><div class="panel-body stack">
         ${attentionItems() || `<div class="empty"><strong>Todo en orden</strong>No hay alertas urgentes.</div>`}
       </div></div>
-    </div>`;
+    </div>
+    ${contactWatch ? `<div class="contact-watch"><span class="contact-watch-label">Sin contactar</span>${contactWatch}</div>` : ""}`;
 }
 function kpi(label, value, note) { return `<article class="kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`; }
 function eventRow(c) { const d=parseDate(c.eventDate), pct=progress(c); return `<div class="event-row"><div class="date-box"><strong>${String(d.getDate()).padStart(2,"0")}</strong><span>${monthText(c.eventDate)}</span></div><div class="event-name"><strong>${escapeHtml(c.honoree)}</strong><span>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</span></div><span class="tag">${packLabel(c.pack)}</span><span class="muted">${pct}% completo</span><button class="secondary-btn" data-open-client="${c.id}">Abrir</button></div>`; }
@@ -190,6 +192,16 @@ function attentionItems() {
     else if(days>=0&&days<=14&&incomplete.length) items.push({priority:2,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
     if(days<0&&c.tasks.some(t=>t.key==="coverage"&&t.status!=="done")) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
   }); return items.sort((a,b)=>a.priority-b.priority||a.days-b.days).slice(0,6).map(item=>item.html).join("");
+}
+function contactWatchItems() {
+  return state.clients
+    .filter(c => !c.contactedAt && daysUntil(c.eventDate) <= 90)
+    .sort((a,b) => daysUntil(a.eventDate) - daysUntil(b.eventDate))
+    .map(c => {
+      const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
+      const when = days < 0 ? `venció hace ${Math.abs(days)} d` : days === 0 ? "es hoy" : `faltan ${days} d`;
+      return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span>${escapeHtml(c.honoree)} · ${when}</button>`;
+    }).join("");
 }
 
 function renderClients() {
