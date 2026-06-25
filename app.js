@@ -119,6 +119,7 @@ let activeView = "dashboard";
 let clientViewMode = "upcoming";
 let clientFilters = { search: "", salon: "", month: "", pack: "", addon: "" };
 let taskRoleFilter = localStorage.getItem("janosTaskRole") || "todos";
+let taskSalonFilter = localStorage.getItem("janosTaskSalon") || "";
 let renditionViewMode = "active";
 let currentUser = null;
 let pendingOtp = null;
@@ -258,18 +259,20 @@ function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=
 function progress(c) { const applicable=c.tasks.filter(t=>t.status!=="na"); return applicable.length ? Math.round(applicable.filter(t=>t.status==="done").length/applicable.length*100) : 0; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
 
-function globalTaskItems() { return state.clients.filter(c => !isPastEvent(c)).flatMap(c => c.tasks.filter(t => !["done", "na"].includes(t.status)).map(t => ({ c, t }))); }
+function globalTaskItems(salon = "") { return state.clients.filter(c => !isPastEvent(c) && (!salon || c.salon === salon)).flatMap(c => c.tasks.filter(t => !["done", "na"].includes(t.status)).map(t => ({ c, t }))); }
 function filterByRole(items, role) { return role === "todos" ? items : items.filter(({ t }) => { const r = taskRole(t.key); return r === "ambos" || r === role; }); }
 function setTaskRoleFilter(role) { taskRoleFilter = role; localStorage.setItem("janosTaskRole", role); renderTasks(); }
+function setTaskSalonFilter(salon) { taskSalonFilter = salon; localStorage.setItem("janosTaskSalon", salon); renderTasks(); }
 function renderTasks() {
   const view = document.getElementById("tasksView"); if (!view) return;
-  const all = globalTaskItems();
+  const salons = [...new Set([...MANAGED_SALONS, ...state.clients.map(c => String(c.salon || "").trim()).filter(Boolean)])];
+  const all = globalTaskItems(taskSalonFilter);
   const fotoCount = filterByRole(all, "foto").length, videoCount = filterByRole(all, "video").length, todosCount = all.length;
   const items = filterByRole(all, taskRoleFilter).sort((a, b) => daysUntil(a.c.eventDate) - daysUntil(b.c.eventDate));
   const groups = [];
   items.forEach(({ c, t }) => { let g = groups.find(x => x.c.id === c.id); if (!g) { g = { c, tasks: [] }; groups.push(g); } g.tasks.push(t); });
   const body = groups.length ? groups.map(g => `<div class="panel task-group"><div class="panel-head"><div><h3>${escapeHtml(g.c.honoree)}</h3><span class="muted">#${escapeHtml(g.c.code)} · ${dateText(g.c.eventDate)} · ${escapeHtml(g.c.salon)}</span></div><button class="ghost-btn" data-open-client="${g.c.id}">Ver ficha</button></div><div class="panel-body">${g.tasks.map(t => taskRow(g.c, t)).join("")}</div></div>`).join("") : empty("Sin tareas pendientes", "No hay tareas pendientes para este filtro.");
-  view.innerHTML = `<div class="view-switch" aria-label="Filtrar tareas por rol"><button class="${taskRoleFilter === "todos" ? "active" : ""}" data-task-role="todos">Todos <b>${todosCount}</b></button><button class="${taskRoleFilter === "foto" ? "active" : ""}" data-task-role="foto">📷 Fotógrafo <b>${fotoCount}</b></button><button class="${taskRoleFilter === "video" ? "active" : ""}" data-task-role="video">🎥 Videógrafo <b>${videoCount}</b></button></div><div class="task-groups">${body}</div>`;
+  view.innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Filtrar tareas por rol"><button class="${taskRoleFilter === "todos" ? "active" : ""}" data-task-role="todos">Todos <b>${todosCount}</b></button><button class="${taskRoleFilter === "foto" ? "active" : ""}" data-task-role="foto">📷 Fotógrafo <b>${fotoCount}</b></button><button class="${taskRoleFilter === "video" ? "active" : ""}" data-task-role="video">🎥 Videógrafo <b>${videoCount}</b></button></div><select id="taskSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s => `<option value="${escapeHtml(s)}" ${taskSalonFilter === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}</select></div><div class="task-groups">${body}</div>`;
 }
 
 let renditionCategoryFilter = "";
@@ -421,6 +424,7 @@ document.addEventListener("change", e => {
   if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
   if(e.target.dataset.taskVideoEdit){const[c,t]=e.target.dataset.taskVideoEdit.split("|");updateVideoEdit(c,t,e.target.checked);}
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
+  if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
   if(["clientSalonFilter","clientMonthFilter","clientPackFilter","clientAddonFilter"].includes(e.target.id))filterClients();
   if(e.target.id==="importBackup"){const file=e.target.files[0];if(file){file.text().then(text=>{try{state={...initialState(),...JSON.parse(text)};saveState();toast("Copia importada");}catch{toast("El archivo no es una copia válida");}});}}
   if(e.target.id==="clientCsvInput"&&e.target.files[0])importClientCsv(e.target.files[0]).finally(()=>{e.target.value="";});
