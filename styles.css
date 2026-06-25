@@ -210,6 +210,8 @@ nav { display: grid; gap: 3px; }
 .rendition-controls { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
 .rendition-controls .view-switch { margin-bottom: 0; }
 .rendition-controls > select { min-width: 220px; border: 1px solid var(--input-border); border-radius: 9px; padding: 9px 12px; color: var(--ink); background: var(--input-bg); }
+.rendition-controls > input { min-width: 200px; border: 1px solid var(--input-border); border-radius: 9px; padding: 9px 12px; color: var(--ink); background: var(--input-bg); }
+.rendition-controls > input:focus { outline: none; border-color: var(--gold-border); }
 .rendition-total { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; padding: 14px 18px; border-radius: var(--radius); color: var(--ink); background: linear-gradient(135deg, #1e1530, #2a1a40); border: 1px solid var(--gold-border); box-shadow: var(--shadow-gold); }
 .rendition-total span { display: block; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .rendition-total small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
@@ -332,6 +334,7 @@ legend { padding: 0 6px; }
   .rendition-controls { align-items: stretch; flex-direction: column; }
   .rendition-controls .view-switch { width: fit-content; }
   .rendition-controls > select { width: 100%; }
+  .rendition-controls > input { width: 100%; }
   .rendition-controls > #exportRenditionsCsv { width: 100%; }
   .form-grid, .check-grid, .check-grid.compact, .detail-summary { grid-template-columns: 1fr 1fr; }
   .photo-session-panel { align-items: stretch; flex-direction: column; }
