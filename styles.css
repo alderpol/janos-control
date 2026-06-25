@@ -317,6 +317,7 @@ legend { padding: 0 6px; }
   .rendition-controls { align-items: stretch; flex-direction: column; }
   .rendition-controls .view-switch { width: fit-content; }
   .rendition-controls > select { width: 100%; }
+  .rendition-controls > #exportRenditionsCsv { width: 100%; }
   .form-grid, .check-grid, .check-grid.compact, .detail-summary { grid-template-columns: 1fr 1fr; }
   .photo-session-panel { align-items: stretch; flex-direction: column; }
   .photo-session-panel .secondary-btn { width: 100%; }
