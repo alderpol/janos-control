@@ -308,6 +308,9 @@ legend { padding: 0 6px; }
 .toast { position: fixed; right: 24px; bottom: 24px; background: var(--surface-3); border: 1px solid var(--gold-border); color: var(--ink); border-radius: 10px; padding: 12px 18px; box-shadow: var(--shadow-gold); opacity: 0; transform: translateY(8px); pointer-events: none; transition: .2s; font-size: 13.5px; }
 .toast.show { opacity: 1; transform: translateY(0); }
 
+.conflict-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 60; background: #5c1d1d; color: #fff; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px; font-size: 13.5px; box-shadow: 0 2px 10px rgba(0,0,0,.35); text-align: center; }
+.conflict-banner button { background: #fff; color: #5c1d1d; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+
 /* ── RESPONSIVE ── */
 @media (max-width: 1100px) {
   .toolbar { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
