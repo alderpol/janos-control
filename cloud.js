@@ -131,6 +131,17 @@ export async function deleteUser(userId) {
   });
   if (!response.ok) throw new Error("No se pudo eliminar el usuario");
 }
+export async function getLatestUpdateAt() {
+  if (!supabase) return null;
+  const [clientsResult, tasksResult, renditionsResult] = await Promise.all([
+    supabase.from("clients").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("tasks").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("renditions").select("updated_at").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const dates = [clientsResult.data?.updated_at, tasksResult.data?.updated_at, renditionsResult.data?.updated_at].filter(Boolean);
+  return dates.length ? dates.sort().slice(-1)[0] : null;
+}
+
 export async function loadCloudState(defaultRates) {
   const [profileResult, clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
     supabase.from("profiles").select("settings").maybeSingle(),

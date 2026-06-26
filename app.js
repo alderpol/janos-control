@@ -1,4 +1,4 @@
-import { cloudEnabled, deleteUser, getAccessProfile, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -128,6 +128,8 @@ let cloudTimer = null;
 let cloudSyncing = false;
 let accessProfile = { role: "user", status: "active" };
 let adminUsers = [];
+let remoteSnapshotAt = null;
+let remoteConflictWarned = false;
 
 function loadState(key = storageKey) {
   try { return { ...initialState(), ...JSON.parse(localStorage.getItem(key)) }; }
@@ -345,12 +347,13 @@ function saveClient(form) {
   saveState(); toast(data.id?"Cliente actualizado":"Cliente creado con su plan de trabajo"); return true;
 }
 function syncTasks(client) { const existing=new Map(client.tasks.map(t=>[t.key,t])); client.tasks=createTasks(client).map(t=>existing.has(t.key)?{...t,...existing.get(t.key)}:t); client.history.push({date:new Date().toISOString(),text:"Datos del cliente actualizados"}); }
+function tasksAtRiskOnRegenerate(){const atRisk=[];state.clients.forEach(c=>{const newKeys=new Set(createTasks(c).map(t=>t.key));c.tasks.forEach(t=>{if(t.status!=="pending"&&!newKeys.has(t.key))atRisk.push({c,t});});});return atRisk;}
 
 function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));}
 function normalizeIds(){const clientMap=new Map(),taskMap=new Map();state.clients.forEach(client=>{if(!isUuid(client.id)){const old=client.id;client.id=uid();clientMap.set(old,client.id);}client.tasks.forEach(task=>{if(!isUuid(task.id)){const old=task.id;task.id=uid();taskMap.set(old,task.id);}});});state.renditions.forEach(item=>{if(clientMap.has(item.clientId))item.clientId=clientMap.get(item.clientId);if(taskMap.has(item.taskId))item.taskId=taskMap.get(item.taskId);if(!isUuid(item.id))item.id=uid();});}
 function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;}
 function scheduleCloudSync(){if(!cloudEnabled||!currentUser)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(runCloudSync,650);}
-async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(storageKey,JSON.stringify(state));await syncCloudState(state,currentUser);setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
+async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(storageKey,JSON.stringify(state));if(remoteSnapshotAt){const latest=await getLatestUpdateAt();if(latest&&latest>remoteSnapshotAt){setSyncStatus("Hay cambios más nuevos en la nube · recargá la página");if(!remoteConflictWarned){remoteConflictWarned=true;toast("Otro dispositivo guardó cambios más recientes en la nube. Recargá la página antes de seguir, para no perder información.");}return;}}await syncCloudState(state,currentUser);remoteSnapshotAt=new Date().toISOString();setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
 
 function parseCsv(text) {
   const firstLine=(text.split(/\r?\n/,1)[0]||"");
@@ -426,7 +429,7 @@ document.addEventListener("click", e => {
   if(e.target.id==="exportRenditionsCsv")exportRenditionsCsv();
   if(e.target.id==="importClientsBtn")document.getElementById("clientCsvInput")?.click();
   if(e.target.id==="exportBackup"){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`janos-control-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}
-  if(e.target.id==="regenerateTasks"){if(confirm("¿Regenerar las tareas de todos los clientes? Se conservará el progreso ya cargado.")){state.clients.forEach(c=>syncTasks(c));saveState();toast(`Tareas regeneradas para ${state.clients.length} clientes`);}}
+  if(e.target.id==="regenerateTasks"){const atRisk=tasksAtRiskOnRegenerate();const warning=atRisk.length?`\n\nATENCIÓN: ${atRisk.length} tarea(s) con progreso cargado se van a eliminar porque ya no corresponden a las tareas actuales:\n${atRisk.slice(0,8).map(({c,t})=>`- ${c.honoree} #${c.code}: "${t.title}" (${STATUS_LABELS[t.status]||t.status})`).join("\n")}${atRisk.length>8?`\n…y ${atRisk.length-8} más.`:""}`:"";if(confirm(`¿Regenerar las tareas de todos los clientes? Se conservará el progreso de las tareas vigentes.${warning}`)){state.clients.forEach(c=>syncTasks(c));saveState();toast(`Tareas regeneradas para ${state.clients.length} clientes${atRisk.length?` · ${atRisk.length} obsoletas eliminadas`:""}`);}}
   if(e.target.id==="clearData"){const account=currentUser?.email||"modo local";if(confirm(`¿Borrar todos los clientes, tareas y rendiciones de la cuenta ${account}?`)){state=initialState();saveState();toast("Datos eliminados de esta cuenta");}}
 });
 document.addEventListener("change", e => {
@@ -441,7 +444,7 @@ document.addEventListener("change", e => {
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
   if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
   if(["clientSalonFilter","clientMonthFilter","clientPackFilter","clientAddonFilter"].includes(e.target.id))filterClients();
-  if(e.target.id==="importBackup"){const file=e.target.files[0];if(file){file.text().then(text=>{try{state={...initialState(),...JSON.parse(text)};saveState();toast("Copia importada");}catch{toast("El archivo no es una copia válida");}});}}
+  if(e.target.id==="importBackup"){const input=e.target,file=input.files[0];if(file){file.text().then(text=>{let parsed;try{parsed=JSON.parse(text);}catch{toast("El archivo no es una copia válida");input.value="";return;}if(!confirm("Esto va a REEMPLAZAR todos los clientes, tareas y rendiciones actuales (y en la nube) por los de esta copia. Los datos cargados desde que se hizo esta copia se van a perder. Esta acción no se puede deshacer.\n\n¿Confirmás que querés continuar?")){input.value="";return;}state={...initialState(),...parsed};saveState();toast("Copia importada");input.value="";});}}
   if(e.target.id==="clientCsvInput"&&e.target.files[0])importClientCsv(e.target.files[0]).finally(()=>{e.target.value="";});
 });
 document.addEventListener("input",e=>{if(e.target.id==="clientSearch")filterClients();if(e.target.id==="taskSearch")filterTasks();});
@@ -677,7 +680,7 @@ document.getElementById("signOutBtn").addEventListener("click",async()=>{await r
 
 async function startApplication(session){
   currentUser=session?.user||null;
-  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");remoteConflictWarned=false;try{remoteSnapshotAt=await getLatestUpdateAt();}catch(snapshotError){console.error(snapshotError);remoteSnapshotAt=null;}}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
   else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
   const metadata = currentUser?.user_metadata || {};
   document.getElementById("signedInUser").textContent=accessProfile.display_name||metadata.full_name||currentUser?.email||"Modo local";
