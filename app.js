@@ -1,4 +1,4 @@
-import { cloudEnabled, deleteUser, getAccessProfile, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -94,6 +94,21 @@ function task(key, title, phase, payable = false, category = "", work = "", rate
   return { key, title, phase, payable, category, work, rateKey };
 }
 
+// Tareas que son exclusivas de un rol; lo que no figura acá se considera "ambos" (general/coordinación).
+const TASK_ROLES = {
+  coveragePhoto: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video",
+  photoEdit: "foto", video20: "video", videoSummary: "video", sendPhotos: "foto", sendVideo: "video",
+  bookCoveragePhoto: "foto", bookCoverageVideo: "video", backstage: "video", mural: "foto",
+  vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
+  flexChurch: "foto", flexCivil: "foto", flexPhotoExtra: "foto", flexVideoExtra: "video",
+  flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
+  flexSessionPhoto: "foto", flexSessionVideo: "video",
+  screenVideo: "video", pixelCheck: "foto", bookModa: "foto",
+  signatureBook: "foto", partyBookSelection: "foto", partyBook: "foto", totemDigital: "foto",
+  informal: "foto"
+};
+function taskRole(key) { return TASK_ROLES[key] || "ambos"; }
+
 function initialState() {
   return { clients: [], renditions: [], rates: { ...BASE_RATES }, settings: { currency: "ARS" }, seeded: false };
 }
@@ -102,7 +117,12 @@ let storageKey = STORAGE_KEY;
 let state = loadState(storageKey);
 let activeView = "dashboard";
 let clientViewMode = "upcoming";
-let clientFilters = { search: "", salon: "", month: "", pack: "" };
+let clientFilters = { search: "", salon: "", month: "", pack: "", addon: "" };
+let taskRoleFilter = localStorage.getItem("janosTaskRole") || "todos";
+let taskSalonFilter = localStorage.getItem("janosTaskSalon") || "";
+let taskSearchFilter = "";
+let calendarMonth = todayIso().slice(0, 7);
+let calendarSalonFilter = localStorage.getItem("janosCalendarSalon") || "";
 let renditionViewMode = "active";
 let currentUser = null;
 let pendingOtp = null;
@@ -110,6 +130,7 @@ let cloudTimer = null;
 let cloudSyncing = false;
 let accessProfile = { role: "user", status: "active" };
 let adminUsers = [];
+let remoteSnapshotAt = null;
 
 function loadState(key = storageKey) {
   try { return { ...initialState(), ...JSON.parse(localStorage.getItem(key)) }; }
@@ -140,6 +161,7 @@ function createTasks(client) {
   if (client.addons.includes("moda")) definitions.push(task("bookModa", "Realizar adicional de book con producción de moda", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Adicional book con Moda", "bookModa"));
   if (client.addons.includes("libro")) definitions.push(
     task("signatureBook", "Diseñar libro de firmas", "Pre-evento", true, "COMPLEMENTOS", "Libro firmas (Fotografia Digital)", "signatureDesign"),
+    task("partyBookSelection", "Pedirle al cliente que envíe la selección de fotos del libro de fiesta", "Post-evento"),
     task("partyBook", "Diseñar y enviar libro de fiesta al laboratorio", "Entrega", true, "COMPLEMENTOS", "Libro Fiesta (Fotografia Digital)", "partyBookDesign")
   );
   client.flexServices.forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
@@ -154,7 +176,7 @@ function isPastEvent(client){return String(client?.eventDate||"")<todayIso();}
 function periodEndFor(workDate){const date=parseDate(workDate);const advance=date.getDate()>20;date.setDate(1);if(advance)date.setMonth(date.getMonth()+1);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-20`;}
 
 function render() {
-  renderDashboard(); renderClients(); renderRenditions(); renderSettings(); renderUsers();
+  renderDashboard(); renderClients(); renderCalendar(); renderTasks(); renderRenditions(); renderSettings(); renderUsers();
   document.getElementById("navRenditionCount").textContent = state.renditions.filter(r => r.status === "pending").length;
 }
 
@@ -164,6 +186,7 @@ function renderDashboard() {
   const pendingR = state.renditions.filter(r => r.status === "pending" && !r.archivedAt);
   const nextEvents = activeClients.sort((a,b) => parseDate(a.eventDate) - parseDate(b.eventDate)).slice(0, 7);
   const waiting = state.clients.flatMap(c => c.tasks).filter(t => t.status === "waiting").length;
+  const contactWatch = contactWatchItems();
   document.getElementById("dashboardView").innerHTML = `
     <div class="kpi-grid">
       ${kpi("Clientes activos", activeClients.length, "eventos próximos")}
@@ -178,7 +201,8 @@ function renderDashboard() {
       <div class="panel"><div class="panel-head"><h2>Atención requerida</h2></div><div class="panel-body stack">
         ${attentionItems() || `<div class="empty"><strong>Todo en orden</strong>No hay alertas urgentes.</div>`}
       </div></div>
-    </div>`;
+    </div>
+    ${contactWatch ? `<div class="contact-watch"><span class="contact-watch-label">Sin contactar</span>${contactWatch}</div>` : ""}`;
 }
 function kpi(label, value, note) { return `<article class="kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`; }
 function eventRow(c) { const d=parseDate(c.eventDate), pct=progress(c); return `<div class="event-row"><div class="date-box"><strong>${String(d.getDate()).padStart(2,"0")}</strong><span>${monthText(c.eventDate)}</span></div><div class="event-name"><strong>${escapeHtml(c.honoree)}</strong><span>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</span></div><span class="tag">${packLabel(c.pack)}</span><span class="muted">${pct}% completo</span><button class="secondary-btn" data-open-client="${c.id}">Abrir</button></div>`; }
@@ -186,10 +210,22 @@ function attentionItems() {
   const items=[];
   state.clients.forEach(c => {
     const days=daysUntil(c.eventDate), incomplete=c.tasks.filter(t=>!["done","na"].includes(t.status)),hasPrintedBook=(c.addons||[]).includes("libro"),bookDue=hasPrintedBook&&days>=0&&days<=30;
+    const prepPending=c.tasks.filter(t=>t.phase==="Preparación"&&!["done","na"].includes(t.status)),prepDue=prepPending.length&&days>=0&&days<=30;
     if(bookDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
+    else if(prepDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
     else if(days>=0&&days<=14&&incomplete.length) items.push({priority:2,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
-    if(days<0&&c.tasks.some(t=>t.key==="coverage"&&t.status!=="done")) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
+    if(days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
   }); return items.sort((a,b)=>a.priority-b.priority||a.days-b.days).slice(0,6).map(item=>item.html).join("");
+}
+function contactWatchItems() {
+  return state.clients
+    .filter(c => !c.contactedAt && daysUntil(c.eventDate) <= 90)
+    .sort((a,b) => daysUntil(a.eventDate) - daysUntil(b.eventDate))
+    .map(c => {
+      const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
+      const when = days < 0 ? `venció hace ${Math.abs(days)} d` : days === 0 ? "es hoy" : `faltan ${days} d`;
+      return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span>${escapeHtml(c.honoree)} · ${when}</button>`;
+    }).join("");
 }
 
 function renderClients() {
@@ -197,21 +233,61 @@ function renderClients() {
   const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
   const months=[...new Set(modeClients.map(c=>monthKey(c.eventDate)).filter(Boolean))].sort();
   const upcomingCount=state.clients.filter(c=>!isPastEvent(c)).length,archivedCount=state.clients.length-upcomingCount;
-  const _html = `<div class="view-switch" aria-label="Archivo de eventos"><button class="${clientViewMode==="upcoming"?"active":""}" data-client-view="upcoming">Próximos <b>${upcomingCount}</b></button><button class="${clientViewMode==="archived"?"active":""}" data-client-view="archived">Realizados <b>${archivedCount}</b></button></div><div class="client-filters"><div class="filter-heading"><div><p class="eyebrow">${clientViewMode==="archived"?"Archivo de eventos":"Organizar eventos"}</p><strong>${clientViewMode==="archived"?"Eventos cuya fecha ya pasó":"Elegí un salón y un mes"}</strong></div><span id="clientResultCount" class="muted">${eventCountLabel(modeClients.length)}</span></div><div class="toolbar"><div class="search"><input id="clientSearch" placeholder="Buscar por nombre o código"></div><select id="clientSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select><select id="clientMonthFilter" aria-label="Filtrar por mes"><option value="">Todos los meses</option>${months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join("")}</select><select id="clientPackFilter" aria-label="Filtrar por pack"><option value="">Todos los packs</option><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select></div></div><div class="client-actions"><button class="secondary-btn" id="downloadClientTemplate">Descargar CSV</button><button class="primary-btn" id="importClientsBtn">Importar lote</button><input id="clientCsvInput" type="file" accept=".csv,text/csv" hidden></div><div id="clientGrid" class="client-grid">${clientCards(modeClients)}</div>`;
+  const _html = `<div class="view-switch" aria-label="Archivo de eventos"><button class="${clientViewMode==="upcoming"?"active":""}" data-client-view="upcoming">Próximos <b>${upcomingCount}</b></button><button class="${clientViewMode==="archived"?"active":""}" data-client-view="archived">Realizados <b>${archivedCount}</b></button></div><div class="client-filters"><div class="filter-heading"><div><p class="eyebrow">${clientViewMode==="archived"?"Archivo de eventos":"Organizar eventos"}</p><strong>${clientViewMode==="archived"?"Eventos cuya fecha ya pasó":"Elegí un salón y un mes"}</strong></div><span id="clientResultCount" class="muted">${eventCountLabel(modeClients.length)}</span></div><div class="toolbar"><div class="search"><input id="clientSearch" placeholder="Buscar por nombre o código"></div><select id="clientSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select><select id="clientMonthFilter" aria-label="Filtrar por mes"><option value="">Todos los meses</option>${months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join("")}</select><select id="clientPackFilter" aria-label="Filtrar por pack"><option value="">Todos los packs</option><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select><select id="clientAddonFilter" aria-label="Filtrar por adicional"><option value="">Todos los adicionales</option>${ADDONS.map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select></div></div><div class="client-actions"><button class="secondary-btn" id="downloadClientTemplate">Descargar CSV</button><button class="primary-btn" id="importClientsBtn">Importar lote</button><input id="clientCsvInput" type="file" accept=".csv,text/csv" hidden></div><div id="clientGrid" class="client-grid">${clientCards(modeClients)}</div>`;
   document.getElementById("clientsView").innerHTML = _html;
   const _s = document.getElementById("clientSearch");
   const _sf = document.getElementById("clientSalonFilter");
   const _mf = document.getElementById("clientMonthFilter");
   const _pf = document.getElementById("clientPackFilter");
+  const _adf = document.getElementById("clientAddonFilter");
   if(_s) _s.value = clientFilters.search;
   if(_sf) _sf.value = clientFilters.salon;
   if(_mf) _mf.value = clientFilters.month;
   if(_pf) _pf.value = clientFilters.pack;
-  if(clientFilters.search || clientFilters.salon || clientFilters.month || clientFilters.pack) filterClients();
+  if(_adf) _adf.value = clientFilters.addon;
+  if(clientFilters.search || clientFilters.salon || clientFilters.month || clientFilters.pack || clientFilters.addon) filterClients();
 }
 function monthKey(value){return /^\d{4}-\d{2}/.test(String(value||""))?String(value).slice(0,7):"";}
 function monthLabel(value){const [year,month]=String(value).split("-");if(!year||!month)return value;const label=new Intl.DateTimeFormat("es-AR",{month:"long",year:"numeric"}).format(new Date(Number(year),Number(month)-1,1));return label.charAt(0).toUpperCase()+label.slice(1);}
 function eventCountLabel(count){return `${count} ${count===1?"evento":"eventos"}`;}
+function shiftMonth(key,delta){const [y,m]=key.split("-").map(Number);const d=new Date(y,m-1+delta,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;}
+function calendarSalonClass(salon,salons){const idx=salons.indexOf(salon);return `cal-salon-${idx>=0?idx%4:4}`;}
+function renderCalendar(){
+  const view=document.getElementById("calendarView"); if(!view) return;
+  const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
+  const [year,month]=calendarMonth.split("-").map(Number);
+  const startWeekday=(new Date(year,month-1,1).getDay()+6)%7;
+  const daysInMonth=new Date(year,month,0).getDate();
+  const todayKey=todayIso();
+  const eventsByDay=new Map();
+  state.clients.filter(c=>monthKey(c.eventDate)===calendarMonth&&(!calendarSalonFilter||c.salon===calendarSalonFilter)).forEach(c=>{
+    const day=Number(String(c.eventDate).slice(8,10));
+    if(!eventsByDay.has(day))eventsByDay.set(day,[]);
+    eventsByDay.get(day).push(c);
+  });
+  const cells=[];
+  for(let i=0;i<startWeekday;i++)cells.push(`<div class="cal-cell empty"></div>`);
+  for(let day=1;day<=daysInMonth;day++){
+    const dateKey=`${calendarMonth}-${String(day).padStart(2,"0")}`;
+    const items=(eventsByDay.get(day)||[]).sort((a,b)=>String(a.salon||"").localeCompare(String(b.salon||"")));
+    cells.push(`<div class="cal-cell${dateKey===todayKey?" today":""}"><span class="cal-day">${day}</span>${items.map(c=>`<button class="cal-event ${calendarSalonClass(c.salon,salons)}" data-open-client="${c.id}" title="${escapeHtml(c.honoree)} · ${escapeHtml(c.salon||"")}">${escapeHtml(c.honoree)}</button>`).join("")}</div>`);
+  }
+  const trailing=(7-(cells.length%7))%7;
+  for(let i=0;i<trailing;i++)cells.push(`<div class="cal-cell empty"></div>`);
+  const weekdays=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  view.innerHTML=`
+    <div class="rendition-controls">
+      <button class="ghost-btn" id="calPrev">‹ Mes anterior</button>
+      <strong class="cal-month-label">${monthLabel(calendarMonth)}</strong>
+      <button class="ghost-btn" id="calNext">Mes siguiente ›</button>
+      <button class="ghost-btn" id="calToday">Hoy</button>
+      <select id="calendarSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}"${calendarSalonFilter===s?" selected":""}>${escapeHtml(s)}</option>`).join("")}</select>
+    </div>
+    <div class="cal-grid">
+      ${weekdays.map(w=>`<div class="cal-weekday">${w}</div>`).join("")}
+      ${cells.join("")}
+    </div>`;
+}
 function whatsappNumber(value){let digits=String(value||"").replace(/\D/g,"").replace(/^00/,"");if(!digits)return "";if(digits.startsWith("549"))return digits;if(digits.startsWith("54"))return `549${digits.slice(2)}`;if(digits.length>10)return digits;return `549${digits.replace(/^0/,"")}`;}
 function whatsappMessage(client){const metadata=currentUser?.user_metadata||{};const values={nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:metadata.first_name||metadata.full_name||"el equipo"};return Object.entries(values).reduce((message,[key,value])=>message.split(`{${key}}`).join(String(value||"")),state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE);}
 function whatsappUrl(client){const phone=whatsappNumber(client.clientPhone);return phone?`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage(client))}`:"";}
@@ -226,6 +302,35 @@ function savePhotoSession(form){const data=Object.fromEntries(new FormData(form)
 function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag">${isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button><button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
 function progress(c) { const applicable=c.tasks.filter(t=>t.status!=="na"); return applicable.length ? Math.round(applicable.filter(t=>t.status==="done").length/applicable.length*100) : 0; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
+
+function matchesTaskSearch(c, q) { if (!q) return true; const text = q.toLowerCase().trim(); return [String(c.code || ""), String(c.honoree || ""), String(c.clientName || ""), dateText(c.eventDate), String(c.eventDate || "")].some(v => v.toLowerCase().includes(text)); }
+function globalTaskItems(salon = "", search = "") { return state.clients.filter(c => !isPastEvent(c) && (!salon || c.salon === salon) && matchesTaskSearch(c, search)).flatMap(c => c.tasks.filter(t => !["done", "na"].includes(t.status)).map(t => ({ c, t }))); }
+function filterByRole(items, role) { return role === "todos" ? items : items.filter(({ t }) => { const r = taskRole(t.key); return r === "ambos" || r === role; }); }
+function setTaskRoleFilter(role) { taskRoleFilter = role; localStorage.setItem("janosTaskRole", role); renderTasks(); }
+function setTaskSalonFilter(salon) { taskSalonFilter = salon; localStorage.setItem("janosTaskSalon", salon); renderTasks(); }
+function taskViewData() {
+  const all = globalTaskItems(taskSalonFilter, taskSearchFilter);
+  const fotoCount = filterByRole(all, "foto").length, videoCount = filterByRole(all, "video").length, todosCount = all.length;
+  const items = filterByRole(all, taskRoleFilter).sort((a, b) => daysUntil(a.c.eventDate) - daysUntil(b.c.eventDate));
+  const groups = [];
+  items.forEach(({ c, t }) => { let g = groups.find(x => x.c.id === c.id); if (!g) { g = { c, tasks: [] }; groups.push(g); } g.tasks.push(t); });
+  const body = groups.length ? groups.map(g => `<div class="panel task-group"><div class="panel-head"><div><h3>${escapeHtml(g.c.honoree)}</h3><span class="muted">#${escapeHtml(g.c.code)} · ${dateText(g.c.eventDate)} · ${escapeHtml(g.c.salon)}</span></div><button class="ghost-btn" data-open-client="${g.c.id}">Ver ficha</button></div><div class="panel-body">${g.tasks.map(t => taskRow(g.c, t)).join("")}</div></div>`).join("") : empty("Sin tareas pendientes", "No hay tareas pendientes para este filtro.");
+  return { fotoCount, videoCount, todosCount, body };
+}
+function filterTasks() {
+  taskSearchFilter = document.getElementById("taskSearch")?.value || "";
+  const { fotoCount, videoCount, todosCount, body } = taskViewData();
+  const groupsEl = document.getElementById("taskGroups"); if (groupsEl) groupsEl.innerHTML = body;
+  const tb = document.getElementById("taskCountTodos"); if (tb) tb.textContent = todosCount;
+  const fb = document.getElementById("taskCountFoto"); if (fb) fb.textContent = fotoCount;
+  const vb = document.getElementById("taskCountVideo"); if (vb) vb.textContent = videoCount;
+}
+function renderTasks() {
+  const view = document.getElementById("tasksView"); if (!view) return;
+  const salons = [...new Set([...MANAGED_SALONS, ...state.clients.map(c => String(c.salon || "").trim()).filter(Boolean)])];
+  const { fotoCount, videoCount, todosCount, body } = taskViewData();
+  view.innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Filtrar tareas por rol"><button class="${taskRoleFilter === "todos" ? "active" : ""}" data-task-role="todos">Todos <b id="taskCountTodos">${todosCount}</b></button><button class="${taskRoleFilter === "foto" ? "active" : ""}" data-task-role="foto">📷 Fotógrafo <b id="taskCountFoto">${fotoCount}</b></button><button class="${taskRoleFilter === "video" ? "active" : ""}" data-task-role="video">🎥 Videógrafo <b id="taskCountVideo">${videoCount}</b></button></div><input id="taskSearch" placeholder="Buscar por código o fecha" value="${escapeHtml(taskSearchFilter)}"><select id="taskSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s => `<option value="${escapeHtml(s)}" ${taskSalonFilter === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}</select></div><div id="taskGroups" class="task-groups">${body}</div>`;
+}
 
 let renditionCategoryFilter = "";
 function renderRenditions() {
@@ -283,12 +388,14 @@ function saveClient(form) {
   saveState(); toast(data.id?"Cliente actualizado":"Cliente creado con su plan de trabajo"); return true;
 }
 function syncTasks(client) { const existing=new Map(client.tasks.map(t=>[t.key,t])); client.tasks=createTasks(client).map(t=>existing.has(t.key)?{...t,...existing.get(t.key)}:t); client.history.push({date:new Date().toISOString(),text:"Datos del cliente actualizados"}); }
+function tasksAtRiskOnRegenerate(){const atRisk=[];state.clients.forEach(c=>{const newKeys=new Set(createTasks(c).map(t=>t.key));c.tasks.forEach(t=>{if(t.status!=="pending"&&!newKeys.has(t.key))atRisk.push({c,t});});});return atRisk;}
 
 function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));}
 function normalizeIds(){const clientMap=new Map(),taskMap=new Map();state.clients.forEach(client=>{if(!isUuid(client.id)){const old=client.id;client.id=uid();clientMap.set(old,client.id);}client.tasks.forEach(task=>{if(!isUuid(task.id)){const old=task.id;task.id=uid();taskMap.set(old,task.id);}});});state.renditions.forEach(item=>{if(clientMap.has(item.clientId))item.clientId=clientMap.get(item.clientId);if(taskMap.has(item.taskId))item.taskId=taskMap.get(item.taskId);if(!isUuid(item.id))item.id=uid();});}
 function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;}
+function setConflictBanner(visible){const el=document.getElementById("conflictBanner");if(el)el.classList.toggle("hidden",!visible);}
 function scheduleCloudSync(){if(!cloudEnabled||!currentUser)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(runCloudSync,650);}
-async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(storageKey,JSON.stringify(state));await syncCloudState(state,currentUser);setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
+async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(storageKey,JSON.stringify(state));if(remoteSnapshotAt){const latest=await getLatestUpdateAt();if(latest&&latest>remoteSnapshotAt){setSyncStatus("Hay cambios más nuevos en la nube · recargá la página");setConflictBanner(true);return;}}await syncCloudState(state,currentUser);remoteSnapshotAt=new Date().toISOString();setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
 
 function parseCsv(text) {
   const firstLine=(text.split(/\r?\n/,1)[0]||"");
@@ -308,9 +415,9 @@ function parseFlexServices(raw){const text=String(raw||"").toUpperCase(),items=[
 async function importClientCsv(file){
   const bytes=await file.arrayBuffer();let text=new TextDecoder("utf-8").decode(bytes);if(text.includes("�"))text=new TextDecoder("windows-1252").decode(bytes);text=text.replace(/^\uFEFF/,"");
   const rows=parseCsv(text);if(!rows.length){toast("El CSV no contiene filas para importar.");return;}
-  let created=0,updated=0,skipped=0;
-  rows.forEach(row=>{const code=firstValue(row,["codigo","codigo_evento","cod_evento","evento"]),eventDate=normalizeDate(firstValue(row,["fecha","fecha_evento","fecha_del_evento"]));if(!code||!eventDate){skipped+=1;return;}const rawPack=firstValue(row,["pack_upgrades","pack_y_upgrades","fotografia","pack","servicios"]),addonsText=[rawPack,firstValue(row,["adicionales","upgrades","complementos"])].filter(Boolean).join(" "),flexText=firstValue(row,["servicios_flex","elecciones_flex","mini_flex","flex"]);const incoming={code,eventDate,salon:firstValue(row,["salon","sede"])||"Otro",type:firstValue(row,["tipo","tipo_evento"])||"Otro",honoree:firstValue(row,["homenajeado","homenajeada","homenajead","nombre_evento"])||firstValue(row,["cliente","nombre_cliente"])||`Evento ${code}`,clientName:firstValue(row,["cliente","nombre_cliente","contacto_cliente"]),clientPhone:(()=>{const raw=firstValue(row,["whatsapp","telefono","telefono_cliente","celular"]);return raw&&raw.replace(/\D/g,"").length>=8?raw:"";})(),guests:Number(firstValue(row,["invitados","cantidad_invitados"])||0),pack:parsePack(rawPack),addons:parseAddons(addonsText),flexServices:parseFlexServices(flexText),notes:firstValue(row,["notas","observaciones","comentarios"])};const existing=state.clients.find(c=>String(c.code)===String(code));if(existing){Object.assign(existing,incoming,{notes:incoming.notes||existing.notes});syncTasks(existing);updated+=1;}else{const client={...incoming,id:uid(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente importado desde CSV"}]};client.tasks=createTasks(client);state.clients.push(client);created+=1;}});
-  saveState();toast(`${created} creados · ${updated} actualizados${skipped?` · ${skipped} omitidos`:""}`);
+  let created=0,existingSkipped=0,skipped=0,duplicatedInFile=0;const seenCodes=new Set();
+  rows.forEach(row=>{const code=firstValue(row,["codigo","codigo_evento","cod_evento","evento"]),eventDate=normalizeDate(firstValue(row,["fecha","fecha_evento","fecha_del_evento"]));if(!code||!eventDate){skipped+=1;return;}if(seenCodes.has(String(code))){duplicatedInFile+=1;return;}seenCodes.add(String(code));if(state.clients.some(c=>String(c.code)===String(code))){existingSkipped+=1;return;}const rawPack=firstValue(row,["pack_upgrades","pack_y_upgrades","fotografia","pack","servicios"]),addonsText=[rawPack,firstValue(row,["adicionales","upgrades","complementos"])].filter(Boolean).join(" "),flexText=firstValue(row,["servicios_flex","elecciones_flex","mini_flex","flex"]);const incoming={code,eventDate,salon:firstValue(row,["salon","sede"])||"Otro",type:firstValue(row,["tipo","tipo_evento"])||"Otro",honoree:firstValue(row,["homenajeado","homenajeada","homenajead","nombre_evento"])||firstValue(row,["cliente","nombre_cliente"])||`Evento ${code}`,clientName:firstValue(row,["cliente","nombre_cliente","contacto_cliente"]),clientPhone:(()=>{const raw=firstValue(row,["whatsapp","telefono","telefono_cliente","celular"]);return raw&&raw.replace(/\D/g,"").length>=8?raw:"";})(),guests:Number(firstValue(row,["invitados","cantidad_invitados"])||0),pack:parsePack(rawPack),addons:parseAddons(addonsText),flexServices:parseFlexServices(flexText),notes:firstValue(row,["notas","observaciones","comentarios"])};const client={...incoming,id:uid(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente importado desde CSV"}]};client.tasks=createTasks(client);state.clients.push(client);created+=1;});
+  saveState();toast(`${created} nuevos agregados${existingSkipped?` · ${existingSkipped} ya existían (sin modificar)`:""}${duplicatedInFile?` · ${duplicatedInFile} código(s) repetido(s) dentro del mismo archivo (se usó solo la primera fila)`:""}${skipped?` · ${skipped} filas omitidas (sin código o fecha)`:""}`);
 }
 function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;homenajeado;cliente;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones\n43828;04/07/2026;Pilar Hotel;15;Cliente de ejemplo;Contacto;+54 9 11 1234 5678;120;(SILVER)(GOLD)(PANT);PIXEL;;\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plantilla_clientes_janos.csv";a.click();URL.revokeObjectURL(a.href);}
 function escapeCsvCell(value){const text=String(value??"");return /[",\n\r]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;}
@@ -328,17 +435,23 @@ function taskRow(c,t){
   const videoEditCheckbox=isVideoCapture?`<label class="video-edit-check" title="Incluye edición"><input type="checkbox" data-task-video-edit="${c.id}|${t.id}" ${videoEditChecked?"checked":""}> + Edición</label>`:"";
   return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)}${isVideoCapture?` ${videoEditChecked?"+ edición ($"+money(state.rates[t.rateKey]||0).replace("$","").trim()+")":"(solo cobertura)"}`:""}</small>`:""}${videoEditCheckbox}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
 }
-function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");openClientDetail(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const amount=isVideoCapture?(t.includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0):state.rates[t.rateKey]||0;if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work+(isVideoCapture&&t.includesEdit?" + edición":""),amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();openClientDetail(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
-function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);existing.amount=includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0;existing.work=t.work+(includesEdit?" + edición":"");}saveState();openClientDetail(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
+function refreshTaskViews(clientId){const dialog=document.getElementById("detailDialog");if(dialog.open)openClientDetail(clientId);else if(activeView==="tasks")renderTasks();}
+function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");refreshTaskViews(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const amount=isVideoCapture?(t.includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0):state.rates[t.rateKey]||0;if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work+(isVideoCapture&&t.includesEdit?" + edición":""),amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();refreshTaskViews(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
+function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);existing.amount=includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0;existing.work=t.work+(includesEdit?" + edición":"");}saveState();refreshTaskViews(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
 function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
-function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users");document.querySelector(".sidebar").classList.remove("open");}
+function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],calendar:["Vista mensual","Calendario"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks");document.querySelector(".sidebar").classList.remove("open");}
 function toast(msg){const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
 
 document.addEventListener("click", e => {
+  if(e.target.id==="reloadForConflict"){window.location.reload();return;}
+  if(e.target.id==="calPrev"){calendarMonth=shiftMonth(calendarMonth,-1);renderCalendar();return;}
+  if(e.target.id==="calNext"){calendarMonth=shiftMonth(calendarMonth,1);renderCalendar();return;}
+  if(e.target.id==="calToday"){calendarMonth=todayIso().slice(0,7);renderCalendar();return;}
   const nav=e.target.closest("[data-view]"); if(nav)setView(nav.dataset.view);
   const go=e.target.closest("[data-go]"); if(go)setView(go.dataset.go);
   const clientView=e.target.closest("[data-client-view]");if(clientView){clientViewMode=clientView.dataset.clientView;renderClients();}
+  const taskRoleBtn=e.target.closest("[data-task-role]");if(taskRoleBtn)setTaskRoleFilter(taskRoleBtn.dataset.taskRole);
   const renditionView=e.target.closest("[data-rendition-view]");if(renditionView){renditionViewMode=renditionView.dataset.renditionView;renderRenditions();}
   const open=e.target.closest("[data-open-client]"); if(open)openClientDetail(open.dataset.openClient);
   const contact=e.target.closest("[data-contact-client]");if(contact)contactClient(contact.dataset.contactClient);
@@ -362,8 +475,8 @@ document.addEventListener("click", e => {
   if(e.target.id==="exportRenditionsCsv")exportRenditionsCsv();
   if(e.target.id==="importClientsBtn")document.getElementById("clientCsvInput")?.click();
   if(e.target.id==="exportBackup"){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`janos-control-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}
-  if(e.target.id==="regenerateTasks"){if(confirm("¿Regenerar las tareas de todos los clientes? Se conservará el progreso ya cargado.")){state.clients.forEach(c=>syncTasks(c));saveState();toast(`Tareas regeneradas para ${state.clients.length} clientes`);}}
-  if(e.target.id==="clearData"){const account=currentUser?.email||"modo local";if(confirm(`¿Borrar todos los clientes, tareas y rendiciones de la cuenta ${account}?`)){state=initialState();saveState();toast("Datos eliminados de esta cuenta");}}
+  if(e.target.id==="regenerateTasks"){const atRisk=tasksAtRiskOnRegenerate();const warning=atRisk.length?`\n\nATENCIÓN: ${atRisk.length} tarea(s) con progreso cargado se van a eliminar porque ya no corresponden a las tareas actuales:\n${atRisk.slice(0,8).map(({c,t})=>`- ${c.honoree} #${c.code}: "${t.title}" (${STATUS_LABELS[t.status]||t.status})`).join("\n")}${atRisk.length>8?`\n…y ${atRisk.length-8} más.`:""}`:"";if(confirm(`¿Regenerar las tareas de todos los clientes? Se conservará el progreso de las tareas vigentes.${warning}`)){state.clients.forEach(c=>syncTasks(c));saveState();toast(`Tareas regeneradas para ${state.clients.length} clientes${atRisk.length?` · ${atRisk.length} obsoletas eliminadas`:""}`);}}
+  if(e.target.id==="clearData"){const account=currentUser?.email||"modo local";if(confirm(`Esto va a BORRAR todos los clientes, tareas y rendiciones de la cuenta ${account}, incluida la copia en la nube. Esta acción no se puede deshacer.\n\n¿Confirmás que querés borrar todo?`)){state=initialState();saveState();toast("Datos eliminados de esta cuenta");}}
 });
 document.addEventListener("change", e => {
   if(e.target.matches('[name="addons"][value="miniflex"], [name="addons"][value="flex"]')&&e.target.checked){const other=e.target.value==="flex"?"miniflex":"flex";const otherInput=document.querySelector(`[name="addons"][value="${other}"]`);if(otherInput)otherInput.checked=false;}
@@ -375,13 +488,15 @@ document.addEventListener("change", e => {
   if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
   if(e.target.dataset.taskVideoEdit){const[c,t]=e.target.dataset.taskVideoEdit.split("|");updateVideoEdit(c,t,e.target.checked);}
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
-  if(["clientSalonFilter","clientMonthFilter","clientPackFilter"].includes(e.target.id))filterClients();
-  if(e.target.id==="importBackup"){const file=e.target.files[0];if(file){file.text().then(text=>{try{state={...initialState(),...JSON.parse(text)};saveState();toast("Copia importada");}catch{toast("El archivo no es una copia válida");}});}}
+  if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
+  if(e.target.id==="calendarSalonFilter"){calendarSalonFilter=e.target.value;localStorage.setItem("janosCalendarSalon",calendarSalonFilter);renderCalendar();}
+  if(["clientSalonFilter","clientMonthFilter","clientPackFilter","clientAddonFilter"].includes(e.target.id))filterClients();
+  if(e.target.id==="importBackup"){const input=e.target,file=input.files[0];if(file){file.text().then(text=>{let parsed;try{parsed=JSON.parse(text);}catch{toast("El archivo no es una copia válida");input.value="";return;}if(!confirm("Esto va a REEMPLAZAR todos los clientes, tareas y rendiciones actuales (y en la nube) por los de esta copia. Los datos cargados desde que se hizo esta copia se van a perder. Esta acción no se puede deshacer.\n\n¿Confirmás que querés continuar?")){input.value="";return;}state={...initialState(),...parsed};saveState();toast("Copia importada");input.value="";});}}
   if(e.target.id==="clientCsvInput"&&e.target.files[0])importClientCsv(e.target.files[0]).finally(()=>{e.target.value="";});
 });
-document.addEventListener("input",e=>{if(e.target.id==="clientSearch")filterClients();});
+document.addEventListener("input",e=>{if(e.target.id==="clientSearch")filterClients();if(e.target.id==="taskSearch")filterTasks();});
 document.addEventListener("change",e=>{if(e.target.dataset.taskCheck){const[c,t]=e.target.dataset.taskCheck.split("|");updateTask(c,t,e.target.checked?"done":"pending");}});
-function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"";clientFilters={search:q,salon,month,pack};const filtered=state.clients.filter(c=>(clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c))&&(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
+function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"",addon=document.getElementById("clientAddonFilter")?.value||"";clientFilters={search:q,salon,month,pack,addon};const filtered=state.clients.filter(c=>(clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c))&&(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&(!addon||(c.addons||[]).includes(addon))&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
 function filterRenditions(){const status=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";const filtered=state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!status||r.status===status)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
@@ -612,7 +727,7 @@ document.getElementById("signOutBtn").addEventListener("click",async()=>{await r
 
 async function startApplication(session){
   currentUser=session?.user||null;
-  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");try{remoteSnapshotAt=await getLatestUpdateAt();}catch(snapshotError){console.error(snapshotError);remoteSnapshotAt=null;}}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
   else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
   const metadata = currentUser?.user_metadata || {};
   document.getElementById("signedInUser").textContent=accessProfile.display_name||metadata.full_name||currentUser?.email||"Modo local";

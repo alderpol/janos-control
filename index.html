@@ -78,6 +78,10 @@
   </section>
 
   <div id="appShell" class="app-shell hidden">
+    <div id="conflictBanner" class="conflict-banner hidden">
+      <span>⚠️ Hay cambios más recientes guardados desde otro dispositivo. Tus cambios en esta pestaña no se están sincronizando.</span>
+      <button id="reloadForConflict" type="button">Recargar página</button>
+    </div>
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">J</div>
@@ -86,9 +90,12 @@
       <nav id="mainNav" aria-label="Navegación principal">
         <button class="nav-item active" data-view="dashboard"><span>⌂</span> Inicio</button>
         <button class="nav-item" data-view="clients"><span>◎</span> Clientes</button>
+        <button class="nav-item" data-view="calendar"><span>▦</span> Calendario</button>
+        <button class="nav-item" data-view="tasks"><span>☑</span> Tareas</button>
         <button class="nav-item" data-view="renditions"><span>✓</span> Rendiciones <b id="navRenditionCount">0</b></button>
         <button class="nav-item" data-view="settings"><span>⚙</span> Configuración</button>
         <button class="nav-item hidden" id="usersNav" data-view="users"><span>♙</span> Usuarios</button>
+        <a class="nav-item" href="https://reserva-colegas.vercel.app/" target="_blank" rel="noopener"><span>↗</span> Reserva entre colegas</a>
       </nav>
       <div class="sidebar-user"><span id="signedInUser">Usuario</span><button id="signOutBtn">Cerrar sesión</button></div>
       <div class="sidebar-note"><span id="syncStatus">Conectando con la nube…</span></div>
@@ -106,6 +113,8 @@
 
       <section id="dashboardView" class="view active"></section>
       <section id="clientsView" class="view"></section>
+      <section id="calendarView" class="view"></section>
+      <section id="tasksView" class="view"></section>
       <section id="renditionsView" class="view"></section>
       <section id="settingsView" class="view"></section>
       <section id="usersView" class="view"></section>
