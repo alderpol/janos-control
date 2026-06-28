@@ -33,7 +33,7 @@ const FLEX_SERVICES = [
   ["church", "Iglesia o templo"], ["civil", "Civil"], ["droneEvent", "Drone en recepción"],
   ["droneBook", "Drone en sesión"], ["photoExtra", "Fotógrafo extra"], ["videoExtra", "Videógrafo extra"],
   ["signatureBook", "Libro de firmas"], ["partyBook", "Libro de fiesta"], ["liveEditor", "Editor en vivo"],
-  ["friendsVideo", "Video con amigos"], ["extraSession", "Sesión extra"]
+  ["friendsVideo", "Video con amigos"], ["extraSession", "Sesión extra - foto"], ["extraSessionVideo", "Sesión extra - video"]
 ];
 
 const BASE_RATES = {
@@ -488,7 +488,7 @@ document.addEventListener("change", e => {
   if(e.target.dataset.taskResponsible){const [c,t]=e.target.dataset.taskResponsible.split("|");const task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.responsible=e.target.value;saveState();}}
   if(e.target.dataset.taskDate){const [c,t]=e.target.dataset.taskDate.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.completedAt=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition&&e.target.value){rendition.workDate=e.target.value;rendition.periodEnd=periodEndFor(e.target.value);}saveState();}}
   if(e.target.dataset.taskNotes){const [c,t]=e.target.dataset.taskNotes.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.notes=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition)rendition.observations=e.target.value;saveState();}}
-  if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
+  if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){const prev=r.status;r.status=e.target.value;if(r.status==="submitted"&&prev!=="submitted")r.submittedAt=new Date().toISOString();if(r.status==="paid"&&prev!=="paid")r.paidAt=new Date().toISOString();saveState();toast("Estado de rendición actualizado");}}
   if(e.target.dataset.taskVideoEdit){const[c,t]=e.target.dataset.taskVideoEdit.split("|");updateVideoEdit(c,t,e.target.checked);}
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
   if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);

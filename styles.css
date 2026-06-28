@@ -492,3 +492,8 @@ legend { padding: 0 6px; }
   font-size: 11px;
   transition: transform 0.2s;
 }
+
+/* Panel de usuarios */
+.users-panel .panel-head { align-items: flex-start; flex-direction: column; gap: 4px; }
+.users-panel .panel-head span { font-size: 12px; }
+

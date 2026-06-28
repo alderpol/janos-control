@@ -211,6 +211,8 @@ export async function loadCloudState(defaultRates) {
     workDate: row.work_date,
     periodEnd: row.period_end,
     archivedAt: row.archived_at || "",
+    submittedAt: row.submitted_at || "",
+    paidAt: row.paid_at || "",
     createdAt: row.created_at,
   }));
 
@@ -272,8 +274,8 @@ export async function syncCloudState(state, user) {
     work_date: item.workDate,
     period_end: item.periodEnd,
     archived_at: item.archivedAt || null,
-    submitted_at: item.status === "submitted" ? new Date().toISOString() : null,
-    paid_at: item.status === "paid" ? new Date().toISOString() : null,
+    submitted_at: item.submittedAt || (item.status === "submitted" ? new Date().toISOString() : null),
+    paid_at: item.paidAt || (item.status === "paid" ? new Date().toISOString() : null),
   }));
   if (renditionRows.length) await upsertInBatches("renditions", renditionRows, "Guardado de rendiciones");
 
