@@ -9,7 +9,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    // Verificar que el solicitante es admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response("Unauthorized", { status: 401 });
 
@@ -18,13 +17,18 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Verificar rol del usuario que hace el request
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
+    // Verificar que el solicitante es admin usando service role + JWT
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(
+      authHeader.replace("Bearer ", "")
     );
-    const { data: profile } = await userClient.from("profiles").select("role").maybeSingle();
+    if (userError || !user) return new Response("Unauthorized", { status: 401 });
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
     if (profile?.role !== "admin") return new Response("Forbidden", { status: 403 });
 
     const { userId } = await req.json();
