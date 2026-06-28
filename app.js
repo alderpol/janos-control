@@ -464,6 +464,7 @@ document.addEventListener("click", e => {
   const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
   const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;const _ct=c.tasks.find(t=>t.key==="coordinateSession");if(_ct&&_ct.status==="done"){_ct.status="pending";_ct.completedAt="";}c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
   const userStatus=e.target.closest("[data-user-status]");if(userStatus)changeUserStatus(userStatus.dataset.userStatus,userStatus.dataset.nextStatus);
+  const exportUserBtn=e.target.closest("[data-export-user]");if(exportUserBtn)exportUserData(exportUserBtn.dataset.exportUser,exportUserBtn.dataset.exportName);
   const deleteUserBtn=e.target.closest("[data-delete-user]");if(deleteUserBtn)deleteUserAccount(deleteUserBtn.dataset.deleteUser);
   const edit=e.target.closest("[data-edit-client]"); if(edit){document.getElementById("detailDialog").close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient));}
   if(e.target.closest("[data-close-detail]"))document.getElementById("detailDialog").close();
@@ -748,3 +749,27 @@ async function bootstrap(){
 }
 
 bootstrap();
+
+async function exportUserData(userId, userName) {
+  try {
+    toast("Exportando datos de " + userName + "...");
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(import.meta.env.VITE_SUPABASE_URL + "/functions/v1/export-user", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + session?.access_token, "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    if (!res.ok) throw new Error("Error al exportar");
+    const backup = await res.json();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "backup_" + userName.replace(/\s+/g, "_") + "_" + todayIso() + ".json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("Backup de " + userName + " descargado");
+  } catch(error) {
+    console.error(error);
+    toast("No se pudo exportar los datos del usuario");
+  }
+}
