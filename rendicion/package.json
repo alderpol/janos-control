@@ -1,9 +1,0 @@
-{
-  "name": "rendicion-automation",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Automatizacion de carga de rendiciones via Playwright",
-  "dependencies": {
-    "playwright": "^1.61.1"
-  }
-}
