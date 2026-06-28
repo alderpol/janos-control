@@ -449,6 +449,10 @@ legend { padding: 0 6px; }
 .rates-panel {
   cursor: default;
 }
+/* Cuando está cerrado, no debe haber espacio extra */
+.rates-panel:not([open]) {
+  height: auto;
+}
 /* Cerrado: ▶ sin rotación; abierto: rota 90° y queda apuntando abajo */
 .rates-panel[open] .collapse-icon {
   transform: rotate(90deg);
@@ -462,6 +466,7 @@ legend { padding: 0 6px; }
   padding: 16px 20px;
   border-radius: var(--radius-lg);
   border-bottom: none;
+  min-height: unset;
 }
 /* Separador solo cuando está abierto */
 .rates-panel[open] .rates-summary {
