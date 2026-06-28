@@ -1,4 +1,4 @@
-import { cloudEnabled, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, supabase } from "./cloud.js";
+import { cloudEnabled, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, supabaseUrl } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -754,7 +754,7 @@ async function exportUserData(userId, userName) {
   try {
     toast("Exportando datos de " + userName + "...");
     const session = await getSession();
-    const res = await fetch(`${supabase.supabaseUrl}/functions/v1/export-user`, {
+    const res = await fetch(supabaseUrl + "/functions/v1/export-user", {
       method: "POST",
       headers: { Authorization: "Bearer " + session?.access_token, "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
