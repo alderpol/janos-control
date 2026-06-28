@@ -449,8 +449,9 @@ legend { padding: 0 6px; }
 .rates-panel {
   cursor: default;
 }
+/* Cerrado: ▶ sin rotación; abierto: rota 90° y queda apuntando abajo */
 .rates-panel[open] .collapse-icon {
-  transform: rotate(180deg);
+  transform: rotate(90deg);
 }
 .rates-summary {
   display: flex;
@@ -460,6 +461,12 @@ legend { padding: 0 6px; }
   list-style: none;
   padding: 16px 20px;
   border-radius: var(--radius-lg);
+  border-bottom: none;
+}
+/* Separador solo cuando está abierto */
+.rates-panel[open] .rates-summary {
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .rates-summary::-webkit-details-marker { display: none; }
 .rates-summary h2 {
@@ -472,6 +479,6 @@ legend { padding: 0 6px; }
 }
 .collapse-icon {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   transition: transform 0.2s;
 }
