@@ -368,7 +368,7 @@ function openClientForm(client=null) {
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","whatsappGroupUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
   const resetBtn=document.getElementById("resetContactBtn");
-  if(resetBtn){resetBtn.classList.toggle("hidden",!client?.contactedAt);resetBtn.dataset.contacted=client?.contactedAt||"";}
+  if(resetBtn){resetBtn.classList.toggle("hidden",!client?.contactedAt);resetBtn.dataset.contacted=client?.contactedAt||"";resetBtn.dataset.reset="0";resetBtn.textContent="↩ Deshacer contacto";resetBtn.classList.remove("danger-btn");resetBtn.classList.add("ghost-btn");}
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField();
 }
 function renderFormChecks(client) {
