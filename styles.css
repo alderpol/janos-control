@@ -444,3 +444,37 @@ legend { padding: 0 6px; }
   width: 14px;
   height: 14px;
 }
+
+/* Panel colapsable de tarifas */
+.collapsible-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 16px 20px;
+  color: inherit;
+  text-align: left;
+}
+.collapsible-trigger h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.collapsible-trigger:hover {
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
+}
+.collapse-icon {
+  color: var(--muted);
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+.collapsible-body {
+  padding: 0 20px 20px;
+}
+.collapsible-body.hidden {
+  display: none;
+}
