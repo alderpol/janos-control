@@ -25,3 +25,14 @@ exports/
 Thumbs.db
 .vscode/
 .idea/
+output/
+tmp/
+tmp_*/
+rendicion/
+csv-review/
+scripts/
+_tmp_*
+outputs/
+*.mp4
+*.pdf
+export-user_index.ts
