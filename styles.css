@@ -446,36 +446,32 @@ legend { padding: 0 6px; }
 }
 
 /* Panel colapsable de tarifas */
-.collapsible-trigger {
-  width: 100%;
+.rates-panel {
+  cursor: default;
+}
+.rates-panel[open] .collapse-icon {
+  transform: rotate(180deg);
+}
+.rates-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: none;
-  border: none;
   cursor: pointer;
+  list-style: none;
   padding: 16px 20px;
-  color: inherit;
-  text-align: left;
+  border-radius: var(--radius-lg);
 }
-.collapsible-trigger h2 {
+.rates-summary::-webkit-details-marker { display: none; }
+.rates-summary h2 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
 }
-.collapsible-trigger:hover {
+.rates-summary:hover {
   background: rgba(255,255,255,0.03);
-  border-radius: 12px;
 }
 .collapse-icon {
   color: var(--muted);
   font-size: 12px;
   transition: transform 0.2s;
-}
-.collapsible-body {
-  padding: 0 20px 20px;
-}
-.collapsible-body.hidden {
-  display: none !important;
-  padding: 0;
 }
