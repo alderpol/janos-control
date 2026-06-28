@@ -367,6 +367,8 @@ function openClientForm(client=null) {
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","whatsappGroupUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
+  const resetBtn=document.getElementById("resetContactBtn");
+  if(resetBtn){resetBtn.classList.toggle("hidden",!client?.contactedAt);resetBtn.dataset.contacted=client?.contactedAt||"";}
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField();
 }
 function renderFormChecks(client) {
@@ -381,11 +383,12 @@ function updateFlexField() {
 }
 function saveClient(form) {
   const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value);
+  const resetContact=form.querySelector('#resetContactBtn')?.dataset.reset==="1";
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   if(data.clientPhone&&whatsappNumber(data.clientPhone).length<12){toast("Ingresá el WhatsApp con código de área, por ejemplo +54 9 11 1234 5678.");form.elements.clientPhone.focus();return false;}
   const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&flexServices.length>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
   const duplicate=state.clients.find(c=>c.code===data.code&&c.id!==data.id); if(duplicate){toast("Ya existe un cliente con ese código."); return false;}
-  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,guests:Number(data.guests||0)}); syncTasks(c);}
+  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,guests:Number(data.guests||0)}); if(resetContact){c.contactedAt="";c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Contacto inicial reseteado",type:"contact_reset"});} syncTasks(c);}
   else {const client={...data,id:uid(),addons,flexServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
   saveState(); toast(data.id?"Cliente actualizado":"Cliente creado con su plan de trabajo"); return true;
 }
@@ -470,6 +473,7 @@ document.addEventListener("click", e => {
   const archive=e.target.closest("[data-archive-rendition]");if(archive)archiveRendition(archive.dataset.archiveRendition);
   const restore=e.target.closest("[data-restore-rendition]");if(restore)restoreRendition(restore.dataset.restoreRendition);
   const deleteWork=e.target.closest("[data-delete-rendition]");if(deleteWork&&confirm("¿Eliminar definitivamente esta rendición? La tarea del cliente se conservará."))deleteRendition(deleteWork.dataset.deleteRendition);
+  if(e.target.id==="resetContactBtn"){const btn=e.target;btn.dataset.reset=btn.dataset.reset==="1"?"0":"1";btn.textContent=btn.dataset.reset==="1"?"✓ Contacto será reseteado al guardar":"↩ Deshacer contacto";btn.classList.toggle("danger-btn",btn.dataset.reset==="1");btn.classList.toggle("ghost-btn",btn.dataset.reset!=="1");}
   if(e.target.id==="deleteClientFromForm"){const id=document.getElementById("clientForm").elements.id.value;if(id&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(id);}
   if(e.target.id==="saveRates"){document.querySelectorAll("[data-rate]").forEach(i=>state.rates[i.dataset.rate]=Number(i.value||0));saveState();toast("Tarifas actualizadas");}
   if(e.target.id==="saveWhatsappTemplate"){const template=document.getElementById("whatsappTemplate")?.value.trim();if(!template){toast("El mensaje no puede quedar vacío.");return;}state.settings={...(state.settings||{}),whatsappTemplate:template};saveState();toast("Mensaje de WhatsApp guardado");}
