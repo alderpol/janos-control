@@ -1,0 +1,187 @@
+<html><head><style>
+	input[type=text]{
+		-webkit-transition: all 0.30s ease-in-out;
+		-moz-transition: all 0.30s ease-in-out;
+		-ms-transition: all 0.30s ease-in-out;
+		-o-transition: all 0.30s ease-in-out;
+		outline: none;
+		border: 1px solid #DDDDDD;
+		border-radius:5px;
+		padding:8px;
+		width:300px;
+	}
+
+	input[type=button],input[type=submit]{
+		outline:none;
+		border-radius:5px;
+		padding:7px;
+		box-shadow:1px 1px 1px 1px rgba(0,0,0,0.5);
+		cursor:pointer;
+		background-color:rgba(166,166,166,1);
+		font-size:16px;
+		font-weight:bold;
+		color:white;
+	}
+
+	input[type=button]:hover,input[type=submit]:hover{
+		color:rgb(120,44,142);
+	}
+	
+	select{
+		-webkit-transition: all 0.30s ease-in-out;
+		-moz-transition: all 0.30s ease-in-out;
+		-ms-transition: all 0.30s ease-in-out;
+		-o-transition: all 0.30s ease-in-out;
+		outline: none;
+		border: 1px solid #DDDDDD;
+		border-radius:5px;
+		padding:8px;
+	}
+
+	input[type=text]:focus, textarea:focus, select:focus{
+		border: 1px solid rgba(81, 203, 238, 1);
+		box-shadow: 0 0 2px rgba(0, 0, 0, 0.1) inset, 0 0 10px 2px rgba(81, 203, 238, 1);
+	}
+
+	table,div,span{
+		font-family:Calibri;
+	}
+</style>
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+
+
+
+	<meta charset="utf-8">
+	<link rel="stylesheet" href="https://janosgroup.com/datepicker/jquery-ui.css">
+	<script src="https://janosgroup.com/datepicker/jquery-1.12.4.js"></script>
+	<script src="https://janosgroup.com/datepicker/jquery-ui.js"></script>
+
+	<script>
+	$( function() {
+		$( "#fechaOperacion" ).datepicker();
+	});
+	</script>
+</head>
+
+<body>
+
+	
+	<div style="text-align: center; margin-bottom:40px;">
+		<span style="font-size:40px;">Carga de Rendiciones</span>
+	</div>
+
+	<form action="#" method="post">
+		<div style="font-size:20px; text-align:center;"></div>
+
+		<table align="center" width="900px" style="border-collapse: collapse; margin-bottom:25px;">
+			<tbody><tr><th>Categoria</th>
+			<th>Fecha Evento</th>
+			<th>Salon</th>
+			<th>Trabajo realizado</th>
+			<th>Observaciones</th>
+
+			</tr><tr>
+				<td align="center">
+					<select name="categoria" id="categoria" required="" onchange="opciones(this.value);">
+						<option value=""> -CATEGORIA- </option>
+						<option value="PERSONAL FOTOGRAFIA"> PERSONAL FOTOGRAFIA </option>
+						<option value="PERSONAL VIDEO"> PERSONAL VIDEO </option>
+						<option value="GUARDIA FOTOGRAFIA"> GUARDIA FOTOGRAFIA </option>
+						<option value="GUARDIA VIDEO"> GUARDIA VIDEO </option>
+						<option value="COMPLEMENTOS"> COMPLEMENTOS </option>
+					</select>
+				</td>
+
+				<td align="center">
+					<input type="text" name="fechaOperacion" id="fechaOperacion" style="width:100px;" value="24/06/2026" readonly="" class="hasDatepicker">
+				</td>
+
+				<td align="center">
+					<select name="salon" required="">
+						<option value=""> -SALONES- </option>
+						<option value="2">Acceso Oeste</option><option value="127">Acceso Oeste 2</option><option value="107">Adrogue</option><option value="0">Ambulante</option><option value="116">Atelier Darwin</option><option value="77">Atelier San Miguel</option><option value="48">Avellaneda 1</option><option value="49">Avellaneda 2</option><option value="96">Avellaneda 3</option><option value="97">Avellaneda 4</option><option value="106">Bakery</option><option value="52">Balneario Janos</option><option value="83">Balneario Play</option><option value="120">Bayres Eventos</option><option value="82">Beach</option><option value="16">Bella Vista</option><option value="38">Bella Vista 2</option><option value="44">Benavidez 1</option><option value="45">Benavidez 2</option><option value="108">Berazategui</option><option value="109">Berazategui 2</option><option value="89">Berisso</option><option value="34">CABA Boutique</option><option value="84">Caballito 1</option><option value="85">Caballito 2</option><option value="121">Call Center</option><option value="125">Campana</option><option value="128">Canning</option><option value="41">CASM cancha</option><option value="39">CASM sede</option><option value="9">Champagnat Boutique</option><option value="136">Cocina Danny Bramson </option><option value="87">Costanera 1</option><option value="88">Costanera 2</option><option value="93">Dardo Rocha</option><option value="58">Darwin 1</option><option value="59">Darwin 2</option><option value="19">Degustaciones</option><option value="13">Del Viso</option><option value="36">Deposito</option><option value="101">Deposito Buen Ayre</option><option value="130">Deposito Hurlingham</option><option value="131">Deposito Maschwitz</option><option value="132">Deposito Palermo Soho</option><option value="135">Deposito Tecnica San Miguel</option><option value="53">DOT</option><option value="14">Escobar</option><option value="102">Estancia</option><option value="78">Factory</option><option value="123">Factory Bunker</option><option value="117">General Rodriguez</option><option value="104">Haedo</option><option value="105">Haedo 2</option><option value="50">Hipodromo La Plata</option><option value="94">Holiday Inn</option><option value="98">Holiday Inn 2</option><option value="17">Hotel</option><option value="5">House</option><option value="26">Hudson</option><option value="111">Hudson 2</option><option value="4">Hurlingham</option><option value="11">Ituzaingo</option><option value="25">Ituzaingo 2</option><option value="81">Janos GO</option><option value="6">Jose C Paz</option><option value="129">La Candelaria</option><option value="103">La Fortaleza</option><option value="57">La Plata</option><option value="133">La Plata 2</option><option value="134">La Plata Boutique</option><option value="15">La Reja</option><option value="28">Liniers</option><option value="119">Lomas</option><option value="126">Lomas Boutique</option><option value="80">Los Naranjos</option><option value="8">Martinez</option><option value="20">Maschwitz</option><option value="47">Merlo</option><option value="118">Merlo 2</option><option value="10">Moreno</option><option value="43">Moron</option><option value="56">Nuñez</option><option value="1">Oficina</option><option value="12">Olivos</option><option value="3">Olivos 2</option><option value="75">Palacio Sans Souci</option><option value="64">Palermo Hollywood</option><option value="46">Palermo Soho</option><option value="91">Paseo Colon</option><option value="24">Pilar</option><option value="67">Pilar boutique</option><option value="113">Pilar Hotel</option><option value="66">Planta</option><option value="51">Playa Grande</option><option value="99">Playa Grande 2</option><option value="23">Puerto Madero</option><option value="95">Puerto Madero Boutique</option><option value="86">Quilmes Boutique</option><option value="7">Quinta</option><option value="63">Ramos Boutique</option><option value="92">Ramos Boutique 2</option><option value="27">Ramos Mejia</option><option value="29">Ramos Mejia 2</option><option value="122">Recoleta</option><option value="18">Restaurant</option><option value="40">San Isidro</option><option value="65">San Justo</option><option value="112">San Justo 2</option><option value="30">San Martin 1</option><option value="32">San Martin 2</option><option value="33">San Martin 3</option><option value="35">San Miguel</option><option value="21">San Telmo</option><option value="76">San Telmo 2</option><option value="62">San Telmo Boutique</option><option value="74">Shhh</option><option value="100">Stadium</option><option value="90">Temperley</option><option value="124">TIENDA CASM</option><option value="22">Vicente Lopez</option><option value="114">Villa de Mayo</option><option value="115">Villa de Mayo Boutique</option>					</select>
+				</td>
+
+				<td align="center">
+					<select name="trabajo" id="trabajo" required="" onchange="validar_dataset()">
+					</select>
+				</td>
+
+				<td align="left">
+					<input type="text" id="observaciones" name="observaciones" style="display:inline-block; width:300px;" value="">
+				</td>
+			</tr>
+		</tbody></table>
+
+		<input type="hidden" name="data_fecha" id="data_fecha" value="0">
+		<input type="hidden" name="data_observaciones" id="data_observaciones" value="0">
+
+		<div style="text-align: center;">
+			<input type="submit" value="Cargar Rendicion" style="width:150px; height:40px; font-size:15px;">
+		</div>
+	</form>
+
+
+
+
+<script type="text/javascript">
+function opciones(a)
+{
+	var xhttp = new XMLHttpRequest();
+
+	xhttp.onreadystatechange = function() {
+		if (this.readyState == 4 && this.status == 200) {
+			document.getElementById("trabajo").innerHTML = xhttp.responseText;
+			validar_dataset();
+		}
+	};
+
+	xhttp.open("POST", "opciones.php", true);
+	xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+	xhttp.send("dato="+a);
+}
+
+function validar_dataset()
+{
+	var trabajo = document.getElementById("trabajo");
+	var dataFecha = document.getElementById("data_fecha");
+	var dataObservaciones = document.getElementById("data_observaciones");
+
+	if(!trabajo || trabajo.selectedIndex < 0)
+	{
+		dataFecha.value = "0";
+		dataObservaciones.value = "0";
+		return;
+	}
+
+	var option = trabajo.options[trabajo.selectedIndex];
+
+	dataFecha.value = option.getAttribute("data-fecha") || "0";
+	dataObservaciones.value = option.getAttribute("data-observaciones") || "0";
+}
+
+setInterval(function () {
+	var xhttp = new XMLHttpRequest();
+
+	xhttp.onreadystatechange = function() {
+		if (this.readyState == 4 && this.status == 200) {
+			try {
+				var data = JSON.parse(this.responseText);
+
+				if (data.bloqueado) {
+					alert(data.mensaje);
+					window.location.href = 'login.html';
+				}
+			} catch(e) {
+				console.log('Error al interpretar respuesta de bloqueo');
+			}
+		}
+	};
+
+	xhttp.open("GET", "nueva.php?check_bloqueo=1&t=" + new Date().getTime(), true);
+	xhttp.send();
+
+}, 2000);
+</script><div id="ui-datepicker-div" class="ui-datepicker ui-widget ui-widget-content ui-helper-clearfix ui-corner-all"></div></body></html>
