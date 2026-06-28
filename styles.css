@@ -300,7 +300,7 @@ legend { padding: 0 6px; }
 .cal-salon-4 { background: var(--surface-3); border-left: 3px solid var(--muted); }
 
 /* ── SETTINGS ── */
-.settings-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 20px; }
+.settings-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 20px; align-items: start; }
 .whatsapp-settings { grid-column: 1 / -1; }
 .whatsapp-settings textarea { resize: vertical; }
 .template-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
