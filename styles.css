@@ -448,6 +448,10 @@ legend { padding: 0 6px; }
 /* Panel colapsable de tarifas */
 .rates-panel {
   cursor: default;
+  overflow: visible; /* anula el overflow:hidden de .panel que impide el colapso de <details> */
+}
+.rates-panel .panel-body {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 /* Cuando está cerrado, no debe haber espacio extra */
 .rates-panel:not([open]) {
