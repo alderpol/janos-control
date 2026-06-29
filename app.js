@@ -6,7 +6,7 @@ if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==
 }
 
 const STORAGE_KEY = "janos-control-v1";
-const MANAGED_SALONS = ["Quinta", "Pilar Hotel"];
+const MANAGED_SALONS = ["Acceso Oeste","Acceso Oeste 2","Adrogue","Ambulante","Avellaneda 1","Avellaneda 2","Avellaneda 3","Avellaneda 4","Bayres Eventos","Bella Vista","Bella Vista 2","Benavidez 1","Benavidez 2","Berazategui","Berazategui 2","Berisso","CABA Boutique","Caballito 1","Caballito 2","Campana","Canning","Champagnat Boutique","Costanera 1","Costanera 2","Dardo Rocha","Darwin 1","Darwin 2","Del Viso","DOT","Escobar","General Rodriguez","Haedo","Haedo 2","Hipodromo La Plata","Holiday Inn","Holiday Inn 2","Hotel","House","Hudson","Hudson 2","Hurlingham","Ituzaingo","Ituzaingo 2","Jose C Paz","La Plata","La Plata 2","La Plata Boutique","Liniers","Lomas","Lomas Boutique","Martinez","Maschwitz","Merlo","Merlo 2","Moreno","Moron","Nuñez","Olivos","Olivos 2","Palacio Sans Souci","Palermo Hollywood","Palermo Soho","Pilar","Pilar boutique","Pilar Hotel","Puerto Madero","Puerto Madero Boutique","Quilmes Boutique","Quinta","Ramos Boutique","Ramos Boutique 2","Ramos Mejia","Ramos Mejia 2","Recoleta","San Isidro","San Justo","San Justo 2","San Martin 1","San Martin 2","San Martin 3","San Telmo","San Telmo 2","San Telmo Boutique","Temperley","Vicente Lopez","Villa de Mayo","Villa de Mayo Boutique"];
 const STATUS_LABELS = { pending: "Pendiente", waiting: "Esperando cliente", progress: "En proceso", done: "Terminado", na: "No corresponde" };
 const RENDITION_STATUS = { pending: "Pendiente", submitted: "Rendido", approved: "Aprobado", paid: "Pagado" };
 const DEFAULT_WHATSAPP_TEMPLATE = `Hola {nombre}, ¡buenos días!
