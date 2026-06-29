@@ -6,7 +6,7 @@ if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==
 }
 
 const STORAGE_KEY = "janos-control-v1";
-const MANAGED_SALONS = ["Quinta", "Pilar Hotel"];
+const MANAGED_SALONS = ["Acceso Oeste","Acceso Oeste 2","Adrogue","Ambulante","Avellaneda 1","Avellaneda 2","Avellaneda 3","Avellaneda 4","Bayres Eventos","Bella Vista","Bella Vista 2","Benavidez 1","Benavidez 2","Berazategui","Berazategui 2","Berisso","CABA Boutique","Caballito 1","Caballito 2","Campana","Canning","Champagnat Boutique","Costanera 1","Costanera 2","Dardo Rocha","Darwin 1","Darwin 2","Del Viso","DOT","Escobar","General Rodriguez","Haedo","Haedo 2","Hipodromo La Plata","Holiday Inn","Holiday Inn 2","Hotel","House","Hudson","Hudson 2","Hurlingham","Ituzaingo","Ituzaingo 2","Jose C Paz","La Plata","La Plata 2","La Plata Boutique","Liniers","Lomas","Lomas Boutique","Martinez","Maschwitz","Merlo","Merlo 2","Moreno","Moron","Nuñez","Olivos","Olivos 2","Palacio Sans Souci","Palermo Hollywood","Palermo Soho","Pilar","Pilar boutique","Pilar Hotel","Puerto Madero","Puerto Madero Boutique","Quilmes Boutique","Quinta","Ramos Boutique","Ramos Boutique 2","Ramos Mejia","Ramos Mejia 2","Recoleta","San Isidro","San Justo","San Justo 2","San Martin 1","San Martin 2","San Martin 3","San Telmo","San Telmo 2","San Telmo Boutique","Temperley","Vicente Lopez","Villa de Mayo","Villa de Mayo Boutique"];
 const STATUS_LABELS = { pending: "Pendiente", waiting: "Esperando cliente", progress: "En proceso", done: "Terminado", na: "No corresponde" };
 const RENDITION_STATUS = { pending: "Pendiente", submitted: "Rendido", approved: "Aprobado", paid: "Pagado" };
 const DEFAULT_WHATSAPP_TEMPLATE = `Hola {nombre}, ¡buenos días!
@@ -217,12 +217,12 @@ function attentionItems() {
     if(bookDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
     else if(prepDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
     else if(days>=0&&days<=14&&incomplete.length) items.push({priority:2,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
-    if(days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
+    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
   }); return items.sort((a,b)=>a.priority-b.priority||a.days-b.days).slice(0,6).map(item=>item.html).join("");
 }
 function contactWatchItems() {
   return state.clients
-    .filter(c => !c.contactedAt && daysUntil(c.eventDate) <= 90)
+    .filter(c => !c.isExternal && !c.contactedAt && daysUntil(c.eventDate) <= 90)
     .sort((a,b) => daysUntil(a.eventDate) - daysUntil(b.eventDate))
     .map(c => {
       const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
@@ -303,7 +303,7 @@ function calendarDatePart(date,time){return `${date.replaceAll("-","")}T${time.r
 function addMinutesToTime(date,time,minutes){const value=new Date(`${date}T${time}:00`);value.setMinutes(value.getMinutes()+Number(minutes||90));return {date:`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`,time:`${String(value.getHours()).padStart(2,"0")}:${String(value.getMinutes()).padStart(2,"0")}`};}
 function googleCalendarUrl(client,session){const end=addMinutesToTime(session.date,session.time,90);const optional=[session.includesFashionProduction?"Incluye producción de moda":"",session.includesMakeupHair?"Incluye maquillaje y peinado":""].filter(Boolean);const details=[`Cliente: ${client.clientName||client.honoree}`,`Evento: #${client.code} · ${client.honoree}`,`Fecha del evento: ${dateText(client.eventDate)}`,optional.length?`Opcionales: ${optional.join(" · ")}`:"",session.notes?`Notas: ${session.notes}`:""].filter(Boolean).join("\n");const params=new URLSearchParams({action:"TEMPLATE",text:`#${client.code} Book ${client.honoree} · ${session.location} · ${session.time}`,dates:`${calendarDatePart(session.date,session.time)}/${calendarDatePart(end.date,end.time)}`,details,location:session.location,ctz:"America/Argentina/Buenos_Aires"});return `https://calendar.google.com/calendar/render?${params.toString()}`;}
 function savePhotoSession(form){const data=Object.fromEntries(new FormData(form)),client=state.clients.find(item=>item.id===data.clientId);if(!client)return false;const session={date:data.date,time:data.time,location:data.location.trim(),includesFashionProduction:form.elements.includesFashionProduction.checked,includesMakeupHair:form.elements.includesMakeupHair.checked,notes:String(data.notes||"").trim(),updatedAt:new Date().toISOString()};if(!session.date||!session.time||!session.location){toast("Completá día, hora y lugar de la sesión.");return false;}client.photoSession=session;client.history=client.history||[];client.history.push({date:session.updatedAt,text:`Sesión de fotos agendada para ${sessionDateTimeText(session)} en ${session.location}`,type:"photo_session",photoSession:session});const _coordTask=client.tasks.find(t=>t.key==="coordinateSession");if(_coordTask&&_coordTask.status!=="done"){_coordTask.status="done";_coordTask.completedAt=session.date||todayIso();}saveState();window.open(googleCalendarUrl(client,session),"_blank","noopener,noreferrer");toast("Sesión guardada y Google Calendar abierto");return true;}
-function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag">${isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button><button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
+function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag${c.isExternal?" external":""}">${c.isExternal?"Externo":isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button><button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
 function progress(c) { const applicable=c.tasks.filter(t=>t.status!=="na"); return applicable.length ? Math.round(applicable.filter(t=>t.status==="done").length/applicable.length*100) : 0; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
 
@@ -364,6 +364,170 @@ function renderUsers(){const view=document.getElementById("usersView");if(!view)
 async function changeUserStatus(id,status){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿${status==="blocked"?"Bloquear":"Reactivar"} la cuenta de ${user.display_name||user.email}?`))return;try{await setUserStatus(id,status);if(status==="active"&&user.email){try{await notifyUserApproved(id,user.email,user.display_name||"");toast("Usuario reactivado y notificado por email");}catch(e){console.error(e);toast("Usuario reactivado · no se pudo enviar el email");}}else{toast(status==="blocked"?"Usuario bloqueado":"Usuario reactivado");}adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo cambiar el acceso");}}
 async function deleteUserAccount(id){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿Eliminar definitivamente la cuenta de ${user.display_name||user.email}? Esta acción no se puede deshacer.`))return;try{await deleteUser(id);toast("Usuario eliminado");adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo eliminar el usuario");}}
 function rateLabel(k) { return ({gold:"Gold completo",silver:"Silver completo",book:"Book completo",eventCoverage:"Cobertura evento",eventEdit:"Edición evento",bookCoverage:"Cobertura book",bookEdit:"Edición book",informal:"Informal completo",informalRecording:"Informal solo grabación",ceremony:"Ceremonia completa",ceremonyRecording:"Ceremonia grabación",ceremonyEdit:"Ceremonia edición",drone:"Drone",photoExtra:"Fotógrafo extra",videoExtra:"Videógrafo extra",liveEditor:"Edición en vivo",signatureDesign:"Diseño libro firmas + mural",partyBookDesign:"Diseño libro fiesta",videoExtraClip:"Video crono/entrada",albumInteractive:"Álbum interactivo",droneEdit:"Edición drone FPV",assistant:"Asistente book",extraSheet:"Pliego extra",churchUpgrade:"Iglesia por upgrade",totemDigital:"Tótem / Televisor Fotografía Digital",bookModa:"Adicional book con Moda"})[k]||k; }
+
+
+const MANUAL_WORKS = {
+  "PERSONAL FOTOGRAFIA": [
+    { label: "Fiesta (cobertura y edicion)", rate: "silver" },
+    { label: "Sesion de fotos (cobertura + edicion)", rate: "book" },
+    { label: "Evento Informal", rate: "informal" },
+    { label: "Civil", rate: "ceremony" },
+    { label: "Iglesia (canje del book)", rate: null },
+    { label: "Templo Bar/Bat", rate: null },
+    { label: "Iglesia (servicio extra por upgrade)", rate: "churchUpgrade" },
+    { label: "Adicional ceremonia en salon", rate: "ceremony" },
+    { label: "Adicional book con Moda", rate: "bookModa" },
+    { label: "Evento Corporativo", rate: null },
+    { label: "VIATICOS (SOLO FOTOGRAFO)", rate: null },
+    { label: "Sesion Sans Souci (cobertura + edicion)", rate: "book" },
+    { label: "Fiesta (segundo fotografo)", rate: "photoExtra" },
+  ],
+  "PERSONAL VIDEO": [
+    { label: "Fiesta (grabacion + edicion)", rate: null },
+    { label: "Fiesta (cobertura sin edicion)", rate: "eventCoverage" },
+    { label: "Fiesta (edicion)", rate: "eventEdit" },
+    { label: "Sesion de fotos (grabacion + edicion back)", rate: null },
+    { label: "Sesion de fotos (solo grabacion)", rate: "bookCoverage" },
+    { label: "Sesion de fotos (solo edicion)", rate: "bookEdit" },
+    { label: "Civil (grabacion + edicion video)", rate: null },
+    { label: "Civil (solo grabacion)", rate: "ceremonyRecording" },
+    { label: "Civil (solo edicion)", rate: "ceremonyEdit" },
+    { label: "Iglesia (canje del book)", rate: null },
+    { label: "Templo Bar/Bat", rate: null },
+    { label: "Adicional ceremonia en salon (grabacion + edicion)", rate: null },
+    { label: "Adicional ceremonia en salon (solo grabacion)", rate: "ceremonyRecording" },
+    { label: "Adicional ceremonia en salon (solo edicion)", rate: "ceremonyEdit" },
+    { label: "Adicional book con Moda", rate: "bookModa" },
+    { label: "Evento Corporativo (grabacion + edicion)", rate: null },
+    { label: "Evento Corporativo (solo grabacion)", rate: null },
+    { label: "Evento Corporativo (solo edicion)", rate: null },
+    { label: "Evento Informal (grabacion + edicion)", rate: null },
+    { label: "Evento Informal (solo grabacion)", rate: "informalRecording" },
+    { label: "Evento Informal (solo edicion)", rate: null },
+    { label: "Iglesia (servicio extra por upgrade)", rate: null },
+    { label: "VIATICOS (SOLO VIDEOGRAFO)", rate: null },
+    { label: "Fiesta (segundo videografo)", rate: "videoExtra" },
+  ],
+  "COMPLEMENTOS": [
+    { label: "Drone en evento", rate: "drone" },
+    { label: "Drone en sesion de fotos", rate: "drone" },
+    { label: "Edicion en vivo video", rate: "liveEditor" },
+    { label: "Edicion en vivo de fotos", rate: "liveEditor" },
+    { label: "Libro firmas (Fotografia Digital)", rate: "signatureDesign" },
+    { label: "Libro Fiesta (Fotografia Digital)", rate: "partyBookDesign" },
+    { label: "Video con amigos", rate: "book" },
+    { label: "Album de fotos interactivo (fotografia)", rate: "albumInteractive" },
+    { label: "Album de fotos interactivo (videos)", rate: "albumInteractive" },
+    { label: "Fiesta (segundo fotografo)", rate: "photoExtra" },
+    { label: "Fiesta (segundo videografo)", rate: "videoExtra" },
+    { label: "Totem Digital", rate: "totemDigital" },
+    { label: "Asistente en sesion de fotos", rate: "assistant" },
+    { label: "Diseno de pliegos extra en libro", rate: "extraSheet" },
+    { label: "Video cronologico", rate: null },
+    { label: "DRONE FPV", rate: null },
+    { label: "DRONE FPV (SOLO EDICION)", rate: "droneEdit" },
+    { label: "Glam Cam 360", rate: null },
+    { label: "Party Cam 360", rate: null },
+    { label: "Music Video", rate: null },
+    { label: "INFINITY BOX", rate: null },
+    { label: "Holograma recepcion", rate: null },
+    { label: "Centro de mesa interactivo x1", rate: null },
+    { label: "Video de entrada para pantalla", rate: null },
+    { label: "Mapping Globo", rate: null },
+    { label: "Adicional edicion por camara extra", rate: null },
+    { label: "Maquillaje", rate: null },
+    { label: "Maquillaje plus", rate: null },
+    { label: "Maquillaje x2 plus", rate: null },
+    { label: "ADICIONAL MAQUILLAJE EVENTO", rate: null },
+    { label: "ADICIONAL MAQUILLAJE RECEPCION", rate: null },
+    { label: "MAQUILLAJE BOOK", rate: null },
+    { label: "Vestuario, maquillaje y peinado book moda", rate: "bookModa" },
+    { label: "Fashion look", rate: null },
+    { label: "Invitacion interactiva", rate: null },
+    { label: "Televisor Fotografia Digital", rate: null },
+    { label: "Pulseras LED", rate: null },
+  ]
+};
+
+function openManualRenditionDialog() {
+  const salons = [...MANAGED_SALONS];
+  document.getElementById("manualRenditionSalon").innerHTML = salons.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") + '<option value="Otro">Otro</option>';
+  document.getElementById("manualRenditionDate").value = "";
+  document.getElementById("manualRenditionAmount").value = "";
+  document.getElementById("manualRenditionNotes").value = "";
+  updateManualRenditionWorks();
+  document.getElementById("manualRenditionDialog").showModal();
+}
+function updateManualRenditionWorks() {
+  const cat = document.getElementById("manualRenditionCategory").value;
+  const works = MANUAL_WORKS[cat] || [];
+  document.getElementById("manualRenditionWork").innerHTML = works.map(w => `<option value="${escapeHtml(w.label)}" data-rate="${w.rate||""}">${escapeHtml(w.label)}</option>`).join("");
+  updateManualRenditionRate();
+}
+function updateManualRenditionRate() {
+  const sel = document.getElementById("manualRenditionWork");
+  const opt = sel.options[sel.selectedIndex];
+  const rateKey = opt?.dataset.rate;
+  const amount = rateKey && state.rates[rateKey] ? state.rates[rateKey] : "";
+  document.getElementById("manualRenditionAmount").value = amount;
+}
+function saveManualRendition() {
+  const date = document.getElementById("manualRenditionDate").value;
+  const salon = document.getElementById("manualRenditionSalon").value;
+  const category = document.getElementById("manualRenditionCategory").value;
+  const work = document.getElementById("manualRenditionWork").value;
+  const amount = Number(document.getElementById("manualRenditionAmount").value);
+  const notes = document.getElementById("manualRenditionNotes").value.trim();
+  if (!date) { toast("Ingresá la fecha del evento."); return; }
+  if (!amount || amount <= 0) { toast("Ingresá el importe."); return; }
+  const rendition = {
+    id: uid(), clientId: null, taskId: null,
+    work, category, amount,
+    eventDate: date, salon,
+    notes: notes || undefined,
+    status: "pending",
+    isManual: true,
+    createdAt: new Date().toISOString()
+  };
+  state.renditions.push(rendition);
+  saveState();
+  toast("Rendición manual cargada");
+  document.getElementById("manualRenditionDialog").close();
+  renderRenditions();
+}
+
+function openExternalForm(client=null) {
+  const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
+  const EVENT_TYPES=["15","18","Casamiento","Bautismo","Comunión","Cumpleaños","Corporativo","Otro"];
+  const isEdit=!!client;
+  document.getElementById("externalDialogTitle").textContent=isEdit?"Editar evento externo":"Nuevo evento externo";
+  document.getElementById("externalForm").elements.id.value=client?.id||"";
+  document.getElementById("externalForm").elements.eventDate.value=client?.eventDate||"";
+  document.getElementById("externalForm").elements.salon.value=client?.salon||"";
+  document.getElementById("externalForm").elements.type.value=client?.type||"";
+  document.getElementById("externalForm").elements.honoree.value=client?.honoree||"";
+  document.getElementById("externalForm").elements.code.value=client?.code||"";
+  const externalSalons=salons.includes("Otro")?salons:[...salons,"Otro"];document.getElementById("externalSalonSelect").innerHTML=externalSalons.map(s=>`<option value="${escapeHtml(s)}" ${client?.salon===s?"selected":""}>${escapeHtml(s)}</option>`).join("");
+  document.getElementById("externalTypeSelect").innerHTML=EVENT_TYPES.map(t=>`<option value="${escapeHtml(t)}" ${client?.type===t?"selected":""}>${escapeHtml(t)}</option>`).join("");
+  document.getElementById("deleteExternalBtn").classList.toggle("hidden",!isEdit);
+  document.getElementById("externalDialog").showModal();
+}
+function saveExternalClient(form) {
+  const data=Object.fromEntries(new FormData(form));
+  if(!data.eventDate){toast("La fecha del evento es obligatoria.");form.elements.eventDate.focus();return false;}
+  if(!data.salon){toast("Seleccioná un salón.");return false;}
+  const duplicate=state.clients.find(c=>data.code&&c.code===data.code&&c.id!==data.id);
+  if(duplicate){toast("Ya existe un cliente con ese código.");return false;}
+  if(data.id){
+    const c=state.clients.find(x=>x.id===data.id);
+    Object.assign(c,{eventDate:data.eventDate,salon:data.salon,type:data.type,honoree:data.honoree||"Evento externo",code:data.code||c.code});
+    c.history.push({date:new Date().toISOString(),text:"Datos actualizados"});
+  } else {
+    const client={...data,id:uid(),honoree:data.honoree||"Evento externo",code:data.code||`EXT-${Date.now()}`,addons:[],flexServices:[],guests:0,pack:"silver",isExternal:true,contactedAt:new Date().toISOString(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Evento externo creado"}],tasks:[]};
+    state.clients.push(client);
+  }
+  saveState();toast(data.id?"Evento externo actualizado":"Evento externo creado");return true;
+}
 
 function openClientForm(client=null) {
   const form=document.getElementById("clientForm"); form.reset(); form.elements.id.value=client?.id||"";
@@ -556,7 +720,9 @@ function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id==
 function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);existing.amount=includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0;existing.work=t.work+(includesEdit?" + edición":"");}saveState();refreshTaskViews(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
 function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
-function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],calendar:["Vista mensual","Calendario"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks");document.querySelector(".sidebar").classList.remove("open");}
+function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],calendar:["Vista mensual","Calendario"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks"||view==="renditions");
+document.getElementById("newExternalBtn").classList.toggle("hidden",view==="users"||view==="tasks"||view==="renditions");
+const manualBtn=document.getElementById("manualRenditionBtn");if(manualBtn)manualBtn.style.display=view==="renditions"?"":"none";document.querySelector(".sidebar").classList.remove("open");}
 function toast(msg){const el=document.getElementById("toast");const openDialog=document.querySelector("dialog[open]");(openDialog||document.body).appendChild(el);el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
 
 document.addEventListener("click", e => {
@@ -617,6 +783,10 @@ document.addEventListener("change",e=>{if(e.target.dataset.taskCheck){const[c,t]
 function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"",addon=document.getElementById("clientAddonFilter")?.value||"";clientFilters={search:q,salon,month,pack,addon};const filtered=state.clients.filter(c=>(clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c))&&(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&(!addon||(c.addons||[]).includes(addon))&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
 function filterRenditions(){const status=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";const filtered=state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!status||r.status===status)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
+document.getElementById("newExternalBtn").addEventListener("click",()=>openExternalForm());
+document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
+document.getElementById("externalForm").addEventListener("submit",e=>{e.preventDefault();if(saveExternalClient(e.currentTarget))document.getElementById("externalDialog").close();});
+document.getElementById("deleteExternalBtn").addEventListener("click",()=>{const id=document.getElementById("externalForm").elements.id.value;if(id&&confirm("¿Eliminar este evento externo y todas sus rendiciones?"))deleteClient(id);document.getElementById("externalDialog").close();});
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
 document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
 document.getElementById("clientDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
