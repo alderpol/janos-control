@@ -267,7 +267,6 @@ legend { padding: 0 6px; }
 .summary-box strong { margin-top: 5px; font-size: 14px; color: var(--ink); }
 .photo-session-panel { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 18px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface-2); }
 .photo-session-panel span, .photo-session-panel strong { display: block; }
-.tag.external { background: rgba(100,100,200,0.15); color: #9999ee; border: 1px solid rgba(100,100,200,0.3); }
 .photo-session-panel span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .photo-session-panel strong { margin-top: 4px; font-size: 13px; color: var(--ink); }
 .photo-selection-panel { border: 1px solid var(--line-2); border-radius: var(--radius); margin: 18px 0 0; background: var(--surface-2); overflow: hidden; }

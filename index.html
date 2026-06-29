@@ -109,7 +109,6 @@
           <h1 id="viewTitle">Inicio</h1>
         </div>
         <button class="primary-btn" id="newClientBtn">+ Nuevo cliente</button>
-        <button class="secondary-btn" id="newExternalBtn">+ Evento externo</button>
       </header>
 
       <section id="dashboardView" class="view active"></section>
@@ -155,32 +154,6 @@
         <button class="ghost-btn hidden" type="button" id="resetContactBtn">↩ Deshacer contacto</button>
         <button class="secondary-btn" type="button" data-close-client-form>Cancelar</button>
         <button class="primary-btn" type="submit" id="saveClientBtn">Guardar cliente</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="externalDialog" class="modal">
-    <form id="externalForm" method="dialog" onsubmit="return false;">
-      <input type="hidden" name="id">
-      <div class="modal-head">
-        <div><p class="eyebrow">Evento externo</p><h2 id="externalDialogTitle">Nuevo evento externo</h2></div>
-        <button class="icon-btn" type="button" onclick="document.getElementById('externalDialog').close()" aria-label="Cerrar">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-row">
-          <label>Fecha del evento<input type="date" name="eventDate" required></label>
-          <label>Salón<select name="salon" id="externalSalonSelect"></select></label>
-        </div>
-        <div class="form-row">
-          <label>Tipo de evento<select name="type" id="externalTypeSelect"></select></label>
-          <label>Homenajeado/a<input type="text" name="honoree" placeholder="Nombre del evento"></label>
-        </div>
-        <label>Código del evento <span class="muted">(opcional)</span><input type="text" name="code" placeholder="Ej: 43828"></label>
-      </div>
-      <div class="modal-actions">
-        <button class="danger-btn" id="deleteExternalBtn" type="button" hidden>Eliminar</button>
-        <button class="secondary-btn" type="button" onclick="document.getElementById('externalDialog').close()">Cancelar</button>
-        <button class="primary-btn" type="submit" onclick="document.getElementById('externalForm').requestSubmit()">Guardar evento</button>
       </div>
     </form>
   </dialog>
