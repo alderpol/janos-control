@@ -269,6 +269,19 @@ legend { padding: 0 6px; }
 .photo-session-panel span, .photo-session-panel strong { display: block; }
 .photo-session-panel span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .photo-session-panel strong { margin-top: 4px; font-size: 13px; color: var(--ink); }
+.photo-selection-panel { border: 1px solid var(--line-2); border-radius: var(--radius); margin: 18px 0 0; background: var(--surface-2); overflow: hidden; }
+.photo-selection-panel[open] .collapse-icon { transform: rotate(180deg); }
+.photo-selection-summary { list-style: none; cursor: pointer; min-height: 48px; padding: 12px 18px; display: flex; align-items: center; gap: 0; justify-content: space-between; }
+.photo-selection-summary .summary-left { display: flex; align-items: center; gap: 8px; }
+.photo-selection-summary::-webkit-details-marker { display: none; }
+.photo-selection-summary h3 { margin: 0; font-size: 14px; color: var(--ink); font-weight: 500; }
+.photo-selection-summary h3 + small { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.photo-selection-panel .panel-body { padding: 14px 18px 18px; border-top: 1px solid var(--line); }
+.photo-selection-fields { display: flex; flex-direction: column; gap: 12px; }
+.photo-selection-label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.photo-selection-textarea { font-family: var(--mono, monospace); font-size: 12.5px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); padding: 8px 10px; resize: vertical; }
+.photo-selection-input { font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); padding: 7px 10px; text-transform: uppercase; letter-spacing: .05em; }
+.photo-selection-textarea:focus, .photo-selection-input:focus { outline: none; border-color: var(--gold); }
 .phase-title { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: .1em; margin: 20px 0 8px; font-weight: 700; }
 
 /* ── TAREAS (vista global por rol) ── */
