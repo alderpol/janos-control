@@ -376,7 +376,7 @@ function openExternalForm(client=null) {
   document.getElementById("externalForm").elements.type.value=client?.type||"";
   document.getElementById("externalForm").elements.honoree.value=client?.honoree||"";
   document.getElementById("externalForm").elements.code.value=client?.code||"";
-  document.getElementById("externalSalonSelect").innerHTML=salons.map(s=>`<option value="${escapeHtml(s)}" ${client?.salon===s?"selected":""}>${escapeHtml(s)}</option>`).join("")+"<option value="Otro" "+(!client?.salon||client?.salon==="Otro"?"selected":"")+ ">Otro</option>";
+  document.getElementById("externalSalonSelect").innerHTML=salons.map(s=>`<option value="${escapeHtml(s)}" ${client?.salon===s?"selected":""}>${escapeHtml(s)}</option>`).join("")+`<option value="Otro" ${(!client?.salon||client?.salon==="Otro")?"selected":""}>Otro</option>`;
   document.getElementById("externalTypeSelect").innerHTML=EVENT_TYPES.map(t=>`<option value="${escapeHtml(t)}" ${client?.type===t?"selected":""}>${escapeHtml(t)}</option>`).join("");
   document.getElementById("deleteExternalBtn").classList.toggle("hidden",!isEdit);
   document.getElementById("externalDialog").showModal();
