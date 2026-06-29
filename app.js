@@ -1,4 +1,4 @@
-import { cloudEnabled, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, supabaseUrl } from "./cloud.js";
+import { cloudEnabled, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -33,7 +33,7 @@ const FLEX_SERVICES = [
   ["church", "Iglesia o templo"], ["civil", "Civil"], ["droneEvent", "Drone en recepción"],
   ["droneBook", "Drone en sesión"], ["photoExtra", "Fotógrafo extra"], ["videoExtra", "Videógrafo extra"],
   ["signatureBook", "Libro de firmas"], ["partyBook", "Libro de fiesta"], ["liveEditor", "Editor en vivo"],
-  ["friendsVideo", "Video con amigos"], ["extraSession", "Sesión extra - foto"], ["extraSessionVideo", "Sesión extra - video"]
+  ["friendsVideo", "Video con amigos"], ["extraSession", "Sesión extra"]
 ];
 
 const BASE_RATES = {
@@ -354,10 +354,10 @@ function restoreRendition(id){const item=state.renditions.find(r=>r.id===id);if(
 function deleteRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;const client=state.clients.find(c=>c.id===item.clientId);if(client){client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición eliminada: ${item.work}`,type:"rendition_delete",renditionId:item.id});}state.renditions=state.renditions.filter(r=>r.id!==id);saveState();toast("Rendición eliminada");}
 
 function renderSettings() {
-  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}</span><input type="number" min="0" data-rate="${key}" value="${val}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><div class="settings-col"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><label>Texto del mensaje<textarea id="whatsappTemplate" rows="7">${escapeHtml(state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE)}</textarea></label><p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="secondary-btn" id="resetWhatsappTemplate">Restaurar original</button><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensaje</button></div></div></details></div></div>`;
+  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Tarifas vigentes</h2><span class="collapse-icon">▼</span></summary><div class="panel-body">${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}</span><input type="number" min="0" data-rate="${key}" value="${val}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><div class="panel"><div class="panel-head"><h2>Datos</h2></div><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></div><div class="panel whatsapp-settings"><div class="panel-head"><h2>Mensaje inicial de WhatsApp</h2><span class="muted">Editable</span></div><div class="panel-body"><label>Texto del mensaje<textarea id="whatsappTemplate" rows="7">${escapeHtml(state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE)}</textarea></label><p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="secondary-btn" id="resetWhatsappTemplate">Restaurar original</button><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensaje</button></div></div></div></div>`;
 }
 function accessDate(value){return value?new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value)):"Nunca";}
-function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn" data-export-user="${user.id}" data-export-name="${escapeHtml(user.display_name||user.email||'Usuario')}">Exportar</button><button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
+function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
 async function changeUserStatus(id,status){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿${status==="blocked"?"Bloquear":"Reactivar"} la cuenta de ${user.display_name||user.email}?`))return;try{await setUserStatus(id,status);if(status==="active"&&user.email){try{await notifyUserApproved(id,user.email,user.display_name||"");toast("Usuario reactivado y notificado por email");}catch(e){console.error(e);toast("Usuario reactivado · no se pudo enviar el email");}}else{toast(status==="blocked"?"Usuario bloqueado":"Usuario reactivado");}adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo cambiar el acceso");}}
 async function deleteUserAccount(id){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿Eliminar definitivamente la cuenta de ${user.display_name||user.email}? Esta acción no se puede deshacer.`))return;try{await deleteUser(id);toast("Usuario eliminado");adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo eliminar el usuario");}}
 function rateLabel(k) { return ({gold:"Gold completo",silver:"Silver completo",book:"Book completo",eventCoverage:"Cobertura evento",eventEdit:"Edición evento",bookCoverage:"Cobertura book",bookEdit:"Edición book",informal:"Informal completo",informalRecording:"Informal solo grabación",ceremony:"Ceremonia completa",ceremonyRecording:"Ceremonia grabación",ceremonyEdit:"Ceremonia edición",drone:"Drone",photoExtra:"Fotógrafo extra",videoExtra:"Videógrafo extra",liveEditor:"Edición en vivo",signatureDesign:"Diseño libro firmas + mural",partyBookDesign:"Diseño libro fiesta",videoExtraClip:"Video crono/entrada",albumInteractive:"Álbum interactivo",droneEdit:"Edición drone FPV",assistant:"Asistente book",extraSheet:"Pliego extra",churchUpgrade:"Iglesia por upgrade",totemDigital:"Tótem / Televisor Fotografía Digital",bookModa:"Adicional book con Moda"})[k]||k; }
@@ -367,8 +367,6 @@ function openClientForm(client=null) {
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","whatsappGroupUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
-  const resetBtn=document.getElementById("resetContactBtn");
-  if(resetBtn){resetBtn.classList.toggle("hidden",!client?.contactedAt);resetBtn.dataset.contacted=client?.contactedAt||"";resetBtn.dataset.reset="0";resetBtn.textContent="↩ Deshacer contacto";resetBtn.classList.remove("danger-btn");resetBtn.classList.add("ghost-btn");}
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField();
 }
 function renderFormChecks(client) {
@@ -383,12 +381,11 @@ function updateFlexField() {
 }
 function saveClient(form) {
   const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value);
-  const resetContact=form.querySelector('#resetContactBtn')?.dataset.reset==="1";
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   if(data.clientPhone&&whatsappNumber(data.clientPhone).length<12){toast("Ingresá el WhatsApp con código de área, por ejemplo +54 9 11 1234 5678.");form.elements.clientPhone.focus();return false;}
   const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&flexServices.length>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
   const duplicate=state.clients.find(c=>c.code===data.code&&c.id!==data.id); if(duplicate){toast("Ya existe un cliente con ese código."); return false;}
-  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,guests:Number(data.guests||0)}); if(resetContact){c.contactedAt="";c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Contacto inicial reseteado",type:"contact_reset"});} syncTasks(c);}
+  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,guests:Number(data.guests||0)}); syncTasks(c);}
   else {const client={...data,id:uid(),addons,flexServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
   saveState(); toast(data.id?"Cliente actualizado":"Cliente creado con su plan de trabajo"); return true;
 }
@@ -428,9 +425,101 @@ function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;
 function escapeCsvCell(value){const text=String(value??"");return /[",\n\r]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;}
 function exportRenditionsCsv(){const rows=state.renditions.filter(r=>r.status==="pending"&&!r.archivedAt);if(!rows.length){toast("No hay rendiciones pendientes para exportar.");return;}const header=["categoria","fecha","salon","trabajo","observaciones"];const lines=rows.map(r=>{const client=state.clients.find(c=>c.id===r.clientId);return [r.category,dateText(r.workDate),client?.salon||"",r.work,r.observations||""].map(escapeCsvCell).join(",");});const content=[header.join(","),...lines].join("\r\n")+"\r\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`rendiciones_pendientes_${todayIso()}.csv`;a.click();URL.revokeObjectURL(a.href);toast(`${rows.length} rendici\u00F3n${rows.length===1?"":"es"} exportada${rows.length===1?"":"s"}`);}
 
+function generateSelectionBat(clientId) {
+  const numerosRaw = document.getElementById(`seleccion-numeros-${clientId}`)?.value.trim();
+  const prefijo = document.getElementById(`seleccion-prefijo-${clientId}`)?.value.trim().toUpperCase();
+  if (!numerosRaw) { toast("Pegá los números de selección antes de generar."); return; }
+  if (!prefijo) { toast("Escribí el prefijo antes de generar."); return; }
+  // Normalize numbers: replace common separators with spaces, filter tokens
+  const tokens = numerosRaw.replace(/[-,_./\\;|\s]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) { toast("No se encontraron números válidos."); return; }
+  const numeros = tokens.join('\r\n');
+  const bat = `@echo off
+setlocal enabledelayedexpansion
+echo ================================================
+echo     COPIADOR DE SELECCION - ${prefijo}
+echo ================================================
+echo.
+
+set /p "ORIGEN=Pega la ruta de la carpeta con las fotos: "
+set "PREFIJO=${prefijo}"
+set "DESTINO=%USERPROFILE%\\Desktop\\SELECCION_${prefijo}"
+if not exist "%DESTINO%" mkdir "%DESTINO%"
+
+echo.
+echo Origen:  %ORIGEN%
+echo Prefijo: %PREFIJO%
+echo Destino: %DESTINO%
+echo.
+echo Copiando fotos seleccionadas...
+echo.
+
+set COUNT=0
+set MISSING=0
+
+set "TMPFILE=%TEMP%\\numeros_tmp_%RANDOM%.txt"
+(
+${tokens.map(n => `  echo ${n}`).join('\r\n')}
+) > "!TMPFILE!"
+
+for /f "usebackq tokens=* delims=" %%N in ("!TMPFILE!") do (
+  set "RAW=%%N"
+  set "RAW=!RAW: =!"
+  set "FOUND=0"
+
+  if not "!RAW!"=="" (
+    set /a "INTNUM=!RAW!"
+
+    if exist "%ORIGEN%\\%PREFIJO%-!RAW!.jpg" (
+      copy "%ORIGEN%\\%PREFIJO%-!RAW!.jpg" "%DESTINO%\\%PREFIJO%-!RAW!.jpg" >nul
+      echo   [OK] %PREFIJO%-!RAW!.jpg
+      set /a COUNT+=1
+      set "FOUND=1"
+    )
+
+    if "!FOUND!"=="0" (
+      if exist "%ORIGEN%\\%PREFIJO%-!INTNUM!.jpg" (
+        copy "%ORIGEN%\\%PREFIJO%-!INTNUM!.jpg" "%DESTINO%\\%PREFIJO%-!INTNUM!.jpg" >nul
+        echo   [OK] %PREFIJO%-!INTNUM!.jpg
+        set /a COUNT+=1
+        set "FOUND=1"
+      )
+    )
+
+    if "!FOUND!"=="0" (
+      echo   [!!] NO ENCONTRADA: %PREFIJO%-!RAW!.jpg
+      set /a MISSING+=1
+    )
+  )
+)
+
+if exist "!TMPFILE!" del "!TMPFILE!"
+
+echo.
+echo ================================================
+echo  Fotos copiadas:  !COUNT!
+echo  No encontradas:  !MISSING!
+echo  Carpeta destino: %DESTINO%
+echo ================================================
+echo.
+pause
+endlocal`;
+
+  const blob = new Blob([bat], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `COPIAR_SELECCION_${prefijo}.bat`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Script generado: COPIAR_SELECCION_${prefijo}.bat`);
+}
+
 function openClientDetail(id) {
   const c=state.clients.find(x=>x.id===id); if(!c)return; const phases=[...new Set(c.tasks.map(t=>t.phase))];
-  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button>${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
+  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button>${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><h3>Selección de fotos</h3><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Pegá los números como los mandó el cliente: 10-11-16, uno por línea, etc." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA, BODA2024" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details><div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
   const dialog=document.getElementById("detailDialog"); if(!dialog.open)dialog.showModal();
 }
 function taskRow(c,t){
@@ -464,17 +553,16 @@ document.addEventListener("click", e => {
   const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
   const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;const _ct=c.tasks.find(t=>t.key==="coordinateSession");if(_ct&&_ct.status==="done"){_ct.status="pending";_ct.completedAt="";}c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
   const userStatus=e.target.closest("[data-user-status]");if(userStatus)changeUserStatus(userStatus.dataset.userStatus,userStatus.dataset.nextStatus);
-  const exportUserBtn=e.target.closest("[data-export-user]");if(exportUserBtn)exportUserData(exportUserBtn.dataset.exportUser,exportUserBtn.dataset.exportName);
   const deleteUserBtn=e.target.closest("[data-delete-user]");if(deleteUserBtn)deleteUserAccount(deleteUserBtn.dataset.deleteUser);
   const edit=e.target.closest("[data-edit-client]"); if(edit){document.getElementById("detailDialog").close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient));}
   if(e.target.closest("[data-close-detail]"))document.getElementById("detailDialog").close();
   if(e.target.closest("[data-close-client-form]"))document.getElementById("clientDialog").close();
   if(e.target.closest("[data-close-photo-session]"))document.getElementById("photoSessionDialog").close();
+  const generateBat=e.target.closest("[data-generate-bat]");if(generateBat)generateSelectionBat(generateBat.dataset.generateBat);
   const del=e.target.closest("[data-delete-client]"); if(del&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(del.dataset.deleteClient);
   const archive=e.target.closest("[data-archive-rendition]");if(archive)archiveRendition(archive.dataset.archiveRendition);
   const restore=e.target.closest("[data-restore-rendition]");if(restore)restoreRendition(restore.dataset.restoreRendition);
   const deleteWork=e.target.closest("[data-delete-rendition]");if(deleteWork&&confirm("¿Eliminar definitivamente esta rendición? La tarea del cliente se conservará."))deleteRendition(deleteWork.dataset.deleteRendition);
-  if(e.target.id==="resetContactBtn"){const btn=e.target;btn.dataset.reset=btn.dataset.reset==="1"?"0":"1";btn.textContent=btn.dataset.reset==="1"?"✓ Contacto será reseteado al guardar":"↩ Deshacer contacto";btn.classList.toggle("danger-btn",btn.dataset.reset==="1");btn.classList.toggle("ghost-btn",btn.dataset.reset!=="1");}
   if(e.target.id==="deleteClientFromForm"){const id=document.getElementById("clientForm").elements.id.value;if(id&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(id);}
   if(e.target.id==="saveRates"){document.querySelectorAll("[data-rate]").forEach(i=>state.rates[i.dataset.rate]=Number(i.value||0));saveState();toast("Tarifas actualizadas");}
   if(e.target.id==="saveWhatsappTemplate"){const template=document.getElementById("whatsappTemplate")?.value.trim();if(!template){toast("El mensaje no puede quedar vacío.");return;}state.settings={...(state.settings||{}),whatsappTemplate:template};saveState();toast("Mensaje de WhatsApp guardado");}
@@ -493,7 +581,7 @@ document.addEventListener("change", e => {
   if(e.target.dataset.taskResponsible){const [c,t]=e.target.dataset.taskResponsible.split("|");const task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.responsible=e.target.value;saveState();}}
   if(e.target.dataset.taskDate){const [c,t]=e.target.dataset.taskDate.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.completedAt=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition&&e.target.value){rendition.workDate=e.target.value;rendition.periodEnd=periodEndFor(e.target.value);}saveState();}}
   if(e.target.dataset.taskNotes){const [c,t]=e.target.dataset.taskNotes.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.notes=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition)rendition.observations=e.target.value;saveState();}}
-  if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){const prev=r.status;r.status=e.target.value;if(r.status==="submitted"&&prev!=="submitted")r.submittedAt=new Date().toISOString();if(r.status==="paid"&&prev!=="paid")r.paidAt=new Date().toISOString();saveState();toast("Estado de rendición actualizado");}}
+  if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
   if(e.target.dataset.taskVideoEdit){const[c,t]=e.target.dataset.taskVideoEdit.split("|");updateVideoEdit(c,t,e.target.checked);}
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
   if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
@@ -749,27 +837,3 @@ async function bootstrap(){
 }
 
 bootstrap();
-
-async function exportUserData(userId, userName) {
-  try {
-    toast("Exportando datos de " + userName + "...");
-    const session = await getSession();
-    const res = await fetch(supabaseUrl + "/functions/v1/export-user", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + session?.access_token, "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    });
-    if (!res.ok) throw new Error("Error al exportar");
-    const backup = await res.json();
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "backup_" + userName.replace(/\s+/g, "_") + "_" + todayIso() + ".json";
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast("Backup de " + userName + " descargado");
-  } catch(error) {
-    console.error(error);
-    toast("No se pudo exportar los datos del usuario");
-  }
-}
