@@ -269,6 +269,17 @@ legend { padding: 0 6px; }
 .photo-session-panel span, .photo-session-panel strong { display: block; }
 .photo-session-panel span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .photo-session-panel strong { margin-top: 4px; font-size: 13px; color: var(--ink); }
+.photo-selection-panel { border: 1px solid var(--line); border-radius: var(--radius); margin: 18px 0 0; background: var(--surface-2); overflow: hidden; }
+.photo-selection-panel[open] .collapse-icon { transform: rotate(180deg); }
+.photo-selection-summary { list-style: none; cursor: pointer; min-height: 48px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.photo-selection-summary::-webkit-details-marker { display: none; }
+.photo-selection-summary h3 { margin: 0; font-size: 14px; color: var(--ink); font-weight: 500; }
+.photo-selection-panel .panel-body { padding: 14px 18px 18px; border-top: 1px solid var(--line); }
+.photo-selection-fields { display: flex; flex-direction: column; gap: 12px; }
+.photo-selection-label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.photo-selection-textarea { font-family: var(--mono, monospace); font-size: 12.5px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); padding: 8px 10px; resize: vertical; }
+.photo-selection-input { font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); padding: 7px 10px; text-transform: uppercase; letter-spacing: .05em; }
+.photo-selection-textarea:focus, .photo-selection-input:focus { outline: none; border-color: var(--gold); }
 .phase-title { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: .1em; margin: 20px 0 8px; font-weight: 700; }
 
 /* ── TAREAS (vista global por rol) ── */
@@ -300,8 +311,7 @@ legend { padding: 0 6px; }
 .cal-salon-4 { background: var(--surface-3); border-left: 3px solid var(--muted); }
 
 /* ── SETTINGS ── */
-.settings-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 20px; align-items: start; }
-.settings-col { display: flex; flex-direction: column; gap: 20px; }
+.settings-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 20px; }
 .whatsapp-settings { grid-column: 1 / -1; }
 .whatsapp-settings textarea { resize: vertical; }
 .template-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
@@ -449,18 +459,9 @@ legend { padding: 0 6px; }
 /* Panel colapsable de tarifas */
 .rates-panel {
   cursor: default;
-  overflow: visible; /* anula el overflow:hidden de .panel que impide el colapso de <details> */
 }
-.rates-panel .panel-body {
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-}
-/* Cuando está cerrado, no debe haber espacio extra */
-.rates-panel:not([open]) {
-  height: auto;
-}
-/* Cerrado: ▶ sin rotación; abierto: rota 90° y queda apuntando abajo */
 .rates-panel[open] .collapse-icon {
-  transform: rotate(90deg);
+  transform: rotate(180deg);
 }
 .rates-summary {
   display: flex;
@@ -470,13 +471,6 @@ legend { padding: 0 6px; }
   list-style: none;
   padding: 16px 20px;
   border-radius: var(--radius-lg);
-  border-bottom: none;
-  min-height: unset;
-}
-/* Separador solo cuando está abierto */
-.rates-panel[open] .rates-summary {
-  border-bottom: 1px solid var(--line);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .rates-summary::-webkit-details-marker { display: none; }
 .rates-summary h2 {
@@ -489,11 +483,6 @@ legend { padding: 0 6px; }
 }
 .collapse-icon {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   transition: transform 0.2s;
 }
-
-/* Panel de usuarios */
-.users-panel .panel-head { align-items: flex-start; flex-direction: column; gap: 4px; }
-.users-panel .panel-head span { font-size: 12px; }
-
