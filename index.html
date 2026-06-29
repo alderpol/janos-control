@@ -173,12 +173,12 @@
       </div>
       <div class="form-row">
         <label>Categoría<select id="manualRenditionCategory" onchange="updateManualRenditionWorks()">
-          <option value="PERSONAL FOTOGRAFIA">PERSONAL FOTOGRAFÍA</option>
+          <option value="PERSONAL FOTOGRAFIA" selected>PERSONAL FOTOGRAFÍA</option>
           <option value="PERSONAL VIDEO">PERSONAL VIDEO</option>
           <option value="COMPLEMENTOS">COMPLEMENTOS</option>
         </select></label>
       </div>
-      <label>Trabajo realizado<select id="manualRenditionWork" onchange="updateManualRenditionRate()"></select></label>
+      <label>Trabajo realizado<select id="manualRenditionWork" onchange="updateManualRenditionRate()"><option>Cargando...</option></select></label>
       <label>Importe<input type="number" id="manualRenditionAmount" min="0" placeholder="Se precarga según tarifa, podés editarlo"></label>
       <label>Observaciones<input type="text" id="manualRenditionNotes" placeholder="Opcional"></label>
     </div>

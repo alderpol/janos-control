@@ -455,6 +455,7 @@ function openManualRenditionDialog() {
   document.getElementById("manualRenditionDate").value = "";
   document.getElementById("manualRenditionAmount").value = "";
   document.getElementById("manualRenditionNotes").value = "";
+  document.getElementById("manualRenditionCategory").value = "PERSONAL FOTOGRAFIA";
   updateManualRenditionWorks();
   document.getElementById("manualRenditionDialog").showModal();
 }
@@ -466,8 +467,8 @@ function updateManualRenditionWorks() {
 }
 function updateManualRenditionRate() {
   const sel = document.getElementById("manualRenditionWork");
-  const opt = sel.options[sel.selectedIndex];
-  const rateKey = opt?.dataset.rate;
+  const opt = sel && sel.options[sel.selectedIndex];
+  const rateKey = opt ? opt.getAttribute("data-rate") : "";
   const amount = rateKey && state.rates[rateKey] ? state.rates[rateKey] : "";
   document.getElementById("manualRenditionAmount").value = amount;
 }
