@@ -300,8 +300,8 @@ legend { padding: 0 6px; }
 .cal-salon-4 { background: var(--surface-3); border-left: 3px solid var(--muted); }
 
 /* ── SETTINGS ── */
-.settings-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); gap: 20px; align-items: start; }
-.whatsapp-settings { grid-column: 1 / -1; }
+.settings-grid { display: flex; flex-direction: column; gap: 16px; }
+.whatsapp-settings { }
 .whatsapp-settings textarea { resize: vertical; }
 .template-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
 .template-help code { display: inline-block; margin-right: 4px; padding: 1px 6px; border-radius: 5px; color: var(--gold); background: var(--gold-soft); border: 1px solid var(--gold-border); }
@@ -344,7 +344,7 @@ legend { padding: 0 6px; }
   .mobile-only { display: block; }
   .topbar h1 { font-size: 22px; }
   .topbar .primary-btn { padding: 8px 12px; }
-  .toolbar, .kpi-grid, .client-grid, .content-grid, .settings-grid { grid-template-columns: 1fr; }
+  .toolbar, .kpi-grid, .client-grid, .content-grid { grid-template-columns: 1fr; }
   .client-actions { justify-content: stretch; }
   .client-actions button { flex: 1; }
   .kpi-grid { gap: 10px; }
@@ -449,7 +449,8 @@ legend { padding: 0 6px; }
 .rates-panel {
   cursor: default;
 }
-.rates-panel[open] .collapse-icon {
+.rates-panel[open] .collapse-icon,
+.settings-grid details[open] .collapse-icon {
   transform: rotate(180deg);
 }
 .rates-summary {
