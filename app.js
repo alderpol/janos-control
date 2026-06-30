@@ -527,39 +527,6 @@ function saveManualRendition() {
   renderRenditions();
 }
 
-function openExternalForm(client=null) {
-  const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
-  const EVENT_TYPES=["15","18","Casamiento","Bautismo","Comunión","Cumpleaños","Corporativo","Otro"];
-  const isEdit=!!client;
-  document.getElementById("externalDialogTitle").textContent=isEdit?"Editar evento externo":"Nuevo evento externo";
-  document.getElementById("externalForm").elements.id.value=client?.id||"";
-  document.getElementById("externalForm").elements.eventDate.value=client?.eventDate||"";
-  document.getElementById("externalForm").elements.salon.value=client?.salon||"";
-  document.getElementById("externalForm").elements.type.value=client?.type||"";
-  document.getElementById("externalForm").elements.honoree.value=client?.honoree||"";
-  document.getElementById("externalForm").elements.code.value=client?.code||"";
-  const externalSalons=salons.includes("Otro")?salons:[...salons,"Otro"];document.getElementById("externalSalonSelect").innerHTML=externalSalons.map(s=>`<option value="${escapeHtml(s)}" ${client?.salon===s?"selected":""}>${escapeHtml(s)}</option>`).join("");
-  document.getElementById("externalTypeSelect").innerHTML=EVENT_TYPES.map(t=>`<option value="${escapeHtml(t)}" ${client?.type===t?"selected":""}>${escapeHtml(t)}</option>`).join("");
-  document.getElementById("deleteExternalBtn").classList.toggle("hidden",!isEdit);
-  document.getElementById("externalDialog").showModal();
-}
-function saveExternalClient(form) {
-  const data=Object.fromEntries(new FormData(form));
-  if(!data.eventDate){toast("La fecha del evento es obligatoria.");form.elements.eventDate.focus();return false;}
-  if(!data.salon){toast("Seleccioná un salón.");return false;}
-  const duplicate=state.clients.find(c=>data.code&&c.code===data.code&&c.id!==data.id);
-  if(duplicate){toast("Ya existe un cliente con ese código.");return false;}
-  if(data.id){
-    const c=state.clients.find(x=>x.id===data.id);
-    Object.assign(c,{eventDate:data.eventDate,salon:data.salon,type:data.type,honoree:data.honoree||"Evento externo",code:data.code||c.code});
-    c.history.push({date:new Date().toISOString(),text:"Datos actualizados"});
-  } else {
-    const client={...data,id:uid(),honoree:data.honoree||"Evento externo",code:data.code||`EXT-${Date.now()}`,addons:[],flexServices:[],guests:0,pack:"silver",isExternal:true,contactedAt:new Date().toISOString(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Evento externo creado"}],tasks:[]};
-    state.clients.push(client);
-  }
-  saveState();toast(data.id?"Evento externo actualizado":"Evento externo creado");return true;
-}
-
 function openClientForm(client=null) {
   const form=document.getElementById("clientForm"); form.reset(); form.elements.id.value=client?.id||"";
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
@@ -752,7 +719,6 @@ function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.fin
 function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
 function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],calendar:["Vista mensual","Calendario"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks"||view==="renditions");
-document.getElementById("newExternalBtn").classList.toggle("hidden",view==="users"||view==="tasks"||view==="renditions");
 const manualBtn=document.getElementById("manualRenditionBtn");if(manualBtn)manualBtn.style.display=view==="renditions"?"":"none";document.querySelector(".sidebar").classList.remove("open");}
 function toast(msg){const el=document.getElementById("toast");const openDialog=document.querySelector("dialog[open]");(openDialog||document.body).appendChild(el);el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
 
@@ -814,10 +780,7 @@ document.addEventListener("change",e=>{if(e.target.dataset.taskCheck){const[c,t]
 function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"",addon=document.getElementById("clientAddonFilter")?.value||"";clientFilters={search:q,salon,month,pack,addon};const filtered=state.clients.filter(c=>(clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c))&&(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&(!addon||(c.addons||[]).includes(addon))&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
 function filterRenditions(){const status=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";const filtered=state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!status||r.status===status)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
-document.getElementById("newExternalBtn").addEventListener("click",()=>openExternalForm());
 document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
-document.getElementById("externalForm").addEventListener("submit",e=>{e.preventDefault();if(saveExternalClient(e.currentTarget))document.getElementById("externalDialog").close();});
-document.getElementById("deleteExternalBtn").addEventListener("click",()=>{const id=document.getElementById("externalForm").elements.id.value;if(id&&confirm("¿Eliminar este evento externo y todas sus rendiciones?"))deleteClient(id);document.getElementById("externalDialog").close();});
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
 document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
 document.getElementById("clientDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
