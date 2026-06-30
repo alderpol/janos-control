@@ -479,54 +479,6 @@ const MANUAL_WORKS = {
 };
 
 
-function globalSearch(query) {
-  const q = query.trim().toLowerCase();
-  if (q.length < 2) return [];
-  const results = [];
-  // Clients
-  state.clients.forEach(c => {
-    const haystack = `${c.honoree} ${c.code} ${c.salon} ${c.clientName||""}`.toLowerCase();
-    if (haystack.includes(q)) {
-      results.push({ type: "client", id: c.id, label: c.honoree, sub: `#${c.code} · ${c.salon} · ${dateText(c.eventDate)}` });
-    }
-  });
-  // Tasks (pending, matching by title or work)
-  state.clients.forEach(c => {
-    c.tasks.forEach(t => {
-      if (t.status === "done") return;
-      const haystack = `${t.title} ${t.work||""}`.toLowerCase();
-      if (haystack.includes(q)) {
-        results.push({ type: "task", id: c.id, label: t.title, sub: `${c.honoree} · #${c.code}` });
-      }
-    });
-  });
-  // Rendition works (manual + linked, only pending)
-  state.renditions.forEach(r => {
-    if (r.status !== "pending") return;
-    const haystack = `${r.work} ${r.category}`.toLowerCase();
-    if (haystack.includes(q)) {
-      const c = state.clients.find(x => x.id === r.clientId);
-      results.push({ type: "rendition", id: r.clientId, label: r.work, sub: r.isManual ? (r.salon||"Rendición manual") : (c ? `${c.honoree} · #${c.code}` : "Cliente eliminado") });
-    }
-  });
-  return results.slice(0, 12);
-}
-function renderGlobalSearchResults(results) {
-  const box = document.getElementById("globalSearchResults");
-  if (!results.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
-  const icons = { client: "👤", task: "📋", rendition: "💰" };
-  box.innerHTML = results.map(r => `<button type="button" class="global-search-result" data-search-goto="${r.type}|${r.id}"><span class="search-result-icon">${icons[r.type]}</span><span class="search-result-text"><strong>${escapeHtml(r.label)}</strong><small>${escapeHtml(r.sub)}</small></span></button>`).join("");
-  box.classList.remove("hidden");
-}
-function goToSearchResult(type, id) {
-  document.getElementById("globalSearchInput").value = "";
-  document.getElementById("globalSearchResults").classList.add("hidden");
-  if (type === "client" || type === "task" || type === "rendition") {
-    if (type === "rendition" && !id) { setView("renditions"); return; }
-    if (id) openClientDetail(id);
-  }
-}
-
 function openManualRenditionDialog() {
   const salons = [...MANAGED_SALONS];
   document.getElementById("manualRenditionSalon").innerHTML = salons.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") + '<option value="Otro">Otro</option>';
@@ -919,16 +871,7 @@ function filterClients(){const q=(document.getElementById("clientSearch")?.value
 function filterRenditions(){const status=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";const filtered=state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!status||r.status===status)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
 document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
-document.getElementById("globalSearchInput").addEventListener("input", e => renderGlobalSearchResults(globalSearch(e.target.value)));
-document.getElementById("globalSearchResults").addEventListener("click", e => {
-  const btn = e.target.closest("[data-search-goto]");
-  if (!btn) return;
-  const [type, id] = btn.dataset.searchGoto.split("|");
-  goToSearchResult(type, id || null);
-});
-document.addEventListener("click", e => {
-  if (!e.target.closest(".global-search-wrap")) document.getElementById("globalSearchResults").classList.add("hidden");
-});
+
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
 document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
 document.getElementById("clientDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
@@ -1173,7 +1116,6 @@ async function bootstrap(){
 window.updateManualRenditionWorks = updateManualRenditionWorks;
 window.updateManualRenditionRate = updateManualRenditionRate;
 window.saveManualRendition = saveManualRendition;
-window.goToSearchResult = goToSearchResult;
 
 document.getElementById("globalSearch").addEventListener("input", e => runGlobalSearch(e.target.value));
 document.getElementById("globalSearch").addEventListener("keydown", e => { if (e.key === "Escape") closeGlobalSearch(); });
