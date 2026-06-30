@@ -240,16 +240,22 @@ function renderDashboard() {
 }
 function kpi(label, value, note) { return `<article class="kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`; }
 function eventRow(c) { const d=parseDate(c.eventDate), pct=progress(c); return `<div class="event-row"><div class="date-box"><strong>${String(d.getDate()).padStart(2,"0")}</strong><span>${monthText(c.eventDate)}</span></div><div class="event-name"><strong>${escapeHtml(c.honoree)}</strong><span>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</span></div><span class="tag">${packLabel(c.pack)}</span><span class="muted">${pct}% completo</span><button class="secondary-btn" data-open-client="${c.id}">Abrir</button></div>`; }
+function attentionUrgency(days) {
+  if (days <= 7) return "urgency-red";
+  if (days <= 20) return "urgency-yellow";
+  return "urgency-green";
+}
 function attentionItems() {
   const items=[];
   state.clients.forEach(c => {
     const days=daysUntil(c.eventDate), incomplete=c.tasks.filter(t=>!["done","na"].includes(t.status)),hasPrintedBook=(c.addons||[]).includes("libro"),bookDue=hasPrintedBook&&days>=0&&days<=30;
     const prepPending=c.tasks.filter(t=>t.phase==="Preparación"&&!["done","na"].includes(t.status)),prepDue=prepPending.length&&days>=0&&days<=30;
-    if(bookDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
-    else if(prepDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
-    else if(days>=0&&days<=14&&incomplete.length) items.push({priority:2,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
-    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
-  }); return items.sort((a,b)=>a.priority-b.priority||a.days-b.days).slice(0,6).map(item=>item.html).join("");
+    const sortDays = days < 0 ? 0 : days;
+    if(bookDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
+    else if(prepDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
+    else if(days>=0&&days<=14&&incomplete.length) items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Tareas pendientes</span><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
+    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
+  }); return items.sort((a,b)=>a.days-b.days).slice(0,6).map(item=>item.html).join("");
 }
 function contactWatchItems() {
   return state.clients
