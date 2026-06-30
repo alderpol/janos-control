@@ -478,6 +478,55 @@ const MANUAL_WORKS = {
   ]
 };
 
+
+function globalSearch(query) {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const results = [];
+  // Clients
+  state.clients.forEach(c => {
+    const haystack = `${c.honoree} ${c.code} ${c.salon} ${c.clientName||""}`.toLowerCase();
+    if (haystack.includes(q)) {
+      results.push({ type: "client", id: c.id, label: c.honoree, sub: `#${c.code} · ${c.salon} · ${dateText(c.eventDate)}` });
+    }
+  });
+  // Tasks (pending, matching by title or work)
+  state.clients.forEach(c => {
+    c.tasks.forEach(t => {
+      if (t.status === "done") return;
+      const haystack = `${t.title} ${t.work||""}`.toLowerCase();
+      if (haystack.includes(q)) {
+        results.push({ type: "task", id: c.id, label: t.title, sub: `${c.honoree} · #${c.code}` });
+      }
+    });
+  });
+  // Rendition works (manual + linked, only pending)
+  state.renditions.forEach(r => {
+    if (r.status !== "pending") return;
+    const haystack = `${r.work} ${r.category}`.toLowerCase();
+    if (haystack.includes(q)) {
+      const c = state.clients.find(x => x.id === r.clientId);
+      results.push({ type: "rendition", id: r.clientId, label: r.work, sub: r.isManual ? (r.salon||"Rendición manual") : (c ? `${c.honoree} · #${c.code}` : "Cliente eliminado") });
+    }
+  });
+  return results.slice(0, 12);
+}
+function renderGlobalSearchResults(results) {
+  const box = document.getElementById("globalSearchResults");
+  if (!results.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const icons = { client: "👤", task: "📋", rendition: "💰" };
+  box.innerHTML = results.map(r => `<button type="button" class="global-search-result" data-search-goto="${r.type}|${r.id}"><span class="search-result-icon">${icons[r.type]}</span><span class="search-result-text"><strong>${escapeHtml(r.label)}</strong><small>${escapeHtml(r.sub)}</small></span></button>`).join("");
+  box.classList.remove("hidden");
+}
+function goToSearchResult(type, id) {
+  document.getElementById("globalSearchInput").value = "";
+  document.getElementById("globalSearchResults").classList.add("hidden");
+  if (type === "client" || type === "task" || type === "rendition") {
+    if (type === "rendition" && !id) { setView("renditions"); return; }
+    if (id) openClientDetail(id);
+  }
+}
+
 function openManualRenditionDialog() {
   const salons = [...MANAGED_SALONS];
   document.getElementById("manualRenditionSalon").innerHTML = salons.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") + '<option value="Otro">Otro</option>';
@@ -583,32 +632,46 @@ function parsePack(raw){const text=String(raw||"").toUpperCase();if(text.include
 function parseAddons(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["pant",/PANT/],["pixel",/PIXEL/],["miniflex",/UP\.?MFLEX|MINI\s*FLEX/],["flex",/UP\.FLEX|\bFLEX\b/],["libro",/LIBRO/],["maqui",/MAQUI/],["moda",/\bMODA\b/],["drone",/DRONE/],["sansSouci",/SANS\s*SOUCI/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});if(items.includes("miniflex"))return [...new Set(items.filter(x=>x!=="flex"))];return [...new Set(items)];}
 function parseFlexServices(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["church",/IGLESIA|TEMPLO/],["civil",/CIVIL/],["droneEvent",/DRONE.*(EVENTO|RECEPC)/],["droneBook",/DRONE.*(BOOK|SESION)/],["photoExtra",/FOTOGRAFO EXTRA/],["videoExtra",/VIDEOGRAFO EXTRA/],["signatureBook",/LIBRO.*FIRMA/],["partyBook",/LIBRO.*FIESTA/],["liveEditor",/EDITOR.*VIVO|EDICION EN VIVO/],["friendsVideo",/VIDEO.*AMIG/],["extraSession",/SESION EXTRA/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});return items;}
 async function importClientCsv(file){
+  try{
+  if(!file){toast("No se seleccionó ningún archivo.");return;}
   const bytes=await file.arrayBuffer();let text=new TextDecoder("utf-8").decode(bytes);if(text.includes("�"))text=new TextDecoder("windows-1252").decode(bytes);text=text.replace(/^\uFEFF/,"");
-  const rows=parseCsv(text);if(!rows.length){toast("El CSV no contiene filas para importar.");return;}
-  let created=0,existingSkipped=0,skipped=0,duplicatedInFile=0;const seenCodes=new Set();
+  let rows;
+  try{rows=parseCsv(text);}catch(parseError){console.error("Error al parsear CSV:",parseError);toast("El archivo no se pudo leer. Verificá que sea un CSV válido exportado correctamente.");return;}
+  if(!rows.length){toast("El CSV no contiene filas para importar.");return;}
+  let created=0,existingSkipped=0,skipped=0,duplicatedInFile=0,rowErrors=0;const seenCodes=new Set();
   const conflicts=[];
-  rows.forEach(row=>{const code=firstValue(row,["codigo","codigo_evento","cod_evento","evento"]),eventDate=normalizeDate(firstValue(row,["fecha","fecha_evento","fecha_del_evento"]));if(!code||!eventDate){skipped+=1;return;}if(seenCodes.has(String(code))){duplicatedInFile+=1;return;}seenCodes.add(String(code));
-    const existing=state.clients.find(c=>String(c.code)===String(code));
-    const rawPack=firstValue(row,["pack_upgrades","pack_y_upgrades","fotografia","pack","servicios"]),addonsText=[rawPack,firstValue(row,["adicionales","upgrades","complementos"])].filter(Boolean).join(" "),flexText=firstValue(row,["servicios_flex","elecciones_flex","mini_flex","flex"]);
-    const csvPack=parsePack(rawPack),csvAddons=parseAddons(addonsText),csvFlex=parseFlexServices(flexText);
-    if(existing){
-      const packChanged=existing.pack!==csvPack;
-      const addonsChanged=JSON.stringify([...existing.addons].sort())!==JSON.stringify([...csvAddons].sort());
-      if(!packChanged&&!addonsChanged){existingSkipped+=1;return;}
-      const diffs=[];
-      if(packChanged)diffs.push(`Pack: ${packLabel(existing.pack)} → ${packLabel(csvPack)}`);
-      if(addonsChanged)diffs.push(`Adicionales: [${existing.addons.join(", ")||"ninguno"}] → [${csvAddons.join(", ")||"ninguno"}]`);
-      conflicts.push({client:existing,csvPack,csvAddons,csvFlex,diffs});
-      return;
-    }
-    const incoming={code,eventDate,salon:firstValue(row,["salon","sede"])||"Otro",type:firstValue(row,["tipo","tipo_evento"])||"Otro",honoree:firstValue(row,["homenajeado","homenajeada","homenajead","nombre_evento"])||firstValue(row,["cliente","nombre_cliente"])||`Evento ${code}`,clientName:firstValue(row,["cliente","nombre_cliente","contacto_cliente"]),clientPhone:(()=>{const raw=firstValue(row,["whatsapp","telefono","telefono_cliente","celular"]);return raw&&raw.replace(/\D/g,"").length>=8?raw:"";})(),guests:Number(firstValue(row,["invitados","cantidad_invitados"])||0),pack:csvPack,addons:csvAddons,flexServices:csvFlex,notes:firstValue(row,["notas","observaciones","comentarios"])};const client={...incoming,id:uid(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente importado desde CSV"}]};client.tasks=createTasks(client);state.clients.push(client);created+=1;});
+  rows.forEach((row,index)=>{
+    try{
+      const code=firstValue(row,["codigo","codigo_evento","cod_evento","evento"]),eventDate=normalizeDate(firstValue(row,["fecha","fecha_evento","fecha_del_evento"]));if(!code||!eventDate){skipped+=1;return;}if(seenCodes.has(String(code))){duplicatedInFile+=1;return;}seenCodes.add(String(code));
+      const existing=state.clients.find(c=>String(c.code)===String(code));
+      const rawPack=firstValue(row,["pack_upgrades","pack_y_upgrades","fotografia","pack","servicios"]),addonsText=[rawPack,firstValue(row,["adicionales","upgrades","complementos"])].filter(Boolean).join(" "),flexText=firstValue(row,["servicios_flex","elecciones_flex","mini_flex","flex"]);
+      const csvPack=parsePack(rawPack),csvAddons=parseAddons(addonsText),csvFlex=parseFlexServices(flexText);
+      if(existing){
+        const packChanged=existing.pack!==csvPack;
+        const addonsChanged=JSON.stringify([...existing.addons].sort())!==JSON.stringify([...csvAddons].sort());
+        if(!packChanged&&!addonsChanged){existingSkipped+=1;return;}
+        const diffs=[];
+        if(packChanged)diffs.push(`Pack: ${packLabel(existing.pack)} → ${packLabel(csvPack)}`);
+        if(addonsChanged)diffs.push(`Adicionales: [${existing.addons.join(", ")||"ninguno"}] → [${csvAddons.join(", ")||"ninguno"}]`);
+        conflicts.push({client:existing,csvPack,csvAddons,csvFlex,diffs});
+        return;
+      }
+      const incoming={code,eventDate,salon:firstValue(row,["salon","sede"])||"Otro",type:firstValue(row,["tipo","tipo_evento"])||"Otro",honoree:firstValue(row,["homenajeado","homenajeada","homenajead","nombre_evento"])||firstValue(row,["cliente","nombre_cliente"])||`Evento ${code}`,clientName:firstValue(row,["cliente","nombre_cliente","contacto_cliente"]),clientPhone:(()=>{const raw=firstValue(row,["whatsapp","telefono","telefono_cliente","celular"]);return raw&&raw.replace(/\D/g,"").length>=8?raw:"";})(),guests:Number(firstValue(row,["invitados","cantidad_invitados"])||0),pack:csvPack,addons:csvAddons,flexServices:csvFlex,notes:firstValue(row,["notas","observaciones","comentarios"])};const client={...incoming,id:uid(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente importado desde CSV"}]};client.tasks=createTasks(client);state.clients.push(client);created+=1;
+    }catch(rowError){console.error(`Error en la fila ${index+2} del CSV:`,rowError,row);rowErrors+=1;}
+  });
   // Process conflicts one by one
   let updated=0;
   for(const {client,csvPack,csvAddons,csvFlex,diffs} of conflicts){
-    const msg=`Cliente: ${client.honoree} (#${client.code})\n\nCambios detectados en el CSV:\n${diffs.join("\n")}\n\n¿Aplicar estos cambios?`;
-    if(confirm(msg)){client.pack=csvPack;client.addons=csvAddons;client.flexServices=csvFlex;syncTasks(client);updated+=1;}else{existingSkipped+=1;}
+    try{
+      const msg=`Cliente: ${client.honoree} (#${client.code})\n\nCambios detectados en el CSV:\n${diffs.join("\n")}\n\n¿Aplicar estos cambios?`;
+      if(confirm(msg)){client.pack=csvPack;client.addons=csvAddons;client.flexServices=csvFlex;syncTasks(client);updated+=1;}else{existingSkipped+=1;}
+    }catch(conflictError){console.error("Error al procesar conflicto de cliente:",conflictError,client);rowErrors+=1;}
   }
-  saveState();toast(`${created} nuevos agregados${updated?` · ${updated} actualizados`:""}${existingSkipped?` · ${existingSkipped} sin cambios`:""}${duplicatedInFile?` · ${duplicatedInFile} código(s) repetido(s) en el archivo`:""}${skipped?` · ${skipped} filas omitidas`:""}`);
+  saveState();toast(`${created} nuevos agregados${updated?` · ${updated} actualizados`:""}${existingSkipped?` · ${existingSkipped} sin cambios`:""}${duplicatedInFile?` · ${duplicatedInFile} código(s) repetido(s) en el archivo`:""}${skipped?` · ${skipped} filas omitidas`:""}${rowErrors?` · ${rowErrors} fila(s) con error (ver consola)`:""}`);
+  }catch(error){
+    console.error("Error al importar CSV:",error);
+    toast("Ocurrió un error al importar el archivo. Verificá el formato del CSV y volvé a intentar.");
+  }
 }
 function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;homenajeado;cliente;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones\n43828;04/07/2026;Pilar Hotel;15;Cliente de ejemplo;Contacto;+54 9 11 1234 5678;120;(SILVER)(GOLD)(PANT);PIXEL;;\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plantilla_clientes_janos.csv";a.click();URL.revokeObjectURL(a.href);}
 function escapeCsvCell(value){const text=String(value??"");return /[",\n\r]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;}
@@ -721,6 +784,78 @@ function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id==
 function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const baseAmount=getRate(t.rateKey,c.eventDate);const editAmount=t.key==="coverageVideoCapture"?getRate("eventEdit",c.eventDate):getRate("bookEdit",c.eventDate);existing.amount=includesEdit?baseAmount+editAmount:baseAmount;existing.work=t.work+(includesEdit?" + edición":"");}saveState();refreshTaskViews(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
 function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
+function runGlobalSearch(query) {
+  const box = document.getElementById("globalSearchResults");
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const results = [];
+
+  // Clientes: por nombre, código o salón
+  state.clients.forEach(c => {
+    const haystack = `${c.honoree} ${c.code} ${c.salon} ${c.clientName||""}`.toLowerCase();
+    if (haystack.includes(q)) {
+      results.push({
+        type: "cliente",
+        label: c.honoree,
+        sub: `#${c.code} · ${c.salon} · ${dateText(c.eventDate)}`,
+        action: () => { setView("clients"); openClientDetail(c.id); }
+      });
+    }
+  });
+
+  // Tareas pendientes: por título de tarea o nombre del cliente
+  state.clients.forEach(c => {
+    c.tasks.forEach(t => {
+      if (t.status === "done" || t.status === "na") return;
+      const haystack = `${t.title} ${c.honoree}`.toLowerCase();
+      if (haystack.includes(q)) {
+        results.push({
+          type: "tarea",
+          label: t.title,
+          sub: `${c.honoree} · #${c.code}`,
+          action: () => { setView("clients"); openClientDetail(c.id); }
+        });
+      }
+    });
+  });
+
+  // Rendiciones: por trabajo, categoría o cliente asociado
+  state.renditions.forEach(r => {
+    const c = state.clients.find(x => x.id === r.clientId);
+    const haystack = `${r.work} ${r.category} ${c?.honoree||r.salon||""}`.toLowerCase();
+    if (haystack.includes(q)) {
+      results.push({
+        type: "rendición",
+        label: r.work,
+        sub: `${c?.honoree || r.salon || "Sin evento"} · ${money(r.amount)}`,
+        action: () => { setView("renditions"); }
+      });
+    }
+  });
+
+  if (!results.length) {
+    box.innerHTML = `<div class="global-search-empty">Sin resultados para "${escapeHtml(query)}"</div>`;
+    box.classList.remove("hidden");
+    return;
+  }
+
+  box.innerHTML = results.slice(0, 12).map((r, i) => `
+    <button type="button" class="global-search-item" data-search-result="${i}">
+      <span class="global-search-type">${r.type}</span>
+      <span class="global-search-label">${escapeHtml(r.label)}</span>
+      <span class="global-search-sub">${escapeHtml(r.sub)}</span>
+    </button>
+  `).join("");
+  box.classList.remove("hidden");
+  window._globalSearchResults = results;
+}
+function closeGlobalSearch() {
+  const box = document.getElementById("globalSearchResults");
+  box.classList.add("hidden");
+  box.innerHTML = "";
+  document.getElementById("globalSearch").value = "";
+}
+
 function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],calendar:["Vista mensual","Calendario"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks"||view==="renditions");
 const manualBtn=document.getElementById("manualRenditionBtn");if(manualBtn)manualBtn.style.display=view==="renditions"?"":"none";document.querySelector(".sidebar").classList.remove("open");}
 function toast(msg){const el=document.getElementById("toast");const openDialog=document.querySelector("dialog[open]");(openDialog||document.body).appendChild(el);el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
@@ -784,6 +919,16 @@ function filterClients(){const q=(document.getElementById("clientSearch")?.value
 function filterRenditions(){const status=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";const filtered=state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!status||r.status===status)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
 document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
+document.getElementById("globalSearchInput").addEventListener("input", e => renderGlobalSearchResults(globalSearch(e.target.value)));
+document.getElementById("globalSearchResults").addEventListener("click", e => {
+  const btn = e.target.closest("[data-search-goto]");
+  if (!btn) return;
+  const [type, id] = btn.dataset.searchGoto.split("|");
+  goToSearchResult(type, id || null);
+});
+document.addEventListener("click", e => {
+  if (!e.target.closest(".global-search-wrap")) document.getElementById("globalSearchResults").classList.add("hidden");
+});
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
 document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
 document.getElementById("clientDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
@@ -1028,5 +1173,21 @@ async function bootstrap(){
 window.updateManualRenditionWorks = updateManualRenditionWorks;
 window.updateManualRenditionRate = updateManualRenditionRate;
 window.saveManualRendition = saveManualRendition;
+window.goToSearchResult = goToSearchResult;
+
+document.getElementById("globalSearch").addEventListener("input", e => runGlobalSearch(e.target.value));
+document.getElementById("globalSearch").addEventListener("keydown", e => { if (e.key === "Escape") closeGlobalSearch(); });
+document.getElementById("globalSearchResults").addEventListener("click", e => {
+  const item = e.target.closest("[data-search-result]");
+  if (!item) return;
+  const idx = Number(item.dataset.searchResult);
+  const result = window._globalSearchResults?.[idx];
+  if (result) result.action();
+  closeGlobalSearch();
+});
+document.addEventListener("click", e => {
+  const wrap = document.querySelector(".global-search-wrap");
+  if (wrap && !wrap.contains(e.target)) closeGlobalSearch();
+});
 
 bootstrap();
