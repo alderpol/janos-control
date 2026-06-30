@@ -134,19 +134,14 @@ nav { display: grid; gap: 3px; }
 .stack { display: grid; gap: 9px; }
 
 /* ── ATTENTION ── */
-.attention-alert { width: 100%; border-radius: 10px; padding: 12px 14px; text-align: left; transition: all .15s; border-left: 3px solid transparent; }
+.attention-alert { width: 100%; border-radius: 10px; padding: 12px 14px; text-align: center; transition: all .15s; }
 .attention-alert strong, .attention-alert span, .attention-alert small { display: block; }
 .attention-alert span { margin-top: 4px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .attention-alert small { margin-top: 5px; line-height: 1.4; }
-.attention-alert.urgency-red { color: white; border: 1px solid rgba(248,113,113,.3); border-left: 3px solid #f87171; background: rgba(248,113,113,.12); box-shadow: 0 4px 16px rgba(248,113,113,.15); }
-.attention-alert.urgency-red span { color: #f87171; }
-.attention-alert.urgency-red small { color: rgba(255,255,255,.75); }
-.attention-alert.urgency-yellow { color: var(--ink); border: 1px solid rgba(234,179,8,.3); border-left: 3px solid #eab308; background: rgba(234,179,8,.08); }
-.attention-alert.urgency-yellow span { color: #eab308; }
-.attention-alert.urgency-yellow small { color: var(--muted); }
-.attention-alert.urgency-green { color: var(--ink-2); border: 1px solid rgba(34,197,94,.25); border-left: 3px solid #22c55e; background: rgba(34,197,94,.06); }
-.attention-alert.urgency-green span { color: #22c55e; }
-.attention-alert.urgency-green small { color: var(--muted); }
+.attention-alert.book-warning { color: var(--ink-2); border: 1px solid var(--line-2); background: var(--surface-2); }
+.attention-alert.book-warning small { color: var(--muted); }
+.attention-alert.book-urgent { color: white; border: 1px solid rgba(248,113,113,.3); background: rgba(248,113,113,.15); box-shadow: 0 4px 16px rgba(248,113,113,.2); }
+.attention-alert.book-urgent small { color: rgba(255,255,255,.75); }
 
 /* ── CONTACT WATCH (discreto, esquina del inicio) ── */
 .contact-watch { margin-top: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); opacity: .85; }
@@ -250,6 +245,13 @@ nav { display: grid; gap: 3px; }
 
 /* ── MODALS ── */
 .modal { width: min(760px, calc(100vw - 28px)); border: 0; border-radius: 18px; padding: 0; color: var(--ink); background: var(--surface); box-shadow: 0 25px 80px rgba(0,0,0,.6); }
+.csv-conflict-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.csv-conflict-box { width: min(480px, 100%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; box-shadow: 0 25px 80px rgba(0,0,0,.6); }
+.csv-conflict-box h3 { margin: 4px 0 14px; font-size: 18px; }
+.csv-conflict-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 6px; }
+.csv-conflict-diffs { margin: 0 0 12px; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); line-height: 1.6; }
+.csv-conflict-remaining { font-size: 12.5px; margin: 0 0 16px; }
+.csv-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .modal::backdrop { background: rgba(0,0,0,.65); backdrop-filter: blur(4px); }
 .modal form { padding: 24px; }
 .modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }

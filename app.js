@@ -240,22 +240,16 @@ function renderDashboard() {
 }
 function kpi(label, value, note) { return `<article class="kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`; }
 function eventRow(c) { const d=parseDate(c.eventDate), pct=progress(c); return `<div class="event-row"><div class="date-box"><strong>${String(d.getDate()).padStart(2,"0")}</strong><span>${monthText(c.eventDate)}</span></div><div class="event-name"><strong>${escapeHtml(c.honoree)}</strong><span>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</span></div><span class="tag">${packLabel(c.pack)}</span><span class="muted">${pct}% completo</span><button class="secondary-btn" data-open-client="${c.id}">Abrir</button></div>`; }
-function attentionUrgency(days) {
-  if (days <= 7) return "urgency-red";
-  if (days <= 20) return "urgency-yellow";
-  return "urgency-green";
-}
 function attentionItems() {
   const items=[];
   state.clients.forEach(c => {
     const days=daysUntil(c.eventDate), incomplete=c.tasks.filter(t=>!["done","na"].includes(t.status)),hasPrintedBook=(c.addons||[]).includes("libro"),bookDue=hasPrintedBook&&days>=0&&days<=30;
     const prepPending=c.tasks.filter(t=>t.phase==="Preparación"&&!["done","na"].includes(t.status)),prepDue=prepPending.length&&days>=0&&days<=30;
-    const sortDays = days < 0 ? 0 : days;
-    if(bookDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
-    else if(prepDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
-    else if(days>=0&&days<=14&&incomplete.length) items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Tareas pendientes</span><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
-    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
-  }); return items.sort((a,b)=>a.days-b.days).slice(0,6).map(item=>item.html).join("");
+    if(bookDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
+    else if(prepDue){const urgent=days<=15,when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({priority:urgent?0:1,days,html:`<button class="attention-alert ${urgent?"book-urgent":"book-warning"}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>${urgent?"URGENTE · ":""}Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
+    else if(days>=0&&days<=14&&incomplete.length) items.push({priority:2,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
+    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({priority:0,days,html:`<button class="ghost-btn" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><br><small>Cobertura sin confirmar</small></button>`});
+  }); return items.sort((a,b)=>a.priority-b.priority||a.days-b.days).slice(0,6).map(item=>item.html).join("");
 }
 function contactWatchItems() {
   return state.clients
@@ -590,6 +584,32 @@ function normalizeDate(value){const text=String(value||"").trim();if(/^\d{4}-\d{
 function parsePack(raw){const text=String(raw||"").toUpperCase();if(text.includes("VIP"))return "vip";if(text.includes("INFORMAL"))return "informal";if(text.includes("GOLD")||text.includes("ALL INCLUSIVE")||text.includes("GOLDEN"))return "gold";return "silver";}
 function parseAddons(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["pant",/PANT/],["pixel",/PIXEL/],["miniflex",/UP\.?MFLEX|MINI\s*FLEX/],["flex",/UP\.FLEX|\bFLEX\b/],["libro",/LIBRO/],["maqui",/MAQUI/],["moda",/\bMODA\b/],["drone",/DRONE/],["sansSouci",/SANS\s*SOUCI/],["glamCam",/G\.?\s*CAM/],["alfombraRoja",/A\.?\s*ROJA/],["invitacion",/INVITACION/],["fotoIman",/FOTO\.?\s*IMAN/],["vipUpgrade",/UP\.?\s*VIP/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});if(items.includes("miniflex"))return [...new Set(items.filter(x=>x!=="flex"))];return [...new Set(items)];}
 function parseFlexServices(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["church",/IGLESIA|TEMPLO/],["civil",/CIVIL/],["droneEvent",/DRONE.*(EVENTO|RECEPC)/],["droneBook",/DRONE.*(BOOK|SESION)/],["photoExtra",/FOTOGRAFO EXTRA/],["videoExtra",/VIDEOGRAFO EXTRA/],["signatureBook",/LIBRO.*FIRMA/],["partyBook",/LIBRO.*FIESTA/],["liveEditor",/EDITOR.*VIVO|EDICION EN VIVO/],["friendsVideo",/VIDEO.*AMIG/],["extraSession",/SESION EXTRA/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});return items;}
+function askCsvConflict(client, diffs, remaining) {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.className = "csv-conflict-overlay";
+    overlay.innerHTML = `
+      <div class="csv-conflict-box">
+        <p class="eyebrow">Conflicto al importar CSV</p>
+        <h3>${escapeHtml(client.honoree)} <span class="muted">#${escapeHtml(client.code)}</span></h3>
+        <p class="csv-conflict-label">Cambios detectados:</p>
+        <ul class="csv-conflict-diffs">${diffs.map(d => `<li>${escapeHtml(d)}</li>`).join("")}</ul>
+        ${remaining > 0 ? `<p class="muted csv-conflict-remaining">Quedan ${remaining} cliente(s) más con cambios por revisar.</p>` : ""}
+        <div class="csv-conflict-actions">
+          <button type="button" data-conflict="skip" class="secondary-btn">Omitir este</button>
+          <button type="button" data-conflict="apply" class="secondary-btn">Aplicar este</button>
+          ${remaining > 0 ? `<button type="button" data-conflict="skipAll" class="ghost-btn">Omitir todos los restantes</button><button type="button" data-conflict="applyAll" class="primary-btn">Aplicar todos los restantes</button>` : ""}
+        </div>
+      </div>`;
+    overlay.addEventListener("click", e => {
+      const btn = e.target.closest("[data-conflict]");
+      if (!btn) return;
+      document.body.removeChild(overlay);
+      resolve(btn.dataset.conflict);
+    });
+    document.body.appendChild(overlay);
+  });
+}
 async function importClientCsv(file){
   try{
   if(!file){toast("No se seleccionó ningún archivo.");return;}
@@ -618,12 +638,27 @@ async function importClientCsv(file){
       const incoming={code,eventDate,salon:firstValue(row,["salon","sede"])||"Otro",type:firstValue(row,["tipo","tipo_evento"])||"Otro",honoree:firstValue(row,["homenajeado","homenajeada","homenajead","nombre_evento"])||firstValue(row,["cliente","nombre_cliente"])||`Evento ${code}`,clientName:firstValue(row,["cliente","nombre_cliente","contacto_cliente"]),clientPhone:(()=>{const raw=firstValue(row,["whatsapp","telefono","telefono_cliente","celular"]);return raw&&raw.replace(/\D/g,"").length>=8?raw:"";})(),guests:Number(firstValue(row,["invitados","cantidad_invitados"])||0),pack:csvPack,addons:csvAddons,flexServices:csvFlex,notes:firstValue(row,["notas","observaciones","comentarios"])};const client={...incoming,id:uid(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente importado desde CSV"}]};client.tasks=createTasks(client);state.clients.push(client);created+=1;
     }catch(rowError){console.error(`Error en la fila ${index+2} del CSV:`,rowError,row);rowErrors+=1;}
   });
-  // Process conflicts one by one
+  // Process conflicts one by one, using a custom modal that supports "apply all"/"skip all"
   let updated=0;
-  for(const {client,csvPack,csvAddons,csvFlex,diffs} of conflicts){
+  for(let i=0;i<conflicts.length;i++){
+    const {client,csvPack,csvAddons,csvFlex,diffs}=conflicts[i];
     try{
-      const msg=`Cliente: ${client.honoree} (#${client.code})\n\nCambios detectados en el CSV:\n${diffs.join("\n")}\n\n¿Aplicar estos cambios?`;
-      if(confirm(msg)){client.pack=csvPack;client.addons=csvAddons;client.flexServices=csvFlex;syncTasks(client);updated+=1;}else{existingSkipped+=1;}
+      const remaining=conflicts.length-1-i;
+      const decision=await askCsvConflict(client,diffs,remaining);
+      if(decision==="applyAll"){
+        // Apply this one and all remaining without asking again
+        for(let j=i;j<conflicts.length;j++){
+          const cc=conflicts[j];
+          cc.client.pack=cc.csvPack;cc.client.addons=cc.csvAddons;cc.client.flexServices=cc.csvFlex;syncTasks(cc.client);updated+=1;
+        }
+        break;
+      }
+      if(decision==="skipAll"){
+        existingSkipped+=conflicts.length-i;
+        break;
+      }
+      if(decision==="apply"){client.pack=csvPack;client.addons=csvAddons;client.flexServices=csvFlex;syncTasks(client);updated+=1;}
+      else{existingSkipped+=1;}
     }catch(conflictError){console.error("Error al procesar conflicto de cliente:",conflictError,client);rowErrors+=1;}
   }
   saveState();toast(`${created} nuevos agregados${updated?` · ${updated} actualizados`:""}${existingSkipped?` · ${existingSkipped} sin cambios`:""}${duplicatedInFile?` · ${duplicatedInFile} código(s) repetido(s) en el archivo`:""}${skipped?` · ${skipped} filas omitidas`:""}${rowErrors?` · ${rowErrors} fila(s) con error (ver consola)`:""}`);
