@@ -109,6 +109,7 @@
           <h1 id="viewTitle">Inicio</h1>
         </div>
         <button class="primary-btn" id="newClientBtn">+ Nuevo cliente</button>
+        <button class="secondary-btn" id="manualRenditionBtn" style="display:none">+ Rendición manual</button>
       </header>
 
       <section id="dashboardView" class="view active"></section>
@@ -154,6 +155,31 @@
         <button class="ghost-btn hidden" type="button" id="resetContactBtn">↩ Deshacer contacto</button>
         <button class="secondary-btn" type="button" data-close-client-form>Cancelar</button>
         <button class="primary-btn" type="submit" id="saveClientBtn">Guardar cliente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="manualRenditionDialog" class="modal">
+    <form method="dialog" onsubmit="return false;">
+      <div class="modal-head">
+        <div><p class="eyebrow">Rendición sin evento</p><h2>Nueva rendición manual</h2></div>
+        <button class="icon-btn" type="button" onclick="document.getElementById('manualRenditionDialog').close()" aria-label="Cerrar">×</button>
+      </div>
+      <div class="form-grid">
+        <label>Fecha del evento<input type="date" id="manualRenditionDate" required onchange="updateManualRenditionRate()"></label>
+        <label>Salón<select id="manualRenditionSalon"></select></label>
+        <label>Categoría<select id="manualRenditionCategory" onchange="updateManualRenditionWorks()">
+          <option value="PERSONAL FOTOGRAFIA" selected>PERSONAL FOTOGRAFÍA</option>
+          <option value="PERSONAL VIDEO">PERSONAL VIDEO</option>
+          <option value="COMPLEMENTOS">COMPLEMENTOS</option>
+        </select></label>
+        <label>Trabajo realizado<select id="manualRenditionWork" onchange="updateManualRenditionRate()"><option>Cargando...</option></select></label>
+        <label>Importe<input type="number" id="manualRenditionAmount" min="0" placeholder="Se precarga según tarifa, podés editarlo"></label>
+        <label class="full-label">Observaciones<input type="text" id="manualRenditionNotes" placeholder="Opcional"></label>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" onclick="document.getElementById('manualRenditionDialog').close()">Cancelar</button>
+        <button class="primary-btn" type="button" onclick="saveManualRendition()">Guardar rendición</button>
       </div>
     </form>
   </dialog>
