@@ -43,8 +43,38 @@ const BASE_RATES = {
   photoExtra: 160000, videoExtra: 160000, liveEditor: 160000, signatureDesign: 30000,
   partyBookDesign: 40000, videoExtraClip: 25000, albumInteractive: 16000, droneEdit: 20000,
   assistant: 18000, extraSheet: 6000, churchUpgrade: 60000, totemDigital: 10000,
-  bookModa: 30000
+  bookModa: 30000, extraCameraEdit: 22000
 };
+
+const SEASONAL_RATE_KEYS = ["gold","silver","book","eventCoverage","eventEdit","bookCoverage","bookEdit","informal","informalRecording"];
+const SEASONAL_RATES = {
+  2026: {
+    5:  { gold: 273000, silver: 191000, book: 82000, eventCoverage: 132600, eventEdit: 59200, bookCoverage: 57200, bookEdit: 25200, informal: 135600, informalRecording: 93400 },
+    6:  { gold: 300000, silver: 210000, book: 90000, eventCoverage: 146000, eventEdit: 64000, bookCoverage: 62000, bookEdit: 28000, informal: 150000, informalRecording: 102000 },
+    7:  { gold: 300000, silver: 210000, book: 90000, eventCoverage: 146000, eventEdit: 64000, bookCoverage: 62000, bookEdit: 28000, informal: 150000, informalRecording: 102000 },
+    8:  { gold: 325000, silver: 227500, book: 97500, eventCoverage: 160000, eventEdit: 67500, bookCoverage: 68000, bookEdit: 29500, informal: 160000, informalRecording: 110000 },
+    9:  { gold: 325000, silver: 227500, book: 97500, eventCoverage: 160000, eventEdit: 67500, bookCoverage: 68000, bookEdit: 29500, informal: 160000, informalRecording: 110000 }
+  }
+};
+
+function getRate(rateKey, eventDateStr) {
+  if (!SEASONAL_RATE_KEYS.includes(rateKey) || !eventDateStr) return state.rates[rateKey] || 0;
+  const d = new Date(eventDateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return state.rates[rateKey] || 0;
+  const year = d.getFullYear(), month = d.getMonth() + 1;
+  const yearTable = SEASONAL_RATES[year];
+  if (!yearTable) return state.rates[rateKey] || 0;
+  for (let m = month; m >= 1; m--) {
+    if (yearTable[m] && yearTable[m][rateKey] != null) return yearTable[m][rateKey];
+  }
+  const prevYearTable = SEASONAL_RATES[year - 1];
+  if (prevYearTable) {
+    for (let m = 12; m >= 1; m--) {
+      if (prevYearTable[m] && prevYearTable[m][rateKey] != null) return prevYearTable[m][rateKey];
+    }
+  }
+  return state.rates[rateKey] || 0;
+}
 
 const CORE_TASKS = [
   task("contact", "Contactar al cliente y explicar el servicio", "Preparación"),
@@ -363,7 +393,7 @@ function accessDate(value){return value?new Intl.DateTimeFormat("es-AR",{dateSty
 function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
 async function changeUserStatus(id,status){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿${status==="blocked"?"Bloquear":"Reactivar"} la cuenta de ${user.display_name||user.email}?`))return;try{await setUserStatus(id,status);if(status==="active"&&user.email){try{await notifyUserApproved(id,user.email,user.display_name||"");toast("Usuario reactivado y notificado por email");}catch(e){console.error(e);toast("Usuario reactivado · no se pudo enviar el email");}}else{toast(status==="blocked"?"Usuario bloqueado":"Usuario reactivado");}adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo cambiar el acceso");}}
 async function deleteUserAccount(id){const user=adminUsers.find(item=>item.id===id);if(!user||!confirm(`¿Eliminar definitivamente la cuenta de ${user.display_name||user.email}? Esta acción no se puede deshacer.`))return;try{await deleteUser(id);toast("Usuario eliminado");adminUsers=await listUserProfiles();renderUsers();}catch(error){console.error(error);toast("No se pudo eliminar el usuario");}}
-function rateLabel(k) { return ({gold:"Gold completo",silver:"Silver completo",book:"Book completo",eventCoverage:"Cobertura evento",eventEdit:"Edición evento",bookCoverage:"Cobertura book",bookEdit:"Edición book",informal:"Informal completo",informalRecording:"Informal solo grabación",ceremony:"Ceremonia completa",ceremonyRecording:"Ceremonia grabación",ceremonyEdit:"Ceremonia edición",drone:"Drone",photoExtra:"Fotógrafo extra",videoExtra:"Videógrafo extra",liveEditor:"Edición en vivo",signatureDesign:"Diseño libro firmas + mural",partyBookDesign:"Diseño libro fiesta",videoExtraClip:"Video crono/entrada",albumInteractive:"Álbum interactivo",droneEdit:"Edición drone FPV",assistant:"Asistente book",extraSheet:"Pliego extra",churchUpgrade:"Iglesia por upgrade",totemDigital:"Tótem / Televisor Fotografía Digital",bookModa:"Adicional book con Moda"})[k]||k; }
+function rateLabel(k) { return ({gold:"Gold completo",silver:"Silver completo",book:"Book completo",eventCoverage:"Cobertura evento",eventEdit:"Edición evento",bookCoverage:"Cobertura book",bookEdit:"Edición book",informal:"Informal completo",informalRecording:"Informal solo grabación",ceremony:"Ceremonia completa",ceremonyRecording:"Ceremonia grabación",ceremonyEdit:"Ceremonia edición",drone:"Drone",photoExtra:"Fotógrafo extra",videoExtra:"Videógrafo extra",liveEditor:"Edición en vivo",signatureDesign:"Diseño libro firmas + mural",partyBookDesign:"Diseño libro fiesta",videoExtraClip:"Video crono/entrada",albumInteractive:"Álbum interactivo",droneEdit:"Edición drone FPV",assistant:"Asistente book",extraSheet:"Pliego extra",churchUpgrade:"Iglesia por upgrade",totemDigital:"Tótem / Televisor Fotografía Digital",bookModa:"Adicional book con Moda",extraCameraEdit:"Adicional cámara edición video"})[k]||k; }
 
 
 const MANUAL_WORKS = {
@@ -371,16 +401,17 @@ const MANUAL_WORKS = {
     { label: "Fiesta (cobertura y edicion)", rate: "silver" },
     { label: "Sesion de fotos (cobertura + edicion)", rate: "book" },
     { label: "Evento Informal", rate: "informal" },
-    { label: "Civil", rate: "ceremony" },
-    { label: "Iglesia (canje del book)", rate: null },
-    { label: "Templo Bar/Bat", rate: null },
-    { label: "Iglesia (servicio extra por upgrade)", rate: "churchUpgrade" },
+    { label: "Civil (valor book)", rate: "book" },
+    { label: "Iglesia fuera del salon (canje del book)", rate: "book" },
+    { label: "Templo Bar/Bat (valor book)", rate: "book" },
+    { label: "Iglesia fuera del salon (extra por upgrade)", rate: "churchUpgrade" },
     { label: "Adicional ceremonia en salon", rate: "ceremony" },
-    { label: "Adicional book con Moda", rate: "bookModa" },
+    { label: "Adicional book con produccion de moda", rate: "bookModa" },
+    { label: "Asistente book moda o Palacio", rate: "assistant" },
     { label: "Evento Corporativo", rate: null },
     { label: "VIATICOS (SOLO FOTOGRAFO)", rate: null },
     { label: "Sesion Sans Souci (cobertura + edicion)", rate: "book" },
-    { label: "Fiesta (segundo fotografo)", rate: "photoExtra" },
+    { label: "Fotografo extra", rate: "photoExtra" },
   ],
   "PERSONAL VIDEO": [
     { label: "Fiesta (grabacion + edicion)", rate: null },
@@ -389,52 +420,50 @@ const MANUAL_WORKS = {
     { label: "Sesion de fotos (grabacion + edicion back)", rate: null },
     { label: "Sesion de fotos (solo grabacion)", rate: "bookCoverage" },
     { label: "Sesion de fotos (solo edicion)", rate: "bookEdit" },
-    { label: "Civil (grabacion + edicion video)", rate: null },
-    { label: "Civil (solo grabacion)", rate: "ceremonyRecording" },
-    { label: "Civil (solo edicion)", rate: "ceremonyEdit" },
-    { label: "Iglesia (canje del book)", rate: null },
-    { label: "Templo Bar/Bat", rate: null },
-    { label: "Adicional ceremonia en salon (grabacion + edicion)", rate: null },
-    { label: "Adicional ceremonia en salon (solo grabacion)", rate: "ceremonyRecording" },
-    { label: "Adicional ceremonia en salon (solo edicion)", rate: "ceremonyEdit" },
-    { label: "Adicional book con Moda", rate: "bookModa" },
+    { label: "Civil (valor book)", rate: "book" },
+    { label: "Adicional ceremonia en salon", rate: "ceremony" },
+    { label: "Adicional ceremonia en salon solo grabacion", rate: "ceremonyRecording" },
+    { label: "Adicional ceremonia en salon solo edicion", rate: "ceremonyEdit" },
+    { label: "Adicional camara edicion video", rate: "extraCameraEdit" },
+    { label: "Iglesia fuera del salon (canje del book)", rate: "book" },
+    { label: "Templo Bar/Bat (valor book)", rate: "book" },
+    { label: "Iglesia fuera del salon (extra por upgrade)", rate: "churchUpgrade" },
+    { label: "Adicional book con produccion de moda", rate: "bookModa" },
     { label: "Evento Corporativo (grabacion + edicion)", rate: null },
     { label: "Evento Corporativo (solo grabacion)", rate: null },
     { label: "Evento Corporativo (solo edicion)", rate: null },
     { label: "Evento Informal (grabacion + edicion)", rate: null },
     { label: "Evento Informal (solo grabacion)", rate: "informalRecording" },
     { label: "Evento Informal (solo edicion)", rate: null },
-    { label: "Iglesia (servicio extra por upgrade)", rate: null },
     { label: "VIATICOS (SOLO VIDEOGRAFO)", rate: null },
-    { label: "Fiesta (segundo videografo)", rate: "videoExtra" },
+    { label: "Videografo extra", rate: "videoExtra" },
+    { label: "Clip actuado amigas (valor book)", rate: "book" },
+    { label: "Edicion de video Drone FPV", rate: "droneEdit" },
   ],
   "COMPLEMENTOS": [
     { label: "Drone en evento", rate: "drone" },
     { label: "Drone en sesion de fotos", rate: "drone" },
-    { label: "Edicion en vivo video", rate: "liveEditor" },
-    { label: "Edicion en vivo de fotos", rate: "liveEditor" },
-    { label: "Libro firmas (Fotografia Digital)", rate: "signatureDesign" },
-    { label: "Libro Fiesta (Fotografia Digital)", rate: "partyBookDesign" },
-    { label: "Video con amigos", rate: "book" },
-    { label: "Album de fotos interactivo (fotografia)", rate: "albumInteractive" },
-    { label: "Album de fotos interactivo (videos)", rate: "albumInteractive" },
-    { label: "Fiesta (segundo fotografo)", rate: "photoExtra" },
-    { label: "Fiesta (segundo videografo)", rate: "videoExtra" },
-    { label: "Totem Digital", rate: "totemDigital" },
-    { label: "Asistente en sesion de fotos", rate: "assistant" },
-    { label: "Diseno de pliegos extra en libro", rate: "extraSheet" },
-    { label: "Video cronologico", rate: null },
-    { label: "DRONE FPV", rate: null },
-    { label: "DRONE FPV (SOLO EDICION)", rate: "droneEdit" },
+    { label: "Edicion en vivo (video fin de fiesta)", rate: "liveEditor" },
+    { label: "Diseño Libro de firmas + mural", rate: "signatureDesign" },
+    { label: "Diseño Libro de fiesta post evento", rate: "partyBookDesign" },
+    { label: "Diseño pliego extra libro", rate: "extraSheet" },
+    { label: "Video cronologico extra o video de entrada", rate: "videoExtraClip" },
+    { label: "Clip actuado amigas (valor book)", rate: "book" },
+    { label: "Album interactivo (fotografo)", rate: "albumInteractive" },
+    { label: "Album interactivo (videografo)", rate: "albumInteractive" },
+    { label: "Fotografo extra", rate: "photoExtra" },
+    { label: "Videografo extra", rate: "videoExtra" },
+    { label: "Totem digital en evento con impresiones de pack", rate: "totemDigital" },
+    { label: "Asistente book moda o Palacio", rate: "assistant" },
+    { label: "Adicional camara edicion video", rate: "extraCameraEdit" },
+    { label: "DRONE FPV (solo edicion)", rate: "droneEdit" },
     { label: "Glam Cam 360", rate: null },
     { label: "Party Cam 360", rate: null },
     { label: "Music Video", rate: null },
     { label: "INFINITY BOX", rate: null },
     { label: "Holograma recepcion", rate: null },
     { label: "Centro de mesa interactivo x1", rate: null },
-    { label: "Video de entrada para pantalla", rate: null },
     { label: "Mapping Globo", rate: null },
-    { label: "Adicional edicion por camara extra", rate: null },
     { label: "Maquillaje", rate: null },
     { label: "Maquillaje plus", rate: null },
     { label: "Maquillaje x2 plus", rate: null },
@@ -469,7 +498,8 @@ function updateManualRenditionRate() {
   const sel = document.getElementById("manualRenditionWork");
   const opt = sel && sel.options[sel.selectedIndex];
   const rateKey = opt ? opt.getAttribute("data-rate") : "";
-  const amount = rateKey && state.rates[rateKey] ? state.rates[rateKey] : "";
+  const eventDate = document.getElementById("manualRenditionDate").value;
+  const amount = rateKey ? (getRate(rateKey, eventDate) || "") : "";
   document.getElementById("manualRenditionAmount").value = amount;
 }
 function saveManualRendition() {
@@ -714,11 +744,11 @@ function taskRow(c,t){
   const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);
   const videoEditChecked=t.includesEdit||false;
   const videoEditCheckbox=isVideoCapture?`<label class="video-edit-check" title="Incluye edición"><input type="checkbox" data-task-video-edit="${c.id}|${t.id}" ${videoEditChecked?"checked":""}> + Edición</label>`:"";
-  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)}${isVideoCapture?` ${videoEditChecked?"+ edición ($"+money(state.rates[t.rateKey]||0).replace("$","").trim()+")":"(solo cobertura)"}`:""}</small>`:""}${videoEditCheckbox}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
+  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)}${isVideoCapture?` ${videoEditChecked?"+ edición ($"+money(getRate(t.rateKey,c.eventDate)||0).replace("$","").trim()+")":"(solo cobertura)"}`:""}</small>`:""}${videoEditCheckbox}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
 }
 function refreshTaskViews(clientId){const dialog=document.getElementById("detailDialog");if(dialog.open)openClientDetail(clientId);else if(activeView==="tasks")renderTasks();}
-function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");refreshTaskViews(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const amount=isVideoCapture?(t.includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0):state.rates[t.rateKey]||0;if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work+(isVideoCapture&&t.includesEdit?" + edición":""),amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();refreshTaskViews(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
-function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);existing.amount=includesEdit?(state.rates[t.rateKey]||0)+(t.key==="coverageVideoCapture"?state.rates.eventEdit:state.rates.bookEdit):state.rates[t.rateKey]||0;existing.work=t.work+(includesEdit?" + edición":"");}saveState();refreshTaskViews(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
+function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");refreshTaskViews(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const baseAmount=getRate(t.rateKey,c.eventDate);const editAmount=t.key==="coverageVideoCapture"?getRate("eventEdit",c.eventDate):getRate("bookEdit",c.eventDate);const amount=isVideoCapture?(t.includesEdit?baseAmount+editAmount:baseAmount):baseAmount;if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work+(isVideoCapture&&t.includesEdit?" + edición":""),amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();refreshTaskViews(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
+function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const baseAmount=getRate(t.rateKey,c.eventDate);const editAmount=t.key==="coverageVideoCapture"?getRate("eventEdit",c.eventDate):getRate("bookEdit",c.eventDate);existing.amount=includesEdit?baseAmount+editAmount:baseAmount;existing.work=t.work+(includesEdit?" + edición":"");}saveState();refreshTaskViews(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
 function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
 function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],calendar:["Vista mensual","Calendario"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks"||view==="renditions");
