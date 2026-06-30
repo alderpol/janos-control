@@ -1022,4 +1022,8 @@ async function bootstrap(){
   try{const recoveryType=new URLSearchParams(window.location.hash.replace(/^#/,"")).get("type");const session=await getSession();if(session&&recoveryType==="recovery"){currentUser=session.user;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("reset");}else if(session)await startApplication(session);else{document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");}}catch(error){console.error(error);document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","No se pudo conectar con Supabase.");}
 }
 
+window.updateManualRenditionWorks = updateManualRenditionWorks;
+window.updateManualRenditionRate = updateManualRenditionRate;
+window.saveManualRendition = saveManualRendition;
+
 bootstrap();
