@@ -614,7 +614,7 @@ function saveClient(form) {
   else {const client={...data,id:uid(),addons,flexServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
   saveState(); toast(data.id?"Cliente actualizado":"Cliente creado con su plan de trabajo"); return true;
 }
-function syncTasks(client) { const existing=new Map(client.tasks.map(t=>[t.key,t])); client.tasks=createTasks(client).map(t=>existing.has(t.key)?{...t,...existing.get(t.key)}:t); client.history.push({date:new Date().toISOString(),text:"Datos del cliente actualizados"}); }
+function syncTasks(client) { const existing=new Map(client.tasks.map(t=>[t.key,t])); client.tasks=createTasks(client).map(t=>existing.has(t.key)?{...existing.get(t.key),title:t.title,phase:t.phase,payable:t.payable,category:t.category,work:t.work,rateKey:t.rateKey}:t); client.history.push({date:new Date().toISOString(),text:"Datos del cliente actualizados"}); }
 function tasksAtRiskOnRegenerate(){const atRisk=[];state.clients.forEach(c=>{const newKeys=new Set(createTasks(c).map(t=>t.key));c.tasks.forEach(t=>{if(t.status!=="pending"&&!newKeys.has(t.key))atRisk.push({c,t});});});return atRisk;}
 
 function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));}
