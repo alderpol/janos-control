@@ -80,9 +80,10 @@ function getRate(rateKey, eventDateStr) {
 const CORE_TASKS = [
   task("contact", "Contactar al cliente y explicar el servicio", "Preparación"),
   task("verify", "Verificar pack, upgrades y elecciones", "Preparación"),
-  task("coveragePhoto", "Realizar cobertura fotográfica del evento", "Evento", true, "PERSONAL FOTOGRAFIA", "Fiesta (cobertura y edicion)", "silver"),
-  task("coverageVideoCapture", "Realizar cobertura de video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (cobertura sin edicion)", "eventCoverage"),
-  task("coverageVideoEdit", "Editar video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (edicion)", "eventEdit"),
+  task("coveragePhoto", "Realizar cobertura fotográfica del evento", "Evento", true, "PERSONAL FOTOGRAFIA", "Fiesta (cobertura)", "eventCoverage"),
+  task("coveragePhotoEdit", "Editar fotos del evento", "Evento", true, "PERSONAL FOTOGRAFIA", "Fiesta (edicion foto)", "eventEdit"),
+  task("coverageVideoCapture", "Realizar cobertura de video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (cobertura video)", "eventCoverage"),
+  task("coverageVideoEdit", "Editar video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (edicion video)", "eventEdit"),
   task("backup", "Completar backup del salón", "Evento"),
   task("photoEdit", "Editar fotografías del evento", "Post-evento"),
   task("video20", "Editar video principal de aproximadamente 20 minutos", "Post-evento"),
@@ -93,7 +94,8 @@ const CORE_TASKS = [
 
 const GOLD_TASKS = [
   task("coordinateSession", "Coordinar y reservar sesión de fotos", "Pre-evento"),
-  task("bookCoveragePhoto", "Realizar sesión de fotos", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
+  task("bookCoveragePhoto", "Realizar sesión de fotos", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura)", "bookCoverage"),
+  task("bookPhotoEdit", "Editar fotos de la sesión", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (edicion foto)", "bookEdit"),
   task("bookCoverageVideo", "Realizar sesión de video", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage"),
   task("backstage", "Editar video backstage", "Pre-evento"),
   task("mural", "Preparar mural digital", "Pre-evento")
@@ -127,9 +129,9 @@ function task(key, title, phase, payable = false, category = "", work = "", rate
 
 // Tareas que son exclusivas de un rol; lo que no figura acá se considera "ambos" (general/coordinación).
 const TASK_ROLES = {
-  coveragePhoto: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video",
+  coveragePhoto: "foto", coveragePhotoEdit: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video",
   photoEdit: "foto", video20: "video", videoSummary: "video", sendPhotos: "foto", sendVideo: "video",
-  bookCoveragePhoto: "foto", bookCoverageVideo: "video", backstage: "video", mural: "foto",
+  bookCoveragePhoto: "foto", bookPhotoEdit: "foto", bookCoverageVideo: "video", backstage: "video", mural: "foto",
   vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
   flexChurch: "foto", flexCivil: "foto", flexPhotoExtra: "foto", flexVideoExtra: "video",
   flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
@@ -257,7 +259,7 @@ function attentionItems() {
     if(bookDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
     else if(prepDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
     else if(days>=0&&days<=14&&incomplete.length) items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Tareas pendientes</span><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
-    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
+    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coveragePhotoEdit","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
   }); return items.sort((a,b)=>a.days-b.days).slice(0,6).map(item=>item.html).join("");
 }
 function contactWatchItems() {
@@ -821,14 +823,12 @@ function openClientDetail(id) {
 }
 function taskRow(c,t){
   const needsOrder=t.key==="partyBook";
-  const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);
-  const videoEditChecked=t.includesEdit||false;
-  const videoEditCheckbox=isVideoCapture?`<label class="video-edit-check" title="Incluye edición"><input type="checkbox" data-task-video-edit="${c.id}|${t.id}" ${videoEditChecked?"checked":""}> + Edición</label>`:"";
-  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)}${isVideoCapture?` ${videoEditChecked?"+ edición ($"+money(getRate(t.rateKey,c.eventDate)||0).replace("$","").trim()+")":"(solo cobertura)"}`:""}</small>`:""}${videoEditCheckbox}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
+  
+  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)} · ${money(getRate(t.rateKey,c.eventDate))}</small>`:""}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
 }
 function refreshTaskViews(clientId){const dialog=document.getElementById("detailDialog");if(dialog.open)openClientDetail(clientId);else if(activeView==="tasks")renderTasks();}
-function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");refreshTaskViews(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const baseAmount=getRate(t.rateKey,c.eventDate);const editAmount=t.key==="coverageVideoCapture"?getRate("eventEdit",c.eventDate):getRate("bookEdit",c.eventDate);const amount=isVideoCapture?(t.includesEdit?baseAmount+editAmount:baseAmount):baseAmount;if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work+(isVideoCapture&&t.includesEdit?" + edición":""),amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();refreshTaskViews(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
-function updateVideoEdit(clientId,taskId,includesEdit){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;t.includesEdit=includesEdit;const existing=state.renditions.find(r=>r.taskId===t.id);if(existing&&existing.status==="pending"){const isVideoCapture=["coverageVideoCapture","bookCoverageVideo","flexSessionVideo"].includes(t.key);const baseAmount=getRate(t.rateKey,c.eventDate);const editAmount=t.key==="coverageVideoCapture"?getRate("eventEdit",c.eventDate):getRate("bookEdit",c.eventDate);existing.amount=includesEdit?baseAmount+editAmount:baseAmount;existing.work=t.work+(includesEdit?" + edición":"");}saveState();refreshTaskViews(c.id);toast(includesEdit?"Edición incluida en la rendición":"Solo cobertura en la rendición");}
+function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");refreshTaskViews(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const amount=getRate(t.rateKey,c.eventDate);if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work,amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();refreshTaskViews(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
+
 function deleteClient(id){state.clients=state.clients.filter(c=>c.id!==id);state.renditions=state.renditions.filter(r=>r.clientId!==id);const detail=document.getElementById("detailDialog"),form=document.getElementById("clientDialog");if(detail.open)detail.close();if(form.open)form.close();saveState();toast("Cliente y registros vinculados eliminados");}
 
 function runGlobalSearch(query) {
@@ -956,7 +956,7 @@ document.addEventListener("change", e => {
   if(e.target.dataset.taskDate){const [c,t]=e.target.dataset.taskDate.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.completedAt=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition&&e.target.value){rendition.workDate=e.target.value;rendition.periodEnd=periodEndFor(e.target.value);}saveState();}}
   if(e.target.dataset.taskNotes){const [c,t]=e.target.dataset.taskNotes.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.notes=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition)rendition.observations=e.target.value;saveState();}}
   if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
-  if(e.target.dataset.taskVideoEdit){const[c,t]=e.target.dataset.taskVideoEdit.split("|");updateVideoEdit(c,t,e.target.checked);}
+
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
   if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
   if(e.target.id==="calendarSalonFilter"){calendarSalonFilter=e.target.value;localStorage.setItem("janosCalendarSalon",calendarSalonFilter);renderCalendar();}
