@@ -154,6 +154,9 @@ let taskSalonFilter = localStorage.getItem("janosTaskSalon") || "";
 let taskSearchFilter = "";
 let calendarMonth = todayIso().slice(0, 7);
 let calendarSalonFilter = localStorage.getItem("janosCalendarSalon") || "";
+let gcalEvents = [];
+let gcalLoading = false;
+let gcalConnected = false;
 let renditionViewMode = "active";
 let currentUser = null;
 let pendingOtp = null;
@@ -292,6 +295,38 @@ function monthLabel(value){const [year,month]=String(value).split("-");if(!year|
 function eventCountLabel(count){return `${count} ${count===1?"evento":"eventos"}`;}
 function shiftMonth(key,delta){const [y,m]=key.split("-").map(Number);const d=new Date(y,m-1+delta,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;}
 function calendarSalonClass(salon,salons){const idx=salons.indexOf(salon);return `cal-salon-${idx>=0?idx%4:4}`;}
+async function fetchGcalEvents(month) {
+  if (!currentUser) return;
+  gcalLoading = true;
+  try {
+    const { data: { session } } = await window._supabaseClient.auth.getSession();
+    if (!session) return;
+    const res = await fetch(
+      `https://mybeysibpwoaudohxomr.supabase.co/functions/v1/google-calendar-events?month=${month}`,
+      { headers: { Authorization: `Bearer ${session.access_token}` } }
+    );
+    const data = await res.json();
+    if (data.error === "not_connected") { gcalConnected = false; gcalEvents = []; }
+    else if (data.events) { gcalConnected = true; gcalEvents = data.events; }
+  } catch(e) { console.error("gcal fetch error:", e); }
+  finally { gcalLoading = false; renderCalendar(); }
+}
+function connectGoogleCalendar() {
+  if (!currentUser) return;
+  const GOOGLE_CLIENT_ID = "985985340766-fjj6i28rq0gg4ei2o6igddva253v4ead.apps.googleusercontent.com";
+  const REDIRECT_URI = "https://mybeysibpwoaudohxomr.supabase.co/functions/v1/google-calendar-auth";
+  const SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    response_type: "code",
+    scope: SCOPE,
+    access_type: "offline",
+    prompt: "consent",
+    state: currentUser.id,
+  });
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+}
 function renderCalendar(){
   const view=document.getElementById("calendarView"); if(!view) return;
   const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
@@ -305,16 +340,27 @@ function renderCalendar(){
     if(!eventsByDay.has(day))eventsByDay.set(day,[]);
     eventsByDay.get(day).push(c);
   });
+  const gcalByDay = new Map();
+  gcalEvents.filter(e => e.date && e.date.startsWith(calendarMonth)).forEach(e => {
+    const day = Number(e.date.slice(8, 10));
+    if (!gcalByDay.has(day)) gcalByDay.set(day, []);
+    gcalByDay.get(day).push(e);
+  });
   const cells=[];
   for(let i=0;i<startWeekday;i++)cells.push(`<div class="cal-cell empty"></div>`);
   for(let day=1;day<=daysInMonth;day++){
     const dateKey=`${calendarMonth}-${String(day).padStart(2,"0")}`;
     const items=(eventsByDay.get(day)||[]).sort((a,b)=>String(a.salon||"").localeCompare(String(b.salon||"")));
-    cells.push(`<div class="cal-cell${dateKey===todayKey?" today":""}"><span class="cal-day">${day}</span>${items.map(c=>`<button class="cal-event ${calendarSalonClass(c.salon,salons)}" data-open-client="${c.id}" title="${escapeHtml(c.honoree)} · ${escapeHtml(c.salon||"")}">${escapeHtml(c.honoree)}</button>`).join("")}</div>`);
+    const gcalItems=(gcalByDay.get(day)||[]);
+    const gcalHtml=gcalItems.map(e=>`<div class="cal-gcal-event" title="${escapeHtml(e.title)}${e.time?' · '+e.time:''}${e.location?' · '+e.location:''}">📅 ${escapeHtml(e.title)}${e.time?` <span class="cal-gcal-time">${e.time}</span>`:''}</div>`).join("");
+    cells.push(`<div class="cal-cell${dateKey===todayKey?" today":""}"><span class="cal-day">${day}</span>${items.map(c=>`<button class="cal-event ${calendarSalonClass(c.salon,salons)}" data-open-client="${c.id}" title="${escapeHtml(c.honoree)} · ${escapeHtml(c.salon||"")}">${escapeHtml(c.honoree)}</button>`).join("")}${gcalHtml}</div>`);
   }
   const trailing=(7-(cells.length%7))%7;
   for(let i=0;i<trailing;i++)cells.push(`<div class="cal-cell empty"></div>`);
   const weekdays=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  const gcalBtn=gcalConnected
+    ?`<button class="ghost-btn cal-gcal-connected" id="calGcalRefresh">📅 Sincronizado</button>`
+    :`<button class="ghost-btn" id="calGcalConnect">📅 Conectar Google Calendar</button>`;
   view.innerHTML=`
     <div class="rendition-controls">
       <button class="ghost-btn" id="calPrev">‹ Mes anterior</button>
@@ -322,6 +368,7 @@ function renderCalendar(){
       <button class="ghost-btn" id="calNext">Mes siguiente ›</button>
       <button class="ghost-btn" id="calToday">Hoy</button>
       <select id="calendarSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}"${calendarSalonFilter===s?" selected":""}>${escapeHtml(s)}</option>`).join("")}</select>
+      ${gcalBtn}
     </div>
     <div class="cal-grid">
       ${weekdays.map(w=>`<div class="cal-weekday">${w}</div>`).join("")}
@@ -857,13 +904,17 @@ function closeGlobalSearch() {
 }
 
 function setView(view){activeView=view;document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`${view}View`));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===view));const meta={dashboard:["Resumen operativo","Inicio"],clients:["Gestión de eventos","Clientes"],calendar:["Vista mensual","Calendario"],tasks:["Pendientes por rol","Tareas"],renditions:["Trabajos realizados","Rendiciones"],settings:["Reglas y valores","Configuración"],users:["Administración","Usuarios"]}[view];document.getElementById("viewEyebrow").textContent=meta[0];document.getElementById("viewTitle").textContent=meta[1];document.getElementById("newClientBtn").classList.toggle("hidden",view==="users"||view==="tasks"||view==="renditions");
-const manualBtn=document.getElementById("manualRenditionBtn");if(manualBtn)manualBtn.style.display=view==="renditions"?"":"none";document.querySelector(".sidebar").classList.remove("open");}
+const manualBtn=document.getElementById("manualRenditionBtn");if(manualBtn)manualBtn.style.display=view==="renditions"?"":"none";document.querySelector(".sidebar").classList.remove("open");
+if(view==="calendar"&&!gcalLoading)fetchGcalEvents(calendarMonth);}
 function toast(msg){const el=document.getElementById("toast");const openDialog=document.querySelector("dialog[open]");(openDialog||document.body).appendChild(el);el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
 
 document.addEventListener("click", e => {
   if(e.target.id==="reloadForConflict"){window.location.reload();return;}
-  if(e.target.id==="calPrev"){calendarMonth=shiftMonth(calendarMonth,-1);renderCalendar();return;}
-  if(e.target.id==="calNext"){calendarMonth=shiftMonth(calendarMonth,1);renderCalendar();return;}
+  if(e.target.id==="calGcalConnect"){connectGoogleCalendar();return;}
+  if(e.target.id==="calGcalRefresh"){gcalEvents=[];fetchGcalEvents(calendarMonth);return;}
+  if(e.target.id==="calPrev"){calendarMonth=shiftMonth(calendarMonth,-1);fetchGcalEvents(calendarMonth);renderCalendar();return;}
+  if(e.target.id==="calNext"){calendarMonth=shiftMonth(calendarMonth,1);fetchGcalEvents(calendarMonth);renderCalendar();return;}
+
   if(e.target.id==="calToday"){calendarMonth=todayIso().slice(0,7);renderCalendar();return;}
   const nav=e.target.closest("[data-view]"); if(nav)setView(nav.dataset.view);
   const go=e.target.closest("[data-go]"); if(go)setView(go.dataset.go);
@@ -1147,6 +1198,7 @@ document.getElementById("resetPasswordForm").addEventListener("submit", async ev
 document.getElementById("signOutBtn").addEventListener("click",async()=>{await runCloudSync();await signOut();currentUser=null;pendingOtp=null;storageKey=STORAGE_KEY;state=initialState();document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");document.getElementById("loginForm").reset();document.getElementById("registerForm").reset();document.getElementById("resetPasswordForm").reset();setAuthMode("login");});
 
 async function startApplication(session){
+  window._supabaseClient = supabase;
   currentUser=session?.user||null;
   if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");try{remoteSnapshotAt=await getLatestUpdateAt();}catch(snapshotError){console.error(snapshotError);remoteSnapshotAt=null;}}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
   else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
@@ -1180,4 +1232,15 @@ document.addEventListener("click", e => {
   if (wrap && !wrap.contains(e.target)) closeGlobalSearch();
 });
 
+(function handleGcalRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("calendar_connected") === "1") {
+    history.replaceState({}, "", "/");
+    setTimeout(() => { setView("calendar"); toast("Google Calendar conectado correctamente"); fetchGcalEvents(calendarMonth); }, 800);
+  }
+  if (params.get("calendar_error")) {
+    history.replaceState({}, "", "/");
+    setTimeout(() => toast("Error al conectar Google Calendar: " + params.get("calendar_error")), 800);
+  }
+})();
 bootstrap();
