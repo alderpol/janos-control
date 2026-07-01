@@ -147,8 +147,6 @@ nav { display: grid; gap: 3px; }
 .attention-alert.urgency-green { color: var(--ink-2); border: 1px solid rgba(34,197,94,.25); border-left: 3px solid #22c55e; background: rgba(34,197,94,.06); }
 .attention-alert.urgency-green span { color: #22c55e; }
 .attention-alert.urgency-green small { color: var(--muted); }
-.attention-alert.attention-blink { color: var(--ink); border: 1px solid rgba(255,255,255,.12); border-left: 3px solid var(--muted); background: var(--surface-2); }
-.attention-alert.attention-blink small { color: var(--muted); }
 .attention-alert.attention-blink span { animation: attention-blink-anim 1.4s ease-in-out infinite; }
 @keyframes attention-blink-anim {
   0%, 100% { color: #22c55e; }
