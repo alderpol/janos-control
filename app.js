@@ -94,8 +94,7 @@ const CORE_TASKS = [
 
 const GOLD_TASKS = [
   task("coordinateSession", "Coordinar y reservar sesión de fotos", "Pre-evento"),
-  task("bookCoveragePhoto", "Realizar sesión de fotos", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura)", "bookCoverage"),
-  task("bookPhotoEdit", "Editar fotos de la sesión", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (edicion foto)", "bookEdit"),
+  task("bookCoveragePhoto", "Realizar sesión de fotos y editar fotos de la sesión", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
   task("bookCoverageVideo", "Realizar sesión de video y editar video backstage", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage"),
   task("mural", "Preparar mural digital", "Pre-evento")
 ];
@@ -130,7 +129,7 @@ function task(key, title, phase, payable = false, category = "", work = "", rate
 const TASK_ROLES = {
   coveragePhoto: "foto", coveragePhotoEdit: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video",
   photoEdit: "foto", video20: "video", videoSummary: "video", sendPhotos: "foto", sendVideo: "video",
-  bookCoveragePhoto: "foto", bookPhotoEdit: "foto", bookCoverageVideo: "video", mural: "foto",
+  bookCoveragePhoto: "foto", bookCoverageVideo: "video", mural: "foto",
   vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
   flexChurch: "foto", flexCivil: "foto", flexPhotoExtra: "foto", flexVideoExtra: "video",
   flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
