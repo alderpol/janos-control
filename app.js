@@ -95,7 +95,7 @@ const CORE_TASKS = [
 const GOLD_TASKS = [
   task("coordinateSession", "Coordinar y reservar sesión de fotos", "Pre-evento"),
   task("bookCoveragePhoto", "Realizar sesión de fotos y editar fotos de la sesión", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
-  task("bookCoverageVideo", "Realizar sesión de video y editar video backstage", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage"),
+  task("bookCoverageVideo", "Realizar sesión de video y editar video backstage", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (grabacion + edicion back)", "book"),
   task("mural", "Preparar mural digital", "Pre-evento")
 ];
 
@@ -471,7 +471,7 @@ const MANUAL_WORKS = {
     { label: "Fiesta (grabacion + edicion)", rate: null },
     { label: "Fiesta (cobertura sin edicion)", rate: "eventCoverage" },
     { label: "Fiesta (edicion)", rate: "eventEdit" },
-    { label: "Sesion de fotos (grabacion + edicion back)", rate: null },
+    { label: "Sesion de fotos (grabacion + edicion back)", rate: "book" },
     { label: "Sesion de fotos (solo grabacion)", rate: "bookCoverage" },
     { label: "Sesion de fotos (solo edicion)", rate: "bookEdit" },
     { label: "Civil (valor book)", rate: "book" },
