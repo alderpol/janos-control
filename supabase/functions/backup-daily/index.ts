@@ -1,8 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-serve(async () => {
+// btoa() solo soporta Latin1: cualquier nombre con tilde o "ñ" (muy comun en
+// clientes/staff en espanol) hacia que btoa(json) tirara una excepcion y el
+// backup fallara en silencio. Esto codifica UTF-8 correctamente a base64.
+function base64FromUtf8(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+serve(async (req) => {
   try {
+    // Antes cualquiera podia invocar esta funcion (solo requeria la anon key
+    // publica) y disparar un dump completo de la base + email al admin las
+    // veces que quisiera. Ahora exige un secreto compartido que solo conoce
+    // el cron que la llama.
+    const cronSecret = Deno.env.get("BACKUP_CRON_SECRET");
+    const providedSecret = req.headers.get("x-cron-secret");
+    if (!cronSecret || providedSecret !== cronSecret) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -42,7 +62,7 @@ serve(async () => {
         html: `
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
             <h2 style="color:#c9a84c">Janos Control</h2>
-            <p>Backup automático del <strong>${date}</strong></p>
+            <p>Backup automatico del <strong>${date}</strong></p>
             <ul style="color:#888">
               <li>${backup.clients.length} clientes</li>
               <li>${backup.tasks.length} tareas</li>
@@ -50,13 +70,13 @@ serve(async () => {
               <li>${backup.profiles.length} usuarios</li>
             </ul>
             <p>El archivo JSON completo va adjunto a este email.</p>
-            <p style="margin-top:24px;color:#888;font-size:12px">Janos Fotografía · Quinta y Pilar Hotel</p>
+            <p style="margin-top:24px;color:#888;font-size:12px">Janos Fotografia · Quinta y Pilar Hotel</p>
           </div>
         `,
         attachments: [
           {
             filename: `backup-janos-${date}.json`,
-            content: btoa(json),
+            content: base64FromUtf8(json),
           },
         ],
       }),
