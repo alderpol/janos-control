@@ -22,16 +22,31 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Identificar al usuario que llama a partir de su JWT
     const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    if (userError || !user) {
+      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    }
 
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).maybeSingle();
-    if (profile?.role !== "admin") {
+    // FIX: filtrar por id. Con la RLS actual (auth.uid()=id OR is_app_admin())
+    // el admin ve TODOS los perfiles y .maybeSingle() sin filtro falla con 2+ filas.
+    const { data: profile, error: profileError } = await userClient
+      .from("profiles")
+      .select("role,status")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError || profile?.role !== "admin" || profile?.status !== "active") {
       return new Response("Forbidden", { status: 403, headers: corsHeaders });
     }
 
     const { userId } = await req.json();
     if (!userId) return new Response("userId requerido", { status: 400, headers: corsHeaders });
+
+    // Protección: el admin no puede eliminarse a sí mismo
+    if (userId === user.id) {
+      return new Response("No podés eliminar tu propia cuenta", { status: 400, headers: corsHeaders });
+    }
 
     // Usar service role para eliminar
     const adminClient = createClient(
