@@ -201,9 +201,13 @@ function createTasks(client) {
     task("partyBookSelection", "Pedirle al cliente que envíe la selección de fotos del libro de fiesta", "Post-evento"),
     task("partyBook", "Diseñar y enviar libro de fiesta al laboratorio", "Entrega", true, "COMPLEMENTOS", "Libro Fiesta (Fotografia Digital)", "partyBookDesign")
   );
-  client.flexServices.forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
+  [...new Set(client.flexServices)].forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
   const hasSession = definitions.some(item => ["bookCoveragePhoto", "flexSessionPhoto"].includes(item.key));
   if (hasSession) definitions.push(task("totemDigital", "Preparar tótem digital de la sesión", "Pre-evento", true, "COMPLEMENTOS", "Televisor Fotografia Digital", "totemDigital"));
+  // Salvaguarda: nunca generar dos tareas con la misma key para un mismo cliente
+  // (evita violar la restricción única tasks_client_id_task_key_key al sincronizar).
+  const seenKeys = new Set();
+  definitions = definitions.filter(def => (seenKeys.has(def.key) ? false : (seenKeys.add(def.key), true)));
   return definitions.map(def => ({ ...def, id: uid(), status: "pending", responsible: "", completedAt: "", notes: "" }));
 }
 
