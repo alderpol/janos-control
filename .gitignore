@@ -35,3 +35,4 @@ _tmp_*
 outputs/
 *.mp4
 *.pdf
+supabase/.temp/
