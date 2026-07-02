@@ -31,11 +31,15 @@ const ADDONS = [
 ];
 
 const FLEX_SERVICES = [
-  ["church", "Iglesia o templo"], ["civil", "Civil"], ["droneEvent", "Drone en recepción"],
+  ["church", "Iglesia o templo"], ["civilPhoto", "Civil (fotógrafo)"], ["civilVideo", "Civil (videógrafo)"], ["droneEvent", "Drone en recepción"],
   ["droneBook", "Drone en sesión"], ["photoExtra", "Fotógrafo extra"], ["videoExtra", "Videógrafo extra"],
   ["signatureBook", "Libro de firmas"], ["partyBook", "Libro de fiesta"], ["liveEditor", "Editor en vivo"],
   ["friendsVideo", "Video con amigos"], ["extraSession", "Sesión extra"]
 ];
+// Normaliza códigos viejos guardados antes de separar "Civil" en fotógrafo/videógrafo
+function normalizeFlexServices(list) {
+  return [...new Set((list || []).map(code => code === "civil" ? "civilPhoto" : code))];
+}
 
 const BASE_RATES = {
   gold: 325000, silver: 227500, book: 97500, eventCoverage: 160000, eventEdit: 67500,
@@ -105,7 +109,8 @@ const VIP_TASKS = [
 
 const FLEX_TASKS = {
   church: task("flexChurch", "Cubrir iglesia o templo", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Iglesia (servicio extra por upgrade)", "churchUpgrade"),
-  civil: task("flexCivil", "Cubrir ceremonia civil", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Civil", "book"),
+  civilPhoto: task("flexCivilPhoto", "Cubrir ceremonia civil - fotografía", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Civil", "book"),
+  civilVideo: task("flexCivilVideo", "Cubrir ceremonia civil - video", "Servicios elegidos", true, "PERSONAL VIDEO", "Civil (valor book)", "book"),
   droneEvent: task("flexDroneEvent", "Realizar drone en recepción", "Servicios elegidos", true, "COMPLEMENTOS", "Drone en evento", "drone"),
   droneBook: task("flexDroneBook", "Realizar drone en sesión", "Servicios elegidos", true, "COMPLEMENTOS", "Drone en sesión de fotos", "drone"),
   photoExtra: task("flexPhotoExtra", "Cubrir evento como fotógrafo extra", "Servicios elegidos", true, "COMPLEMENTOS", "Fiesta (segundo fotografo)", "photoExtra"),
@@ -118,6 +123,23 @@ const FLEX_TASKS = {
   extraSessionVideo: task("flexSessionVideo", "Realizar sesión extra - video", "Servicios elegidos", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage")
 };
 
+// Mismas opciones que Flex/Mini Flex pero para clientes con el adicional Pixel
+const PIXEL_TASKS = {
+  church: task("pixelChurch", "Cubrir iglesia o templo (Pixel)", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Iglesia (servicio extra por upgrade)", "churchUpgrade"),
+  civilPhoto: task("pixelCivilPhoto", "Cubrir ceremonia civil - fotografía (Pixel)", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Civil", "book"),
+  civilVideo: task("pixelCivilVideo", "Cubrir ceremonia civil - video (Pixel)", "Servicios elegidos", true, "PERSONAL VIDEO", "Civil (valor book)", "book"),
+  droneEvent: task("pixelDroneEvent", "Realizar drone en recepción (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Drone en evento", "drone"),
+  droneBook: task("pixelDroneBook", "Realizar drone en sesión (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Drone en sesión de fotos", "drone"),
+  photoExtra: task("pixelPhotoExtra", "Cubrir evento como fotógrafo extra (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Fiesta (segundo fotografo)", "photoExtra"),
+  videoExtra: task("pixelVideoExtra", "Cubrir evento como videógrafo extra (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Fiesta (segundo videógrafo)", "videoExtra"),
+  signatureBook: task("pixelSignature", "Diseñar libro de firmas y mural (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Libro firmas (Fotografia Digital)", "signatureDesign"),
+  partyBook: task("pixelPartyBook", "Diseñar libro de fotos de la fiesta (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Libro Fiesta (Fotografia Digital)", "partyBookDesign"),
+  liveEditor: task("pixelLive", "Realizar edición en vivo (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Edicion en vivo video", "liveEditor"),
+  friendsVideo: task("pixelFriends", "Realizar video con amigos (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Video con amigos", "book"),
+  extraSession: task("pixelSessionPhoto", "Realizar sesión extra - fotografía (Pixel)", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
+  extraSessionVideo: task("pixelSessionVideo", "Realizar sesión extra - video (Pixel)", "Servicios elegidos", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage")
+};
+
 function task(key, title, phase, payable = false, category = "", work = "", rateKey = "") {
   return { key, title, phase, payable, category, work, rateKey };
 }
@@ -128,9 +150,12 @@ const TASK_ROLES = {
   sendPhotos: "foto", sendVideo: "video",
   bookCoveragePhoto: "foto", bookCoverageVideo: "video", mural: "foto",
   vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
-  flexChurch: "foto", flexCivil: "foto", flexPhotoExtra: "foto", flexVideoExtra: "video",
+  flexChurch: "foto", flexCivilPhoto: "foto", flexCivilVideo: "video", flexPhotoExtra: "foto", flexVideoExtra: "video",
   flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
   flexSessionPhoto: "foto", flexSessionVideo: "video",
+  pixelChurch: "foto", pixelCivilPhoto: "foto", pixelCivilVideo: "video", pixelPhotoExtra: "foto", pixelVideoExtra: "video",
+  pixelSignature: "foto", pixelPartyBook: "foto", pixelLive: "video", pixelFriends: "video",
+  pixelSessionPhoto: "foto", pixelSessionVideo: "video",
   screenVideo: "video", pixelCheck: "foto", bookModa: "foto",
   signatureBook: "foto", partyBookSelection: "foto", partyBook: "foto", totemDigital: "foto",
   informal: "foto"
@@ -198,7 +223,8 @@ function createTasks(client) {
     task("partyBookSelection", "Pedirle al cliente que envíe la selección de fotos del libro de fiesta", "Post-evento"),
     task("partyBook", "Diseñar y enviar libro de fiesta al laboratorio", "Entrega", true, "COMPLEMENTOS", "Libro Fiesta (Fotografia Digital)", "partyBookDesign")
   );
-  [...new Set(client.flexServices)].forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
+  normalizeFlexServices(client.flexServices).forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
+  normalizeFlexServices(client.pixelServices).forEach(code => { if (client.addons.includes("pixel") && PIXEL_TASKS[code]) definitions.push(PIXEL_TASKS[code]); });
   const hasSession = definitions.some(item => ["bookCoveragePhoto", "flexSessionPhoto"].includes(item.key));
   if (hasSession) definitions.push(task("totemDigital", "Preparar tótem digital de la sesión", "Pre-evento", true, "COMPLEMENTOS", "Televisor Fotografia Digital", "totemDigital"));
   // Salvaguarda: nunca generar dos tareas con la misma key para un mismo cliente
@@ -261,6 +287,11 @@ function attentionItems() {
     if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coveragePhotoEdit","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
     const hasPhotoSession = ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || (c.flexServices||[]).includes("extraSession");
     if(!c.isExternal&&hasPrintedBook&&!hasPhotoSession) items.push({days:-1,html:`<button class="attention-alert attention-conflict" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Conflicto de venta: Libro Combo sin sesión</span><small>El Libro Combo requiere una sesión de fotos. Agregá Mini Flex/Flex con "Sesión extra - fotografía", o Sans Souci, para habilitarla.</small></button>`});
+    const sessionTask=c.tasks.find(t=>t.key==="coordinateSession"), sessionDue=sessionTask&&!["done","na"].includes(sessionTask.status)&&days>=0&&days<=30;
+    if(!c.isExternal&&sessionDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Sesión de fotos sin agendar</span><small>${when} · Coordinar y reservar la sesión de fotos.</small></button>`});}
+    const extraServiceKeys=["flexLive","flexPhotoExtra","flexVideoExtra","pixelLive","pixelPhotoExtra","pixelVideoExtra"];
+    const extraServicesPending=c.tasks.filter(t=>extraServiceKeys.includes(t.key)&&!["done","na"].includes(t.status));
+    if(!c.isExternal&&extraServicesPending.length&&days>=0&&days<=20){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Servicios extra sin confirmar</span><small>${when} · ${extraServicesPending.map(t=>t.title).join(" · ")}</small></button>`});}
   }); return items.sort((a,b)=>a.days-b.days).slice(0,6).map(item=>item.html).join("");
 }
 function contactWatchItems() {
@@ -598,26 +629,35 @@ function openClientForm(client=null) {
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","whatsappGroupUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
-  renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField();
+  renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField(); updatePixelField();
 }
 function renderFormChecks(client) {
-  const selected=client?.addons||[], flex=client?.flexServices||[];
+  const selected=client?.addons||[], flex=normalizeFlexServices(client?.flexServices), pixel=normalizeFlexServices(client?.pixelServices);
   document.getElementById("addonChecks").innerHTML=ADDONS.map(([v,l])=>`<label><input type="checkbox" name="addons" value="${v}" ${selected.includes(v)?"checked":""}>${l}</label>`).join("");
   document.getElementById("flexChecks").innerHTML=FLEX_SERVICES.map(([v,l])=>`<label><input type="checkbox" name="flexServices" value="${v}" ${flex.includes(v)?"checked":""}>${l}</label>`).join("");
+  document.getElementById("pixelChecks").innerHTML=FLEX_SERVICES.map(([v,l])=>`<label><input type="checkbox" name="pixelServices" value="${v}" ${pixel.includes(v)?"checked":""}>${l}</label>`).join("");
 }
 function updateFlexField() {
   const checked=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value), limit=checked.includes("flex")?5:checked.includes("miniflex")?2:0;
-  if(!limit)document.querySelectorAll('[name="flexServices"]').forEach(input=>input.checked=false);
-  document.getElementById("flexField").classList.toggle("hidden",!limit); document.getElementById("flexLimitHelp").textContent=limit?`(${document.querySelectorAll('[name="flexServices"]:checked').length}/${limit})`:"";
+  if(!limit)document.querySelectorAll('[name="flexServices"]').forEach(input=>{input.checked=false;input.disabled=false;});
+  document.getElementById("flexField").classList.toggle("hidden",!limit);
+  const count=document.querySelectorAll('[name="flexServices"]:checked').length;
+  document.getElementById("flexLimitHelp").textContent=limit?`(${count}/${limit})`:"";
+  if(limit)document.querySelectorAll('[name="flexServices"]').forEach(input=>{input.disabled=!input.checked&&count>=limit;});
+}
+function updatePixelField() {
+  const checked=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value), active=checked.includes("pixel");
+  if(!active)document.querySelectorAll('[name="pixelServices"]').forEach(input=>input.checked=false);
+  document.getElementById("pixelField").classList.toggle("hidden",!active);
 }
 function saveClient(form) {
-  const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value);
+  const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value); const pixelServices=[...form.querySelectorAll('[name="pixelServices"]:checked')].map(x=>x.value);
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   if(data.clientPhone&&whatsappNumber(data.clientPhone).length<12){toast("Ingresá el WhatsApp con código de área, por ejemplo +54 9 11 1234 5678.");form.elements.clientPhone.focus();return false;}
   const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&flexServices.length>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
   const duplicate=state.clients.find(c=>c.code===data.code&&c.id!==data.id); if(duplicate){toast("Ya existe un cliente con ese código."); return false;}
-  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,guests:Number(data.guests||0)}); syncTasks(c);}
-  else {const client={...data,id:uid(),addons,flexServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
+  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,pixelServices,guests:Number(data.guests||0)}); syncTasks(c);}
+  else {const client={...data,id:uid(),addons,flexServices,pixelServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
   saveState(); toast(data.id?"Cliente actualizado":"Cliente creado con su plan de trabajo"); return true;
 }
 function syncTasks(client) { const existing=new Map(client.tasks.map(t=>[t.key,t])); client.tasks=createTasks(client).map(t=>existing.has(t.key)?{...existing.get(t.key),title:t.title,phase:t.phase,payable:t.payable,category:t.category,work:t.work,rateKey:t.rateKey}:t); client.history.push({date:new Date().toISOString(),text:"Datos del cliente actualizados"}); }
@@ -644,7 +684,7 @@ function firstValue(row,keys){for(const key of keys){if(row[key]!==undefined&&St
 function normalizeDate(value){const text=String(value||"").trim();if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(text)){const[y,m,d]=text.split("-");return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;}const match=text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);if(!match)return "";const year=match[3].length===2?`20${match[3]}`:match[3];return `${year}-${match[2].padStart(2,"0")}-${match[1].padStart(2,"0")}`;}
 function parsePack(raw){const text=String(raw||"").toUpperCase();if(text.includes("VIP"))return "vip";if(text.includes("INFORMAL"))return "informal";if(text.includes("GOLD")||text.includes("ALL INCLUSIVE")||text.includes("GOLDEN"))return "gold";return "silver";}
 function parseAddons(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["pant",/PANT/],["pixel",/PIXEL/],["miniflex",/UP\.?MFLEX|MINI\s*FLEX/],["flex",/UP\.FLEX|\bFLEX\b/],["libro",/LIBRO/],["maqui",/MAQUI/],["moda",/\bMODA\b/],["drone",/DRONE/],["sansSouci",/SANS\s*SOUCI/],["glamCam",/G\.?\s*CAM/],["alfombraRoja",/A\.?\s*ROJA/],["invitacion",/INVITACION/],["fotoIman",/FOTO\.?\s*IMAN/],["vipUpgrade",/UP\.?\s*VIP/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});if(items.includes("miniflex"))return [...new Set(items.filter(x=>x!=="flex"))];return [...new Set(items)];}
-function parseFlexServices(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["church",/IGLESIA|TEMPLO/],["civil",/CIVIL/],["droneEvent",/DRONE.*(EVENTO|RECEPC)/],["droneBook",/DRONE.*(BOOK|SESION)/],["photoExtra",/FOTOGRAFO EXTRA/],["videoExtra",/VIDEOGRAFO EXTRA/],["signatureBook",/LIBRO.*FIRMA/],["partyBook",/LIBRO.*FIESTA/],["liveEditor",/EDITOR.*VIVO|EDICION EN VIVO/],["friendsVideo",/VIDEO.*AMIG/],["extraSession",/SESION EXTRA/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});return items;}
+function parseFlexServices(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["church",/IGLESIA|TEMPLO/],["civilPhoto",/CIVIL/],["droneEvent",/DRONE.*(EVENTO|RECEPC)/],["droneBook",/DRONE.*(BOOK|SESION)/],["photoExtra",/FOTOGRAFO EXTRA/],["videoExtra",/VIDEOGRAFO EXTRA/],["signatureBook",/LIBRO.*FIRMA/],["partyBook",/LIBRO.*FIESTA/],["liveEditor",/EDITOR.*VIVO|EDICION EN VIVO/],["friendsVideo",/VIDEO.*AMIG/],["extraSession",/SESION EXTRA/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});return items;}
 function askCsvConflict(client, diffs, remaining) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
@@ -962,7 +1002,9 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => {
   if(e.target.matches('[name="addons"][value="miniflex"], [name="addons"][value="flex"]')&&e.target.checked){const other=e.target.value==="flex"?"miniflex":"flex";const otherInput=document.querySelector(`[name="addons"][value="${other}"]`);if(otherInput)otherInput.checked=false;}
+  if(e.target.matches('[name="flexServices"]')&&e.target.checked){const checkedAddons=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value),limit=checkedAddons.includes("flex")?5:checkedAddons.includes("miniflex")?2:0,count=document.querySelectorAll('[name="flexServices"]:checked').length;if(limit&&count>limit){e.target.checked=false;toast(`Ya elegiste el máximo de ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`);}}
   if(e.target.matches('[name="addons"], [name="flexServices"]'))updateFlexField();
+  if(e.target.matches('[name="addons"], [name="pixelServices"]'))updatePixelField();
   if(e.target.dataset.taskStatus){const [c,t]=e.target.dataset.taskStatus.split("|");updateTask(c,t,e.target.value);}
   if(e.target.dataset.taskResponsible){const [c,t]=e.target.dataset.taskResponsible.split("|");const task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.responsible=e.target.value;saveState();}}
   if(e.target.dataset.taskDate){const [c,t]=e.target.dataset.taskDate.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.completedAt=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition&&e.target.value){rendition.workDate=e.target.value;rendition.periodEnd=periodEndFor(e.target.value);}saveState();}}

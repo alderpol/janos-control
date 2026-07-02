@@ -232,6 +232,7 @@ export async function loadCloudState(defaultRates) {
     pack: row.pack,
     addons: row.addons || [],
     flexServices: row.flex_services || [],
+    pixelServices: row.pixel_services || [],
     notes: row.notes || "",
     photoSession: row.photo_session || null,
     history: row.history || [],
@@ -292,7 +293,7 @@ export async function syncCloudState(state, user) {
     client_name: client.clientName || null, client_phone: client.clientPhone || null,
     whatsapp_group_url: client.whatsappGroupUrl || null,
     contacted_at: client.contactedAt || null, guests: Number(client.guests || 0), pack: client.pack,
-    addons: client.addons || [], flex_services: client.flexServices || [], notes: client.notes || null,
+    addons: client.addons || [], flex_services: client.flexServices || [], pixel_services: client.pixelServices || [], notes: client.notes || null,
     photo_session: client.photoSession || null,
     history: client.history || [],
   }));
