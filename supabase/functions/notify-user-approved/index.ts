@@ -1,9 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+    // Solo un admin activo puede disparar este email. Antes cualquiera con
+    // la anon key (publica en el frontend) podia usar esta funcion como
+    // relay de mails arbitrarios a cualquier direccion.
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: profile } = await userClient.from("profiles").select("role,status").maybeSingle();
+    if (profile?.role !== "admin" || profile?.status !== "active") {
+      return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    }
+
     const { email, name } = await req.json();
-    if (!email) return new Response("Email requerido", { status: 400 });
+    if (!email) return new Response("Email requerido", { status: 400, headers: corsHeaders });
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     const res = await fetch("https://api.resend.com/emails", {
@@ -20,12 +46,12 @@ serve(async (req) => {
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
             <h2 style="color:#c9a84c">Janos Control</h2>
             <p>Hola ${name || ""}!</p>
-            <p>Tu cuenta fue aprobada. Ya podés ingresar a la app:</p>
+            <p>Tu cuenta fue aprobada. Ya podes ingresar a la app:</p>
             <a href="https://janos-control.vercel.app" 
                style="display:inline-block;margin-top:16px;padding:12px 24px;background:#c9a84c;color:#0f0a18;border-radius:8px;text-decoration:none;font-weight:700">
               Ingresar a Janos Control
             </a>
-            <p style="margin-top:24px;color:#888;font-size:12px">Janos Fotografía · Quinta y Pilar Hotel</p>
+            <p style="margin-top:24px;color:#888;font-size:12px">Janos Fotografia · Quinta y Pilar Hotel</p>
           </div>
         `,
       }),
@@ -33,10 +59,10 @@ serve(async (req) => {
 
     const data = await res.json();
     return new Response(JSON.stringify(data), {
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: res.ok ? 200 : 400,
     });
   } catch (err) {
-    return new Response(String(err), { status: 500 });
+    return new Response(String(err), { status: 500, headers: corsHeaders });
   }
 });
