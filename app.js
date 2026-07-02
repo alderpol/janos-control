@@ -85,9 +85,6 @@ const CORE_TASKS = [
   task("coverageVideoCapture", "Realizar cobertura de video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (cobertura video)", "eventCoverage"),
   task("coverageVideoEdit", "Editar video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (edicion video)", "eventEdit"),
   task("backup", "Completar backup del salón", "Evento"),
-  task("photoEdit", "Editar fotografías del evento", "Post-evento"),
-  task("video20", "Editar video principal de aproximadamente 20 minutos", "Post-evento"),
-  task("videoSummary", "Editar video resumen", "Post-evento"),
   task("sendPhotos", "Enviar link de fotografías por e-mail", "Entrega"),
   task("sendVideo", "Enviar link de videos por e-mail", "Entrega")
 ];
@@ -128,7 +125,7 @@ function task(key, title, phase, payable = false, category = "", work = "", rate
 // Tareas que son exclusivas de un rol; lo que no figura acá se considera "ambos" (general/coordinación).
 const TASK_ROLES = {
   coveragePhoto: "foto", coveragePhotoEdit: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video",
-  photoEdit: "foto", video20: "video", videoSummary: "video", sendPhotos: "foto", sendVideo: "video",
+  sendPhotos: "foto", sendVideo: "video",
   bookCoveragePhoto: "foto", bookCoverageVideo: "video", mural: "foto",
   vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
   flexChurch: "foto", flexCivil: "foto", flexPhotoExtra: "foto", flexVideoExtra: "video",
