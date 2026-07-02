@@ -22,7 +22,10 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: profile } = await userClient.from("profiles").select("role").maybeSingle();
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).maybeSingle();
     if (profile?.role !== "admin") {
       return new Response("Forbidden", { status: 403, headers: corsHeaders });
     }

@@ -21,9 +21,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
     const { data: profile, error: profileError } = await userClient
       .from("profiles")
       .select("role")
+      .eq("id", user.id)
       .maybeSingle();
 
     if (profileError || profile?.role !== "admin") {

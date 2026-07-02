@@ -1,3 +1,4 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -5,60 +6,57 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+// Reconstruida: la version original se deployaba directo desde WSL y nunca
+// se subio al repo (.gitignore la excluia). Esta version usa el JWT del
+// propio usuario (no service role), asi que el RLS ya limita el resultado a
+// sus propias filas — no hace falta logica extra de autorizacion.
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response("Unauthorized", { status: 401 });
+    if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Verificar que el solicitante es admin usando service role + JWT
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    if (userError || !user) return new Response("Unauthorized", { status: 401 });
+    const { data: userData, error: userError } = await userClient.auth.getUser();
+    if (userError || !userData?.user) {
+      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    }
 
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profile?.role !== "admin") return new Response("Forbidden", { status: 403 });
-
-    const { userId } = await req.json();
-    if (!userId) return new Response("userId requerido", { status: 400 });
-
-    // Obtener datos del usuario con service role (bypasea RLS)
-    const [clientsRes, tasksRes, renditionsRes, ratesRes, profileRes] = await Promise.all([
-      supabaseAdmin.from("clients").select("*").eq("owner_id", userId),
-      supabaseAdmin.from("tasks").select("*").eq("owner_id", userId),
-      supabaseAdmin.from("renditions").select("*").eq("owner_id", userId),
-      supabaseAdmin.from("rates").select("*").eq("owner_id", userId),
-      supabaseAdmin.from("profiles").select("*").eq("id", userId).maybeSingle(),
+    const [profile, clients, tasks, renditions, rates] = await Promise.all([
+      userClient.from("profiles").select("*").eq("id", userData.user.id).maybeSingle(),
+      userClient.from("clients").select("*"),
+      userClient.from("tasks").select("*"),
+      userClient.from("renditions").select("*"),
+      userClient.from("rates").select("*"),
     ]);
 
-    const backup = {
-      exportedAt: new Date().toISOString(),
-      user: profileRes.data || { id: userId },
-      clients: clientsRes.data || [],
-      tasks: tasksRes.data || [],
-      renditions: renditionsRes.data || [],
-      rates: ratesRes.data || [],
+    const payload = {
+      generated_at: new Date().toISOString(),
+      user: { id: userData.user.id, email: userData.user.email },
+      profile: profile.data || null,
+      clients: clients.data || [],
+      tasks: tasks.data || [],
+      renditions: renditions.data || [],
+      rates: rates.data || [],
     };
 
-    return new Response(JSON.stringify(backup), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify(payload, null, 2), {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Content-Disposition": `attachment; filename="janos-export-${new Date().toISOString().slice(0, 10)}.json"`,
+      },
+      status: 200,
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err) {
+    return new Response(String(err), { status: 500, headers: corsHeaders });
   }
 });
