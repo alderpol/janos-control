@@ -21,16 +21,21 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Identificar al usuario que llama a partir de su JWT
     const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    if (userError || !user) {
+      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    }
 
+    // FIX: filtrar por id. Con la RLS actual (auth.uid()=id OR is_app_admin())
+    // el admin ve TODOS los perfiles y .maybeSingle() sin filtro falla con 2+ filas.
     const { data: profile, error: profileError } = await userClient
       .from("profiles")
-      .select("role")
+      .select("role,status")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (profileError || profile?.role !== "admin") {
+    if (profileError || profile?.role !== "admin" || profile?.status !== "active") {
       return new Response("Forbidden", { status: 403, headers: corsHeaders });
     }
 
