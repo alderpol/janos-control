@@ -35,4 +35,3 @@ _tmp_*
 outputs/
 *.mp4
 *.pdf
-export-user_index.ts

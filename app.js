@@ -1,4 +1,4 @@
-import { cloudEnabled, supabase, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, supabase, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -317,21 +317,26 @@ async function fetchGcalEvents(month) {
   } catch(e) { console.error("gcal fetch error:", e); }
   finally { gcalLoading = false; renderCalendar(); }
 }
-function connectGoogleCalendar() {
+async function connectGoogleCalendar() {
   if (!currentUser) return;
-  const GOOGLE_CLIENT_ID = "985985340766-fjj6i28rq0gg4ei2o6igddva253v4ead.apps.googleusercontent.com";
-  const REDIRECT_URI = "https://mybeysibpwoaudohxomr.supabase.co/functions/v1/google-calendar-auth";
-  const SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    response_type: "code",
-    scope: SCOPE,
-    access_type: "offline",
-    prompt: "consent",
-    state: currentUser.id,
-  });
-  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  // El "state" del OAuth ahora lo firma el backend (HMAC) en vez de mandar
+  // el user id en crudo: antes cualquiera podía armar la URL de Google a
+  // mano con el id de otra persona como state y, si completaba el consent
+  // con su propia cuenta de Google, terminaba guardando su refresh_token
+  // en el perfil de esa otra persona.
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("https://mybeysibpwoaudohxomr.supabase.co/functions/v1/google-calendar-auth", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    if (!res.ok) throw new Error("No se pudo iniciar la conexión");
+    const { authUrl } = await res.json();
+    window.location.href = authUrl;
+  } catch (err) {
+    console.error(err);
+    toast("No se pudo conectar con Google Calendar");
+  }
 }
 function renderCalendar(){
   const view=document.getElementById("calendarView"); if(!view) return;
@@ -732,10 +737,16 @@ function exportRenditionsCsv(){const rows=state.renditions.filter(r=>r.status===
 
 function generateSelectionBat(clientId) {
   const numerosRaw = document.getElementById(`seleccion-numeros-${clientId}`)?.value.trim();
-  const prefijo = document.getElementById(`seleccion-prefijo-${clientId}`)?.value.trim().toUpperCase();
+  const prefijoRaw = document.getElementById(`seleccion-prefijo-${clientId}`)?.value.trim().toUpperCase();
   if (!numerosRaw) { toast("Pegá los números de selección antes de generar."); return; }
-  if (!prefijo) { toast("Escribí el prefijo antes de generar."); return; }
-  const tokens = numerosRaw.replace(/[-,_./\\;|\s]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!prefijoRaw) { toast("Escribí el prefijo antes de generar."); return; }
+  // El prefijo y los números terminan como texto literal dentro de un script
+  // .bat (nombres de archivo, rutas, comandos echo). Sin sanitizar, un
+  // caracter como ", %, &, | o ^ podía romper el script o inyectar algo no
+  // intencional cuando alguien del equipo lo ejecutaba.
+  const prefijo = prefijoRaw.replace(/[^A-Z0-9_-]/g, "");
+  if (!prefijo) { toast("El prefijo solo puede tener letras, números, guiones y guión bajo."); return; }
+  const tokens = numerosRaw.replace(/[-,_./\\;|\s]+/g, ' ').trim().split(/\s+/).filter(Boolean).map(t => t.replace(/[^0-9]/g, "")).filter(Boolean);
   if (!tokens.length) { toast("No se encontraron números válidos."); return; }
   const bat = `@echo off
 setlocal enabledelayedexpansion
@@ -1130,9 +1141,11 @@ document.getElementById("registerForm").addEventListener("submit", async event =
   button.disabled = true;
   button.textContent = "Creando cuenta…";
   try {
-    await signUp(form.elements.email.value.trim().toLowerCase(), password, {
+    const email = form.elements.email.value.trim().toLowerCase();
+    await signUp(email, password, {
       first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`, whatsapp
     });
+    notifyAdmin(email, `${firstName} ${lastName}`.trim());
     setFormWarning("signupError", "¡Cuenta creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");
     form.reset();
   } catch(error) {

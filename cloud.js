@@ -85,7 +85,11 @@ export async function getAccessProfile() {
   if (!supabase) return { role: "user", status: "active" };
   const { data, error } = await supabase.from("profiles").select("role,status,display_name").maybeSingle();
   if (error) throw error;
-  return data || { role: "user", status: "active", display_name: "" };
+  // Fail closed: if for any reason the profile row doesn't exist yet, treat
+  // the user as blocked rather than active. The DB now creates this row
+  // automatically (blocked) via a trigger on signup, so this is just a
+  // defensive fallback, not the primary gate.
+  return data || { role: "user", status: "blocked", display_name: "" };
 }
 
 export async function listUserProfiles() {
@@ -111,6 +115,37 @@ export async function notifyUserApproved(userId, email, name) {
     body: JSON.stringify({ email, name }),
   });
   if (!res.ok) throw new Error("No se pudo enviar el email");
+}
+
+// Fire-and-forget: avisa al admin que hay un usuario nuevo esperando
+// aprobación. Se llama justo después de signUp(). No requiere ser admin
+// (todavía no hay sesión de admin en ese momento) — la función valida que
+// el email/nombre correspondan a una cuenta recién creada y realmente
+// bloqueada antes de enviar nada, así no se puede abusar para spamear.
+export async function notifyAdmin(email, name) {
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/notify-admin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: supabaseKey },
+      body: JSON.stringify({ email, name }),
+    });
+    if (!res.ok) console.error("No se pudo avisar al admin del nuevo usuario");
+  } catch (err) {
+    console.error("notifyAdmin error:", err);
+  }
+}
+
+// Exporta los datos propios del usuario autenticado (clientes, tareas,
+// rendiciones, tarifas). No requiere service role: usa el JWT del usuario,
+// así que el RLS ya limita el resultado a sus propias filas.
+export async function exportMyData() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch(`${supabaseUrl}/functions/v1/export-user`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (!res.ok) throw new Error("No se pudo exportar la información.");
+  return await res.json();
 }
 
 export async function setUserStatus(userId, status) {
