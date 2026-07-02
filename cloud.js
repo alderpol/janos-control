@@ -83,13 +83,10 @@ export async function signOut() {
 
 export async function getAccessProfile() {
   if (!supabase) return { role: "user", status: "active" };
-  // Filtramos explícitamente por el propio id: como admin, el RLS de
-  // profiles te deja ver TODOS los perfiles (para la pantalla de usuarios),
-  // así que si no filtramos acá esta consulta puede devolver más de una
-  // fila y .maybeSingle() explota con PGRST116 ("multiple rows returned"),
-  // frenando toda la carga de la app antes de pedir clientes/tareas.
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { role: "user", status: "blocked", display_name: "" };
+  // FIX: filtrar por id. Con la RLS actual (auth.uid()=id OR is_app_admin())
+  // el admin ve TODOS los perfiles y .maybeSingle() sin filtro falla con 2+ filas.
   const { data, error } = await supabase.from("profiles").select("role,status,display_name").eq("id", user.id).maybeSingle();
   if (error) throw error;
   // Fail closed: if for any reason the profile row doesn't exist yet, treat
@@ -187,7 +184,7 @@ export async function getLatestUpdateAt() {
 export async function loadCloudState(defaultRates) {
   const { data: { user } } = await supabase.auth.getUser();
   const [profileResult, clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
-    supabase.from("profiles").select("settings").eq("id", user?.id).maybeSingle(),
+    supabase.from("profiles").select("settings").eq("id", user?.id ?? "").maybeSingle(),
     supabase.from("clients").select("*").order("event_date"),
     supabase.from("tasks").select("*").order("sort_order"),
     supabase.from("renditions").select("*").order("created_at", { ascending: false }),
