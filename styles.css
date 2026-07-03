@@ -228,6 +228,10 @@ nav { display: grid; gap: 3px; }
 .whatsapp-btn.missing { border-color: var(--line-2); color: var(--muted); background: transparent; }
 .whatsapp-btn.missing:hover { background: var(--surface-2); }
 .whatsapp-btn small { color: inherit; font-size: 10px; }
+.drive-btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid rgba(96,165,250,.35); color: #0f0a18; background: var(--blue); transition: all .15s; }
+.drive-btn:hover { background: #4c8ff0; box-shadow: 0 2px 12px rgba(96,165,250,.25); }
+.drive-btn.missing { border-color: var(--line-2); color: var(--muted); background: transparent; }
+.drive-btn.missing:hover { background: var(--surface-2); }
 
 /* ── RENDITIONS ── */
 .rendition-controls { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
