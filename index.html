@@ -45,6 +45,9 @@
     <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
   </div>
 </label>
+        <label>¿Qué salón/es administrás?<input id="signupSalonSearch" type="text" placeholder="Buscar salón…"></label>
+        <div id="signupSalonChecks" class="check-grid compact signup-salon-checks"></div>
+        <p id="signupSalonError" class="form-error hidden"></p>
         <p id="signupError" class="form-error hidden"></p>
         <button class="primary-btn" type="submit">Enviar código de seguridad</button>
       </form>

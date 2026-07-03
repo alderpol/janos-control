@@ -92,6 +92,7 @@ const CORE_TASKS = [
   task("coveragePhotoEdit", "Editar fotos del evento", "Evento", true, "PERSONAL FOTOGRAFIA", "Fiesta (edicion foto)", "eventEdit"),
   task("coverageVideoCapture", "Realizar cobertura de video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (cobertura video)", "eventCoverage"),
   task("coverageVideoEdit", "Editar video del evento", "Evento", true, "PERSONAL VIDEO", "Fiesta (edicion video)", "eventEdit"),
+  task("videoHighlight", "Editar video resumen del evento", "Evento"),
   task("backup", "Completar backup del salón", "Evento"),
   task("sendPhotos", "Enviar link de fotografías por e-mail", "Entrega"),
   task("sendVideo", "Enviar link de videos por e-mail", "Entrega")
@@ -100,8 +101,7 @@ const CORE_TASKS = [
 const GOLD_TASKS = [
   task("coordinateSession", "Coordinar y reservar sesión de fotos", "Pre-evento"),
   task("bookCoveragePhoto", "Realizar sesión de fotos y editar fotos de la sesión", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
-  task("bookCoverageVideo", "Realizar sesión de video y editar video backstage", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (grabacion + edicion back)", "book"),
-  task("mural", "Preparar mural digital", "Pre-evento")
+  task("bookCoverageVideo", "Realizar sesión de video y editar video backstage", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (grabacion + edicion back)", "book")
 ];
 
 const VIP_TASKS = [
@@ -150,9 +150,9 @@ function task(key, title, phase, payable = false, category = "", work = "", rate
 
 // Tareas que son exclusivas de un rol; lo que no figura acá se considera "ambos" (general/coordinación).
 const TASK_ROLES = {
-  coveragePhoto: "foto", coveragePhotoEdit: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video",
+  coveragePhoto: "foto", coveragePhotoEdit: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video", videoHighlight: "video",
   sendPhotos: "foto", sendVideo: "video",
-  bookCoveragePhoto: "foto", bookCoverageVideo: "video", mural: "foto",
+  bookCoveragePhoto: "foto", bookCoverageVideo: "video",
   vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
   flexChurch: "foto", flexCivilPhoto: "foto", flexCivilVideo: "video", flexPhotoExtra: "foto", flexVideoExtra: "video",
   flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
@@ -232,7 +232,7 @@ function createTasks(client) {
   normalizeFlexServices(client.flexServices).forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
   normalizeFlexServices(client.pixelServices).forEach(code => { if (client.addons.includes("pixel") && PIXEL_TASKS[code]) definitions.push(PIXEL_TASKS[code]); });
   const hasSession = definitions.some(item => ["bookCoveragePhoto", "flexSessionPhoto"].includes(item.key));
-  if (hasSession) definitions.push(task("totemDigital", "Preparar tótem digital de la sesión", "Pre-evento", true, "COMPLEMENTOS", "Televisor Fotografia Digital", "totemDigital"));
+  if (hasSession) definitions.push(task("totemDigital", "Preparar mural / tótem digital de la sesión", "Pre-evento", true, "COMPLEMENTOS", "Televisor Fotografia Digital", "totemDigital"));
   // Salvaguarda: nunca generar dos tareas con la misma key para un mismo cliente
   // (evita violar la restricción única tasks_client_id_task_key_key al sincronizar).
   const seenKeys = new Set();
@@ -287,17 +287,17 @@ function attentionItems() {
     const days=daysUntil(c.eventDate), incomplete=c.tasks.filter(t=>!["done","na"].includes(t.status)),hasPrintedBook=(c.addons||[]).includes("libro"),bookDue=hasPrintedBook&&days>=0&&days<=30;
     const prepPending=c.tasks.filter(t=>t.phase==="Preparación"&&!["done","na"].includes(t.status)),prepDue=prepPending.length&&days>=0&&days<=30;
     const sortDays = days < 0 ? 0 : days;
-    if(bookDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
-    else if(prepDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
-    else if(days>=0&&days<=14&&incomplete.length) items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Tareas pendientes</span><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
-    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coveragePhotoEdit","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
-    const hasPhotoSession = ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || (c.flexServices||[]).includes("extraSession");
-    if(!c.isExternal&&hasPrintedBook&&!hasPhotoSession) items.push({days:-1,html:`<button class="attention-alert attention-conflict" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Conflicto de venta: Libro Combo sin sesión</span><small>El Libro Combo requiere una sesión de fotos. Agregá Mini Flex/Flex con "Sesión extra - fotografía", o Sans Souci, para habilitarla.</small></button>`});
+    if(bookDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><em class="attention-salon">${escapeHtml(c.salon||"")}</em><span>Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
+    else if(prepDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><em class="attention-salon">${escapeHtml(c.salon||"")}</em><span>Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
+    else if(days>=0&&days<=14&&incomplete.length) items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><em class="attention-salon">${escapeHtml(c.salon||"")}</em><span>Tareas pendientes</span><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
+    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coveragePhotoEdit","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><em class="attention-salon">${escapeHtml(c.salon||"")}</em><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
+    const hasPhotoSession = canScheduleSession(c);
+    if(!c.isExternal&&hasPrintedBook&&!hasPhotoSession) items.push({days:-1,html:`<button class="attention-alert attention-conflict" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><em class="attention-salon">${escapeHtml(c.salon||"")}</em><span>Conflicto de venta: Libro Combo sin sesión</span><small>El Libro Combo requiere una sesión de fotos. Agregá Mini Flex/Flex con "Sesión extra - fotografía", o Sans Souci, para habilitarla.</small></button>`});
     const sessionTask=c.tasks.find(t=>t.key==="coordinateSession"), sessionDue=sessionTask&&!["done","na"].includes(sessionTask.status)&&days>=0&&days<=30;
-    if(!c.isExternal&&sessionDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Sesión de fotos sin agendar</span><small>${when} · Coordinar y reservar la sesión de fotos.</small></button>`});}
+    if(!c.isExternal&&sessionDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><em class="attention-salon">${escapeHtml(c.salon||"")}</em><span>Sesión de fotos sin agendar</span><small>${when} · Coordinar y reservar la sesión de fotos.</small></button>`});}
     const extraServiceKeys=["flexLive","flexPhotoExtra","flexVideoExtra","pixelLive","pixelPhotoExtra","pixelVideoExtra"];
     const extraServicesPending=c.tasks.filter(t=>extraServiceKeys.includes(t.key)&&!["done","na"].includes(t.status));
-    if(!c.isExternal&&extraServicesPending.length&&days>=0&&days<=20){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><span>Servicios extra sin confirmar</span><small>${when} · ${extraServicesPending.map(t=>t.title).join(" · ")}</small></button>`});}
+    if(!c.isExternal&&extraServicesPending.length&&days>=0&&days<=20){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><strong>${escapeHtml(c.honoree)}</strong><em class="attention-salon">${escapeHtml(c.salon||"")}</em><span>Servicios extra sin confirmar</span><small>${when} · ${extraServicesPending.map(t=>t.title).join(" · ")}</small></button>`});}
   }); return items.sort((a,b)=>a.days-b.days).slice(0,6).map(item=>item.html).join("");
 }
 function contactWatchItems() {
@@ -313,7 +313,7 @@ function contactWatchItems() {
 
 function renderClients() {
   const modeClients=state.clients.filter(c=>clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c));
-  const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
+  const salons=visibleSalons([...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])]);
   const months=[...new Set(modeClients.map(c=>monthKey(c.eventDate)).filter(Boolean))].sort();
   const upcomingCount=state.clients.filter(c=>!isPastEvent(c)).length,archivedCount=state.clients.length-upcomingCount;
   const _html = `<div class="view-switch" aria-label="Archivo de eventos"><button class="${clientViewMode==="upcoming"?"active":""}" data-client-view="upcoming">Próximos <b>${upcomingCount}</b></button><button class="${clientViewMode==="archived"?"active":""}" data-client-view="archived">Realizados <b>${archivedCount}</b></button></div><div class="client-filters"><div class="filter-heading"><div><p class="eyebrow">${clientViewMode==="archived"?"Archivo de eventos":"Organizar eventos"}</p><strong>${clientViewMode==="archived"?"Eventos cuya fecha ya pasó":"Elegí un salón y un mes"}</strong></div><span id="clientResultCount" class="muted">${eventCountLabel(modeClients.length)}</span></div><div class="toolbar"><div class="search"><input id="clientSearch" placeholder="Buscar por nombre o código"></div><select id="clientSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select><select id="clientMonthFilter" aria-label="Filtrar por mes"><option value="">Todos los meses</option>${months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join("")}</select><select id="clientPackFilter" aria-label="Filtrar por pack"><option value="">Todos los packs</option><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select><select id="clientAddonFilter" aria-label="Filtrar por adicional"><option value="">Todos los adicionales</option>${ADDONS.map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select></div></div><div class="client-actions"><button class="secondary-btn" id="downloadClientTemplate">Descargar CSV</button><button class="primary-btn" id="importClientsBtn">Importar lote</button><input id="clientCsvInput" type="file" accept=".csv,text/csv" hidden></div><div id="clientGrid" class="client-grid">${clientCards(modeClients)}</div>`;
@@ -374,7 +374,7 @@ async function connectGoogleCalendar() {
 }
 function renderCalendar(){
   const view=document.getElementById("calendarView"); if(!view) return;
-  const salons=[...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])];
+  const salons=visibleSalons([...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])]);
   const [year,month]=calendarMonth.split("-").map(Number);
   const startWeekday=(new Date(year,month-1,1).getDay()+6)%7;
   const daysInMonth=new Date(year,month,0).getDate();
@@ -406,6 +406,7 @@ function renderCalendar(){
   const gcalBtn=gcalConnected
     ?`<button class="ghost-btn cal-gcal-connected" id="calGcalRefresh">📅 Sincronizado</button>`
     :`<button class="ghost-btn" id="calGcalConnect">📅 Conectar Google Calendar</button>`;
+  const gcalOpenBtn=`<button class="ghost-btn" id="calGcalOpen" type="button">↗ Abrir Google Calendar</button>`;
   view.innerHTML=`
     <div class="rendition-controls">
       <button class="ghost-btn" id="calPrev">‹ Mes anterior</button>
@@ -414,6 +415,7 @@ function renderCalendar(){
       <button class="ghost-btn" id="calToday">Hoy</button>
       <select id="calendarSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}"${calendarSalonFilter===s?" selected":""}>${escapeHtml(s)}</option>`).join("")}</select>
       ${gcalBtn}
+      ${gcalOpenBtn}
     </div>
     <div class="cal-grid">
       ${weekdays.map(w=>`<div class="cal-weekday">${w}</div>`).join("")}
@@ -428,12 +430,16 @@ function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===i
 function openDriveFolder(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.driveUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
 function sessionDateTimeText(session){if(!session?.date||!session?.time)return "Sin agendar";return `${dateText(session.date)} · ${session.time}`;}
 function photoSessionSummary(client){const session=client.photoSession;if(!session?.date)return "Sin sesión agendada";return `${sessionDateTimeText(session)} · ${session.location||client.salon}`;}
+// Silver no incluye sesión de fotos salvo que contrate "Sesión extra" (Mini Flex/Flex/Pixel), Sans Souci, o sea Gold/VIP.
+function canScheduleSession(c) { return ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || normalizeFlexServices(c.flexServices).includes("extraSession") || normalizeFlexServices(c.pixelServices).includes("extraSession"); }
+// Silver sin "Sesión extra" no tiene sesión de fotos incluida: no mostramos el botón.
+function photoSessionButtonHtml(c) { if (c.pack === "silver" && !canScheduleSession(c)) return ""; return `<button class="secondary-btn" data-photo-session="${c.id}">${c.photoSession?.date?"Reprogramar sesión":"Agendar sesión de fotos"}</button>`; }
 function openPhotoSessionForm(clientId){const client=state.clients.find(item=>item.id===clientId);if(!client)return;const form=document.getElementById("photoSessionForm"),session=client.photoSession||{};form.reset();form.elements.clientId.value=client.id;form.elements.date.value=session.date||"";form.elements.time.value=session.time||"";form.elements.location.value=session.location||client.salon||"";form.elements.team.value=session.team||"";form.elements.includesFashionProduction.checked=Boolean(session.includesFashionProduction);form.elements.includesMakeupHair.checked=Boolean(session.includesMakeupHair);form.elements.notes.value=session.notes||"";document.getElementById("photoSessionDialog").showModal();}
 function calendarDatePart(date,time){return `${date.replaceAll("-","")}T${time.replace(":","")}00`;}
 function addMinutesToTime(date,time,minutes){const value=new Date(`${date}T${time}:00`);value.setMinutes(value.getMinutes()+Number(minutes||90));return {date:`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`,time:`${String(value.getHours()).padStart(2,"0")}:${String(value.getMinutes()).padStart(2,"0")}`};}
 function googleCalendarUrl(client,session){const end=addMinutesToTime(session.date,session.time,90);const optional=[session.includesFashionProduction?"Incluye producción de moda":"",session.includesMakeupHair?"Incluye maquillaje y peinado":""].filter(Boolean);const details=[`Cliente: ${client.clientName||client.honoree}`,`Evento: #${client.code} · ${client.honoree}`,`Fecha del evento: ${dateText(client.eventDate)}`,optional.length?`Opcionales: ${optional.join(" · ")}`:"",session.notes?`Notas: ${session.notes}`:""].filter(Boolean).join("\n");const params=new URLSearchParams({action:"TEMPLATE",text:`#${client.code} Book ${client.honoree} · ${session.location} · ${session.time}`,dates:`${calendarDatePart(session.date,session.time)}/${calendarDatePart(end.date,end.time)}`,details,location:session.location,ctz:"America/Argentina/Buenos_Aires"});return `https://calendar.google.com/calendar/render?${params.toString()}`;}
 function savePhotoSession(form){const data=Object.fromEntries(new FormData(form)),client=state.clients.find(item=>item.id===data.clientId);if(!client)return false;const session={date:data.date,time:data.time,location:data.location.trim(),includesFashionProduction:form.elements.includesFashionProduction.checked,includesMakeupHair:form.elements.includesMakeupHair.checked,notes:String(data.notes||"").trim(),updatedAt:new Date().toISOString()};if(!session.date||!session.time||!session.location){toast("Completá día, hora y lugar de la sesión.");return false;}client.photoSession=session;client.history=client.history||[];client.history.push({date:session.updatedAt,text:`Sesión de fotos agendada para ${sessionDateTimeText(session)} en ${session.location}`,type:"photo_session",photoSession:session});const _coordTask=client.tasks.find(t=>t.key==="coordinateSession");if(_coordTask&&_coordTask.status!=="done"){_coordTask.status="done";_coordTask.completedAt=session.date||todayIso();}saveState();window.open(googleCalendarUrl(client,session),"_blank","noopener,noreferrer");toast("Sesión guardada y Google Calendar abierto");return true;}
-function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag${c.isExternal?" external":""}">${c.isExternal?"Externo":isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button><button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
+function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag${c.isExternal?" external":""}">${c.isExternal?"Externo":isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button>${photoSessionButtonHtml(c)}<button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
 function progress(c) { const applicable=c.tasks.filter(t=>t.status!=="na"); return applicable.length ? Math.round(applicable.filter(t=>t.status==="done").length/applicable.length*100) : 0; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
 
@@ -461,7 +467,7 @@ function filterTasks() {
 }
 function renderTasks() {
   const view = document.getElementById("tasksView"); if (!view) return;
-  const salons = [...new Set([...MANAGED_SALONS, ...state.clients.map(c => String(c.salon || "").trim()).filter(Boolean)])];
+  const salons = visibleSalons([...new Set([...MANAGED_SALONS, ...state.clients.map(c => String(c.salon || "").trim()).filter(Boolean)])]);
   const { fotoCount, videoCount, todosCount, body } = taskViewData();
   view.innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Filtrar tareas por rol"><button class="${taskRoleFilter === "todos" ? "active" : ""}" data-task-role="todos">Todos <b id="taskCountTodos">${todosCount}</b></button><button class="${taskRoleFilter === "foto" ? "active" : ""}" data-task-role="foto">📷 Fotógrafo <b id="taskCountFoto">${fotoCount}</b></button><button class="${taskRoleFilter === "video" ? "active" : ""}" data-task-role="video">🎥 Videógrafo <b id="taskCountVideo">${videoCount}</b></button></div><input id="taskSearch" placeholder="Buscar por código o fecha" value="${escapeHtml(taskSearchFilter)}"><select id="taskSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s => `<option value="${escapeHtml(s)}" ${taskSalonFilter === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}</select></div><div id="taskGroups" class="task-groups">${body}</div>`;
 }
@@ -675,6 +681,25 @@ function tasksAtRiskOnRegenerate(){const atRisk=[];state.clients.forEach(c=>{con
 function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));}
 function normalizeIds(){const clientMap=new Map(),taskMap=new Map();state.clients.forEach(client=>{if(!isUuid(client.id)){const old=client.id;client.id=uid();clientMap.set(old,client.id);}client.tasks.forEach(task=>{if(!isUuid(task.id)){const old=task.id;task.id=uid();taskMap.set(old,task.id);}});});state.renditions.forEach(item=>{if(clientMap.has(item.clientId))item.clientId=clientMap.get(item.clientId);if(taskMap.has(item.taskId))item.taskId=taskMap.get(item.taskId);if(!isUuid(item.id))item.id=uid();});}
 function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;}
+function renderSignupSalonChecks() {
+  const container = document.getElementById("signupSalonChecks");
+  if (!container) return;
+  container.innerHTML = MANAGED_SALONS.map(s => `<label data-salon-label="${escapeHtml(s)}"><input type="checkbox" name="signupSalons" value="${escapeHtml(s)}">${escapeHtml(s)}</label>`).join("");
+}
+renderSignupSalonChecks();
+document.getElementById("signupSalonSearch")?.addEventListener("input", e => {
+  const term = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('#signupSalonChecks [data-salon-label]').forEach(label => {
+    label.classList.toggle("hidden", !label.dataset.salonLabel.toLowerCase().includes(term));
+  });
+});
+// Salones que el usuario logueado administra: si tiene alguno asignado, se usa para acotar
+// el desplegable "Elegí un salón"; si no tiene ninguno (o es admin), ve todos.
+function visibleSalons(allSalons) {
+  const mine = accessProfile?.salons || [];
+  if (accessProfile?.role === "admin" || !mine.length) return allSalons;
+  return allSalons.filter(s => mine.includes(s));
+}
 function setConflictBanner(visible,text){const el=document.getElementById("conflictBanner");if(el){el.classList.toggle("hidden",!visible);const span=el.querySelector("span");if(span&&text)span.textContent=text;}}
 function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 function syncedSnapshotKey(key){return `${key}:synced`;}
@@ -947,13 +972,13 @@ endlocal`;
 
 function openClientDetail(id) {
   const c=state.clients.find(x=>x.id===id); if(!c)return; const phases=[...new Set(c.tasks.map(t=>t.phase))];
-  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div><button class="secondary-btn" data-photo-session="${c.id}">Agendar sesión de fotos</button>${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
+  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
   const dialog=document.getElementById("detailDialog"); if(!dialog.open)dialog.showModal();
 }
 function taskRow(c,t){
   const needsOrder=t.key==="partyBook";
   
-  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)} · ${money(getRate(t.rateKey,c.eventDate))}</small>`:""}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
+  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""} ${t.status==="na"?"disabled":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)} · ${money(getRate(t.rateKey,c.eventDate))}</small>`:""}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
 }
 function refreshTaskViews(clientId){const dialog=document.getElementById("detailDialog");if(dialog.open)openClientDetail(clientId);else if(activeView==="tasks")renderTasks();}
 function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");refreshTaskViews(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const amount=getRate(t.rateKey,c.eventDate);if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work,amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending")state.renditions=state.renditions.filter(r=>r.id!==existing.id);saveState();refreshTaskViews(c.id);toast(status==="done"&&t.payable?"Tarea terminada y rendición agregada":"Tarea actualizada");}
@@ -1040,6 +1065,7 @@ function toast(msg){const el=document.getElementById("toast");const openDialog=d
 document.addEventListener("click", e => {
   if(e.target.id==="reloadForConflict"){forceRetrySync();return;}
   if(e.target.id==="calGcalConnect"){connectGoogleCalendar();return;}
+  if(e.target.id==="calGcalOpen"){window.open("https://calendar.google.com","_blank","noopener,noreferrer");return;}
   if(e.target.id==="calGcalRefresh"){gcalEvents=[];fetchGcalEvents(calendarMonth);return;}
   if(e.target.id==="calPrev"){calendarMonth=shiftMonth(calendarMonth,-1);fetchGcalEvents(calendarMonth);renderCalendar();return;}
   if(e.target.id==="calNext"){calendarMonth=shiftMonth(calendarMonth,1);fetchGcalEvents(calendarMonth);renderCalendar();return;}
@@ -1242,11 +1268,17 @@ document.getElementById("registerForm").addEventListener("submit", async event =
   const whatsapp = form.elements.whatsapp.value.trim();
   const password = form.elements.password.value;
   const phoneDigits = whatsapp.replace(/\D/g, "");
+  const signupSalons = [...form.querySelectorAll('[name="signupSalons"]:checked')].map(x => x.value);
   if(phoneDigits.length < 8 || phoneDigits.length > 15) {
     setFormError("signupError", "Ingresá un número de WhatsApp válido, con código de área.");
     form.elements.whatsapp.focus();
     return;
   }
+  if(!signupSalons.length) {
+    setFormError("signupSalonError", "Elegí al menos un salón que administrás.");
+    return;
+  }
+  setFormError("signupSalonError");
   if(password.length < 8) {
     setFormError("signupError", "La contraseña debe tener al menos 8 caracteres.");
     form.elements.password.focus();
@@ -1260,7 +1292,7 @@ document.getElementById("registerForm").addEventListener("submit", async event =
   try {
     const email = form.elements.email.value.trim().toLowerCase();
     await signUp(email, password, {
-      first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`, whatsapp
+      first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`, whatsapp, salons: signupSalons
     });
     notifyAdmin(email, `${firstName} ${lastName}`.trim());
     setFormWarning("signupError", "¡Cuenta creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");

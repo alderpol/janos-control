@@ -136,6 +136,7 @@ nav { display: grid; gap: 3px; }
 /* ── ATTENTION ── */
 .attention-alert { width: 100%; border-radius: 10px; padding: 12px 14px; text-align: left; transition: all .15s; border-left: 3px solid transparent; }
 .attention-alert strong, .attention-alert span, .attention-alert small { display: block; }
+.attention-alert .attention-salon { display: block; font-size: 11px; opacity: .75; font-weight: 500; margin-top: 1px; }
 .attention-alert span { margin-top: 4px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .attention-alert small { margin-top: 5px; line-height: 1.4; }
 .attention-alert.urgency-red { color: white; border: 1px solid rgba(248,113,113,.3); border-left: 3px solid #f87171; background: rgba(248,113,113,.12); box-shadow: 0 4px 16px rgba(248,113,113,.15); }
@@ -228,6 +229,7 @@ nav { display: grid; gap: 3px; }
 .whatsapp-btn.missing { border-color: var(--line-2); color: var(--muted); background: transparent; }
 .whatsapp-btn.missing:hover { background: var(--surface-2); }
 .whatsapp-btn small { color: inherit; font-size: 10px; }
+.signup-salon-checks { max-height: 200px; overflow-y: auto; border: 1px solid var(--line-2); border-radius: 10px; padding: .5rem; }
 .drive-btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid rgba(96,165,250,.35); color: #0f0a18; background: var(--blue); transition: all .15s; }
 .drive-btn:hover { background: #4c8ff0; box-shadow: 0 2px 12px rgba(96,165,250,.25); }
 .drive-btn.missing { border-color: var(--line-2); color: var(--muted); background: transparent; }

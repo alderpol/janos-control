@@ -87,13 +87,13 @@ export async function getAccessProfile() {
   if (!user) return { role: "user", status: "blocked", display_name: "" };
   // FIX: filtrar por id. Con la RLS actual (auth.uid()=id OR is_app_admin())
   // el admin ve TODOS los perfiles y .maybeSingle() sin filtro falla con 2+ filas.
-  const { data, error } = await supabase.from("profiles").select("role,status,display_name").eq("id", user.id).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("role,status,display_name,salons").eq("id", user.id).maybeSingle();
   if (error) throw error;
   // Fail closed: if for any reason the profile row doesn't exist yet, treat
   // the user as blocked rather than active. The DB now creates this row
   // automatically (blocked) via a trigger on signup, so this is just a
   // defensive fallback, not the primary gate.
-  return data || { role: "user", status: "blocked", display_name: "" };
+  return data || { role: "user", status: "blocked", display_name: "", salons: [] };
 }
 
 export async function listUserProfiles() {
