@@ -287,6 +287,14 @@ export async function syncCloudState(state, user) {
   const displayName = metadata.full_name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Usuario";
   check(await supabase.from("profiles").upsert({ id: ownerId, display_name: displayName, email: user.email || null, whatsapp: metadata.whatsapp || null, last_seen_at: new Date().toISOString(), settings: state.settings || {} }), "Perfil");
 
+  // Primero se borran las filas huérfanas (claves de tarea que ya no se generan, ej. tras renombrar
+  // "Civil" en foto/video, o rendiciones/clientes eliminados) y recién después se suben las nuevas.
+  // Si se hace al revés, una fila vieja con la misma (client_id, task_key) puede chocar con la nueva
+  // antes de ser borrada, y frena toda la sincronización con un error 409.
+  await deleteMissing("renditions", ownerId, state.renditions.map((row) => row.id));
+  await deleteMissing("tasks", ownerId, state.clients.flatMap((client) => client.tasks.map((task) => task.id)));
+  await deleteMissing("clients", ownerId, state.clients.map((row) => row.id));
+
   const clientRows = state.clients.map((client) => ({
     id: client.id, owner_id: ownerId, code: String(client.code), event_date: client.eventDate,
     salon: client.salon, event_type: client.type, honoree: client.honoree,
@@ -325,8 +333,4 @@ export async function syncCloudState(state, user) {
     owner_id: ownerId, rate_key: key, label: key, amount: Number(amount || 0), valid_from: validFrom,
   }));
   await upsertInBatches("rates", rateRows, "Guardado de tarifas", { onConflict: "owner_id,rate_key,valid_from" });
-
-  await deleteMissing("renditions", ownerId, state.renditions.map((row) => row.id));
-  await deleteMissing("tasks", ownerId, taskRows.map((row) => row.id));
-  await deleteMissing("clients", ownerId, state.clients.map((row) => row.id));
 }
