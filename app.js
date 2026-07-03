@@ -184,6 +184,8 @@ let currentUser = null;
 let pendingOtp = null;
 let cloudTimer = null;
 let cloudSyncing = false;
+let cloudSyncPending = false;
+let lastSyncedState = null;
 let accessProfile = { role: "user", status: "active" };
 let adminUsers = [];
 let remoteSnapshotAt = null;
@@ -666,9 +668,77 @@ function tasksAtRiskOnRegenerate(){const atRisk=[];state.clients.forEach(c=>{con
 function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));}
 function normalizeIds(){const clientMap=new Map(),taskMap=new Map();state.clients.forEach(client=>{if(!isUuid(client.id)){const old=client.id;client.id=uid();clientMap.set(old,client.id);}client.tasks.forEach(task=>{if(!isUuid(task.id)){const old=task.id;task.id=uid();taskMap.set(old,task.id);}});});state.renditions.forEach(item=>{if(clientMap.has(item.clientId))item.clientId=clientMap.get(item.clientId);if(taskMap.has(item.taskId))item.taskId=taskMap.get(item.taskId);if(!isUuid(item.id))item.id=uid();});}
 function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;}
-function setConflictBanner(visible){const el=document.getElementById("conflictBanner");if(el)el.classList.toggle("hidden",!visible);}
-function scheduleCloudSync(){if(!cloudEnabled||!currentUser)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(runCloudSync,650);}
-async function runCloudSync(){if(cloudSyncing||!currentUser)return;cloudSyncing=true;setSyncStatus("Guardando en la nube…");try{normalizeIds();localStorage.setItem(storageKey,JSON.stringify(state));if(remoteSnapshotAt){const latest=await getLatestUpdateAt();if(latest&&latest>remoteSnapshotAt){setSyncStatus("Hay cambios más nuevos en la nube · recargá la página");setConflictBanner(true);return;}}await syncCloudState(state,currentUser);try{remoteSnapshotAt=(await getLatestUpdateAt())||new Date().toISOString();}catch{remoteSnapshotAt=new Date().toISOString();}setSyncStatus("Sincronizado");}catch(error){console.error(error);setSyncStatus("Sin conexión · copia local guardada");toast("No se pudo sincronizar. El cambio quedó guardado localmente.");}finally{cloudSyncing=false;}}
+function setConflictBanner(visible,text){const el=document.getElementById("conflictBanner");if(el){el.classList.toggle("hidden",!visible);const span=el.querySelector("span");if(span&&text)span.textContent=text;}}
+function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+function syncedSnapshotKey(key){return `${key}:synced`;}
+function loadSyncedSnapshot(key){try{const raw=localStorage.getItem(syncedSnapshotKey(key));return raw?JSON.parse(raw):null;}catch{return null;}}
+function saveSyncedSnapshot(key,snapshotState){try{localStorage.setItem(syncedSnapshotKey(key),JSON.stringify(snapshotState));}catch{}}
+// Detecta qué registros (por id) cambiaron localmente respecto a la última copia sincronizada.
+function diffChangedIds(current,baseline){const changed=new Set();const baseMap=new Map((baseline||[]).map(item=>[item.id,JSON.stringify(item)]));(current||[]).forEach(item=>{if(baseMap.get(item.id)!==JSON.stringify(item))changed.add(item.id);});return changed;}
+// Combina lo último guardado en la nube (por otro dispositivo/usuario) con SOLO los cambios que hicimos
+// nosotros localmente desde la última sincronización exitosa. Así nunca se pisa el trabajo de un compañero
+// ni se pierde el propio.
+function mergeForSync(fresh, local, baseline) {
+  const merged = { ...fresh };
+  ["clients", "renditions"].forEach(collection => {
+    const freshList = fresh[collection] || [], localList = local[collection] || [], baselineList = baseline[collection] || [];
+    const changedIds = diffChangedIds(localList, baselineList);
+    const baselineIds = new Set(baselineList.map(item => item.id));
+    const localIds = new Set(localList.map(item => item.id));
+    const deletedIds = [...baselineIds].filter(id => !localIds.has(id));
+    const byId = new Map(freshList.map(item => [item.id, item]));
+    changedIds.forEach(id => { const localItem = localList.find(item => item.id === id); if (localItem) byId.set(id, localItem); });
+    deletedIds.forEach(id => byId.delete(id));
+    merged[collection] = [...byId.values()];
+  });
+  const changedRateKeys = Object.keys(local.rates || {}).filter(k => JSON.stringify(local.rates[k]) !== JSON.stringify((baseline.rates || {})[k]));
+  merged.rates = { ...fresh.rates, ...Object.fromEntries(changedRateKeys.map(k => [k, local.rates[k]])) };
+  if (JSON.stringify(local.settings) !== JSON.stringify(baseline.settings)) merged.settings = local.settings;
+  return merged;
+}
+function scheduleCloudSync(){if(!cloudEnabled||!currentUser)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>runCloudSync(),650);}
+// Sincroniza con reintento indefinido: nunca tira el cambio local, lo deja en cola (localStorage)
+// y sigue intentando con backoff creciente. Si detecta cambios de otro dispositivo, los combina
+// con los propios en vez de descartarlos.
+async function runCloudSync(backoffMs = 3000) {
+  if (!currentUser) return;
+  if (cloudSyncing) { cloudSyncPending = true; return; }
+  cloudSyncing = true;
+  try {
+    normalizeIds();
+    localStorage.setItem(storageKey, JSON.stringify(state));
+    setSyncStatus("Guardando en la nube…");
+    const latest = remoteSnapshotAt ? await getLatestUpdateAt() : null;
+    if (latest && remoteSnapshotAt && latest > remoteSnapshotAt) {
+      setSyncStatus("Combinando cambios de otro dispositivo…");
+      const freshCloud = await loadCloudState(BASE_RATES);
+      const baseline = lastSyncedState || freshCloud;
+      state = mergeForSync(freshCloud, state, baseline);
+      localStorage.setItem(storageKey, JSON.stringify(state));
+      render();
+      await syncCloudState(state, currentUser);
+      toast("Se combinaron tus cambios con los de otro dispositivo, sin perder datos.");
+    } else {
+      await syncCloudState(state, currentUser);
+    }
+    remoteSnapshotAt = (await getLatestUpdateAt()) || new Date().toISOString();
+    lastSyncedState = JSON.parse(JSON.stringify(state));
+    saveSyncedSnapshot(storageKey, state);
+    setSyncStatus("Sincronizado");
+    setConflictBanner(false);
+  } catch (error) {
+    console.error(error);
+    setSyncStatus(`Sin conexión · reintentando en ${Math.round(backoffMs / 1000)}s (tu cambio sigue guardado)…`);
+    if (backoffMs >= 8000) setConflictBanner(true, "No se pudo guardar en la nube todavía. Tu cambio sigue a salvo en este dispositivo y se sigue reintentando solo.");
+    cloudSyncing = false;
+    cloudTimer = setTimeout(() => runCloudSync(Math.min(backoffMs * 2, 60000)), backoffMs);
+    return;
+  } finally {
+    cloudSyncing = false;
+  }
+  if (cloudSyncPending) { cloudSyncPending = false; scheduleCloudSync(); }
+}
+async function forceRetrySync(){clearTimeout(cloudTimer);await runCloudSync();}
 
 function parseCsv(text) {
   const firstLine=(text.split(/\r?\n/,1)[0]||"");
@@ -961,7 +1031,7 @@ if(view==="calendar"&&!gcalLoading)fetchGcalEvents(calendarMonth);}
 function toast(msg){const el=document.getElementById("toast");const openDialog=document.querySelector("dialog[open]");(openDialog||document.body).appendChild(el);el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);}
 
 document.addEventListener("click", e => {
-  if(e.target.id==="reloadForConflict"){window.location.reload();return;}
+  if(e.target.id==="reloadForConflict"){forceRetrySync();return;}
   if(e.target.id==="calGcalConnect"){connectGoogleCalendar();return;}
   if(e.target.id==="calGcalRefresh"){gcalEvents=[];fetchGcalEvents(calendarMonth);return;}
   if(e.target.id==="calPrev"){calendarMonth=shiftMonth(calendarMonth,-1);fetchGcalEvents(calendarMonth);renderCalendar();return;}
@@ -1255,7 +1325,7 @@ document.getElementById("signOutBtn").addEventListener("click",async()=>{await r
 
 async function startApplication(session){
   currentUser=session?.user||null;
-  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);state=loadState(storageKey);setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);state={...initialState(),...cloudState};localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Sincronizado");try{remoteSnapshotAt=await getLatestUpdateAt();}catch(snapshotError){console.error(snapshotError);remoteSnapshotAt=null;}}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);const pendingLocal=loadState(storageKey);state=pendingLocal;setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);const fullCloudState={...initialState(),...cloudState};const syncedBaseline=loadSyncedSnapshot(storageKey);if(syncedBaseline&&JSON.stringify(pendingLocal)!==JSON.stringify(syncedBaseline)){state=mergeForSync(fullCloudState,pendingLocal,syncedBaseline);localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Terminando de guardar cambios pendientes…");try{await syncCloudState(state,currentUser);}catch(pendingSyncError){console.error(pendingSyncError);}toast("Encontramos un cambio que había quedado sin guardar en este dispositivo y lo combinamos con lo último de la nube.");}else{state=fullCloudState;}localStorage.setItem(storageKey,JSON.stringify(state));lastSyncedState=JSON.parse(JSON.stringify(state));saveSyncedSnapshot(storageKey,state);setSyncStatus("Sincronizado");try{remoteSnapshotAt=await getLatestUpdateAt();}catch(snapshotError){console.error(snapshotError);remoteSnapshotAt=null;}}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
   else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
   const metadata = currentUser?.user_metadata || {};
   document.getElementById("signedInUser").textContent=accessProfile.display_name||metadata.full_name||currentUser?.email||"Modo local";
