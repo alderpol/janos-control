@@ -40,6 +40,10 @@ const FLEX_SERVICES = [
 function normalizeFlexServices(list) {
   return [...new Set((list || []).map(code => code === "civil" ? "civilPhoto" : code))];
 }
+// "Civil (fotógrafo)" y "Civil (videógrafo)" son un mismo producto contratado por el cliente;
+// se pueden tildar por separado para que cada rol rinda su parte, pero cuentan como 1 solo cupo.
+function flexServiceSlot(code) { return (code === "civilPhoto" || code === "civilVideo") ? "civil" : code; }
+function countFlexSlots(codes) { return new Set((codes || []).map(flexServiceSlot)).size; }
 
 const BASE_RATES = {
   gold: 325000, silver: 227500, book: 97500, eventCoverage: 160000, eventEdit: 67500,
@@ -643,9 +647,10 @@ function updateFlexField() {
   const checked=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value), limit=checked.includes("flex")?5:checked.includes("miniflex")?2:0;
   if(!limit)document.querySelectorAll('[name="flexServices"]').forEach(input=>{input.checked=false;input.disabled=false;});
   document.getElementById("flexField").classList.toggle("hidden",!limit);
-  const count=document.querySelectorAll('[name="flexServices"]:checked').length;
+  const checkedValues=[...document.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value);
+  const count=countFlexSlots(checkedValues), usedSlots=new Set(checkedValues.map(flexServiceSlot));
   document.getElementById("flexLimitHelp").textContent=limit?`(${count}/${limit})`:"";
-  if(limit)document.querySelectorAll('[name="flexServices"]').forEach(input=>{input.disabled=!input.checked&&count>=limit;});
+  if(limit)document.querySelectorAll('[name="flexServices"]').forEach(input=>{input.disabled=!input.checked&&count>=limit&&!usedSlots.has(flexServiceSlot(input.value));});
 }
 function updatePixelField() {
   const checked=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value), active=checked.includes("pixel");
@@ -656,7 +661,7 @@ function saveClient(form) {
   const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value); const pixelServices=[...form.querySelectorAll('[name="pixelServices"]:checked')].map(x=>x.value);
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   if(data.clientPhone&&whatsappNumber(data.clientPhone).length<12){toast("Ingresá el WhatsApp con código de área, por ejemplo +54 9 11 1234 5678.");form.elements.clientPhone.focus();return false;}
-  const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&flexServices.length>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
+  const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&countFlexSlots(flexServices)>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
   const duplicate=state.clients.find(c=>c.code===data.code&&c.id!==data.id); if(duplicate){toast("Ya existe un cliente con ese código."); return false;}
   if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,pixelServices,guests:Number(data.guests||0)}); syncTasks(c);}
   else {const client={...data,id:uid(),addons,flexServices,pixelServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
@@ -1072,7 +1077,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => {
   if(e.target.matches('[name="addons"][value="miniflex"], [name="addons"][value="flex"]')&&e.target.checked){const other=e.target.value==="flex"?"miniflex":"flex";const otherInput=document.querySelector(`[name="addons"][value="${other}"]`);if(otherInput)otherInput.checked=false;}
-  if(e.target.matches('[name="flexServices"]')&&e.target.checked){const checkedAddons=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value),limit=checkedAddons.includes("flex")?5:checkedAddons.includes("miniflex")?2:0,count=document.querySelectorAll('[name="flexServices"]:checked').length;if(limit&&count>limit){e.target.checked=false;toast(`Ya elegiste el máximo de ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`);}}
+  if(e.target.matches('[name="flexServices"]')&&e.target.checked){const checkedAddons=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value),limit=checkedAddons.includes("flex")?5:checkedAddons.includes("miniflex")?2:0,count=countFlexSlots([...document.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value));if(limit&&count>limit){e.target.checked=false;toast(`Ya elegiste el máximo de ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`);}}
   if(e.target.matches('[name="addons"], [name="flexServices"]'))updateFlexField();
   if(e.target.matches('[name="addons"], [name="pixelServices"]'))updatePixelField();
   if(e.target.dataset.taskStatus){const [c,t]=e.target.dataset.taskStatus.split("|");updateTask(c,t,e.target.value);}
