@@ -151,6 +151,15 @@ nav { display: grid; gap: 3px; }
 .attention-alert.urgency-green span { color: #22c55e; }
 .attention-alert.urgency-green small { color: var(--muted); }
 .attention-alert.attention-blink span { animation: attention-blink-anim 1.4s ease-in-out infinite; }
+.attention-alert.attention-conflict { border: 1px solid var(--line-2); background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+.attention-alert.attention-conflict span { color: var(--ink); }
+.attention-alert-main { width: 100%; text-align: left; background: transparent; border: none; padding: 0; cursor: pointer; }
+.attention-alert-main strong, .attention-alert-main span, .attention-alert-main small { display: block; }
+.attention-alert-main .attention-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.attention-alert-main .attention-top strong { flex: 1; }
+.attention-alert-main span { margin-top: 4px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.attention-alert-main small { margin-top: 5px; line-height: 1.4; color: var(--muted); }
+.attention-dismiss { align-self: flex-end; padding: 4px 10px; font-size: 12px; }
 @keyframes attention-blink-anim {
   0%, 100% { color: #22c55e; }
   50% { color: #f87171; }
