@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#5b2a86">
+  <title>Janos Control</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <section id="authGate" class="auth-gate hidden">
+    <div class="auth-card">
+      <div class="brand-mark auth-logo">J</div>
+      <p class="eyebrow">Gestión de fotografía y video</p>
+      <h1 id="authTitle">Ingresar a Janos Control</h1>
+      <p id="authCopy" class="auth-copy">Tus clientes, tareas y rendiciones sincronizados en un solo lugar.</p>
+      <div class="auth-tabs" role="tablist" aria-label="Acceso a Janos Control">
+        <button class="auth-tab active" type="button" data-auth-mode="login">Ingresar</button>
+        <button class="auth-tab" type="button" data-auth-mode="register">Crear cuenta</button>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
+        <label>Contraseña
+  <div class="password-field">
+    <input name="password" type="password" autocomplete="current-password" required>
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
+        <p id="loginError" class="form-error hidden"></p>
+        <p id="loginNotice" class="form-success hidden"></p>
+        <button class="primary-btn" type="submit">Ingresar</button>
+        <button id="requestLoginCode" class="secondary-btn" type="button">Ingresar con código por email</button>
+        <button id="forgotPassword" class="ghost-btn" type="button">Olvidé mi contraseña</button>
+      </form>
+      <form id="registerForm" class="auth-form hidden">
+        <div class="auth-grid">
+          <label>Nombre<input name="firstName" autocomplete="given-name" required></label>
+          <label>Apellido<input name="lastName" autocomplete="family-name" required></label>
+        </div>
+        <label>WhatsApp<input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej. 11 1234 5678" required></label>
+        <label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>
+        <label>Crea una contraseña
+  <div class="password-field">
+    <input name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="Mínimo 8 caracteres">
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
+        <label>¿Qué salón/es administrás?<input id="signupSalonSearch" type="text" placeholder="Buscar salón…"></label>
+        <div id="signupSalonChecks" class="check-grid compact signup-salon-checks"></div>
+        <p id="signupSalonError" class="form-error hidden"></p>
+        <p id="signupError" class="form-error hidden"></p>
+        <button class="primary-btn" type="submit">Enviar código de seguridad</button>
+      </form>
+      <form id="otpForm" class="auth-form hidden">
+        <p class="otp-email">Enviamos un código de seguridad a <strong id="otpEmail"></strong>.</p>
+        <label>Código de seguridad<input class="otp-code" name="token" inputmode="numeric" autocomplete="one-time-code" maxlength="8" pattern="[0-9]{6,8}" placeholder="00000000" required></label>
+        <p id="otpError" class="form-error hidden"></p>
+        <button class="primary-btn" type="submit">Verificar e ingresar</button>
+        <div class="auth-actions">
+          <button id="resendOtp" class="ghost-btn" type="button">Reenviar código</button>
+          <button id="backFromOtp" class="ghost-btn" type="button">Volver</button>
+        </div>
+      </form>
+      <form id="resetPasswordForm" class="auth-form hidden">
+<label>Nueva contraseña
+  <div class="password-field">
+    <input name="password" type="password" autocomplete="new-password" minlength="8" required>
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
+<label>Repetir contraseña
+  <div class="password-field">
+    <input name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" required>
+    <button type="button" class="toggle-password" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password';this.textContent=this.previousElementSibling.type==='password'?'👁':'🙈'">👁</button>
+  </div>
+</label>
+        <p id="resetError" class="form-error hidden"></p>
+        <button class="primary-btn" type="submit">Guardar nueva contraseña</button>
+      </form>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
+    <div id="conflictBanner" class="conflict-banner hidden">
+      <span>⚠️ No se pudo guardar en la nube todavía. Tu cambio sigue a salvo en este dispositivo y se sigue reintentando solo.</span>
+      <button id="reloadForConflict" type="button">Reintentar ahora</button>
+    </div>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">J</div>
+        <div><strong>Janos Control</strong><span>Foto y video</span></div>
+      </div>
+      <nav id="mainNav" aria-label="Navegación principal">
+        <button class="nav-item active" data-view="dashboard"><span>⌂</span> Inicio</button>
+        <button class="nav-item" data-view="clients"><span>◎</span> Clientes</button>
+        <button class="nav-item" data-view="calendar"><span>▦</span> Calendario</button>
+        <button class="nav-item" data-view="tasks"><span>☑</span> Tareas</button>
+        <button class="nav-item" data-view="renditions"><span>✓</span> Rendiciones <b id="navRenditionCount">0</b></button>
+        <button class="nav-item" data-view="settings"><span>⚙</span> Configuración</button>
+        <button class="nav-item hidden" id="usersNav" data-view="users"><span>♙</span> Usuarios</button>
+        <a class="nav-item" href="https://reserva-colegas.vercel.app/" target="_blank" rel="noopener"><span>↗</span> Reserva entre colegas</a>
+      </nav>
+      <div class="sidebar-user"><span id="signedInUser">Usuario</span><button id="signOutBtn">Cerrar sesión</button></div>
+      <div class="sidebar-note"><span id="syncStatus">Conectando con la nube…</span></div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button id="mobileMenu" class="icon-btn mobile-only" aria-label="Abrir menú">☰</button>
+        <div>
+          <p class="eyebrow" id="viewEyebrow">Resumen operativo</p>
+          <h1 id="viewTitle">Inicio</h1>
+        </div>
+        <div class="global-search-wrap">
+          <input type="text" id="globalSearch" class="global-search-input" placeholder="Buscar cliente, código, tarea o trabajo…" autocomplete="off">
+          <div id="globalSearchResults" class="global-search-results hidden"></div>
+        </div>
+        <button class="primary-btn" id="newClientBtn">+ Nuevo cliente</button>
+        <button class="secondary-btn" id="manualRenditionBtn" style="display:none">+ Rendición manual</button>
+      </header>
+
+      <section id="dashboardView" class="view active"></section>
+      <section id="clientsView" class="view"></section>
+      <section id="calendarView" class="view"></section>
+      <section id="tasksView" class="view"></section>
+      <section id="renditionsView" class="view"></section>
+      <section id="settingsView" class="view"></section>
+      <section id="usersView" class="view"></section>
+    </main>
+  </div>
+
+  <dialog id="clientDialog" class="modal">
+    <form id="clientForm" method="dialog">
+      <div class="modal-head">
+        <div><p class="eyebrow">Ficha del evento</p><h2 id="clientDialogTitle">Nuevo cliente</h2></div>
+        <button class="icon-btn" type="button" data-close-client-form aria-label="Cerrar">×</button>
+      </div>
+      <input type="hidden" name="id">
+      <div class="form-grid">
+        <label>Código del evento<input name="code" required inputmode="numeric" placeholder="Ej. 43828"></label>
+        <label>Fecha del evento<input name="eventDate" required type="date"></label>
+        <label>Salón<select name="salon" required><option value="">Seleccionar</option><option>Quinta</option><option>Pilar Hotel</option><option>Otro</option></select></label>
+        <label>Tipo de evento<select name="type"><option>15</option><option>Boda</option><option>Cumpleaños</option><option>Corporativo</option><option>Egresados</option><option>Otro</option></select></label>
+        <label>Homenajeado/a<input name="honoree" required placeholder="Nombre visible del evento"></label>
+        <label>Cliente<input name="clientName" placeholder="Nombre de contacto"></label>
+        <label>WhatsApp del cliente<input name="clientPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej. +54 9 11 1234 5678"></label>
+        <label>Grupo de WhatsApp<input name="whatsappGroupUrl" type="text" inputmode="url" placeholder="Pegá el link de invitación: https://chat.whatsapp.com/..."></label>
+        <label>Link de Drive<input name="driveUrl" type="text" inputmode="url" placeholder="Pegá el link de la carpeta de Drive con fotos y videos"></label>
+        <label>Invitados<input name="guests" type="number" min="0" placeholder="100"></label>
+        <label>Pack vigente<select name="pack" required><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select></label>
+      </div>
+      <fieldset>
+        <legend>Adicionales contratados</legend>
+        <div class="check-grid" id="addonChecks"></div>
+      </fieldset>
+      <fieldset id="flexField" class="hidden">
+        <legend>Servicios elegidos en Mini Flex / Flex <span id="flexLimitHelp"></span></legend>
+        <div class="check-grid compact" id="flexChecks"></div>
+      </fieldset>
+      <fieldset id="pixelField" class="hidden">
+        <legend>Servicios elegidos en Pixel</legend>
+        <div class="check-grid compact" id="pixelChecks"></div>
+      </fieldset>
+      <label class="full-label">Notas iniciales<textarea name="notes" rows="3" placeholder="Cambios de pack, acuerdos o información importante"></textarea></label>
+      <div class="modal-actions">
+        <button class="danger-btn hidden" type="button" id="deleteClientFromForm">Eliminar cliente</button>
+        <button class="ghost-btn hidden" type="button" id="resetContactBtn">↩ Deshacer contacto</button>
+        <button class="secondary-btn" type="button" data-close-client-form>Cancelar</button>
+        <button class="primary-btn" type="submit" id="saveClientBtn">Guardar cliente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="manualRenditionDialog" class="modal">
+    <form method="dialog" onsubmit="return false;">
+      <div class="modal-head">
+        <div><p class="eyebrow">Rendición sin evento</p><h2>Nueva rendición manual</h2></div>
+        <button class="icon-btn" type="button" onclick="document.getElementById('manualRenditionDialog').close()" aria-label="Cerrar">×</button>
+      </div>
+      <div class="form-grid">
+        <label>Fecha del evento<input type="date" id="manualRenditionDate" required onchange="updateManualRenditionRate()"></label>
+        <label>Salón<select id="manualRenditionSalon"></select></label>
+        <label>Categoría<select id="manualRenditionCategory" onchange="updateManualRenditionWorks()">
+          <option value="PERSONAL FOTOGRAFIA" selected>PERSONAL FOTOGRAFÍA</option>
+          <option value="PERSONAL VIDEO">PERSONAL VIDEO</option>
+          <option value="COMPLEMENTOS">COMPLEMENTOS</option>
+        </select></label>
+        <label>Trabajo realizado<select id="manualRenditionWork" onchange="updateManualRenditionRate()"><option>Cargando...</option></select></label>
+        <label>Importe<input type="number" id="manualRenditionAmount" min="0" placeholder="Se precarga según tarifa, podés editarlo"></label>
+        <label class="full-label">Observaciones<input type="text" id="manualRenditionNotes" placeholder="Opcional"></label>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" onclick="document.getElementById('manualRenditionDialog').close()">Cancelar</button>
+        <button class="primary-btn" type="button" onclick="saveManualRendition()">Guardar rendición</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="detailDialog" class="modal detail-modal">
+    <div id="clientDetail"></div>
+  </dialog>
+
+  <dialog id="photoSessionDialog" class="modal">
+    <form id="photoSessionForm" method="dialog">
+      <div class="modal-head">
+        <div><p class="eyebrow">Google Calendar</p><h2>Agendar sesión de fotos</h2></div>
+        <button class="icon-btn" type="button" data-close-photo-session aria-label="Cerrar">×</button>
+      </div>
+      <input type="hidden" name="clientId">
+      <input type="hidden" name="date">
+      <input type="hidden" name="time">
+      <input type="hidden" name="location">
+      <div class="session-picker">
+        <div id="sessionCalendar"></div>
+        <div>
+          <p class="fl">Salón</p>
+          <div id="sessionSalonGrid"></div>
+          <p class="fl" style="margin-top:14px">Horario</p>
+          <div id="sessionSlotGrid"></div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:4px">
+        <label>Equipo que cubre<input name="team" placeholder="Ej. Pablo, Rodrigo"></label>
+      </div>
+      <fieldset>
+        <legend>Opcionales no obligatorios</legend>
+        <div class="check-grid compact">
+          <label><input type="checkbox" name="includesFashionProduction">Incluye producción de moda</label>
+          <label><input type="checkbox" name="includesMakeupHair">Incluye maquillaje y peinado</label>
+        </div>
+      </fieldset>
+      <label class="full-label">Notas<textarea name="notes" rows="3" placeholder="Indicaciones para el equipo o el cliente"></textarea></label>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" data-close-photo-session>Cancelar</button>
+        <button class="primary-btn" type="submit" id="saveSessionBtn" disabled>Agendar en Google Calendar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
