@@ -545,3 +545,41 @@ legend { padding: 0 6px; }
   font-size: 12px;
   transition: transform 0.2s;
 }
+
+/* ── SESSION PICKER (Agendar sesión de fotos) ── */
+.session-picker { display: grid; grid-template-columns: 260px 1fr; gap: 20px; margin-bottom: 6px; }
+.fl { display: block; margin: 0 0 8px; color: var(--ink-2); font-size: 11.5px; font-weight: 600; letter-spacing: .01em; text-transform: uppercase; }
+.session-hint { font-size: 11.5px; color: var(--muted); margin: 0; }
+.cal-wrap { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.cal-top { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.cal-mo { font-size: 13px; font-weight: 600; color: var(--ink); text-transform: capitalize; }
+.cal-nav { background: none; border: 1px solid var(--line-2); border-radius: 6px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-2); font-size: 14px; }
+.cal-nav:hover { border-color: var(--gold); color: var(--gold); }
+.cal-inner { padding: 8px 10px 10px; }
+.cal-wds, .cal-days-mini { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-wds { margin-bottom: 3px; }
+.cal-days-mini { gap: 3px; }
+.wd { text-align: center; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 3px 0; }
+.cd { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 12px; color: var(--muted); }
+.cd.av { color: var(--ink); cursor: pointer; font-weight: 500; }
+.cd.av:hover { background: var(--surface-3); color: var(--gold-2); }
+.cd.sel { background: var(--gold); color: var(--bg); font-weight: 700; }
+.cd.today:not(.sel) { box-shadow: inset 0 0 0 1px var(--line-2); }
+.session-salon-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; min-height: 30px; }
+.ssc { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px; cursor: pointer; text-align: center; font-size: 11px; line-height: 1.4; color: var(--ink-2); transition: all .15s; }
+.ssc:hover { border-color: var(--line-2); background: var(--surface-3); }
+.ssc.sel { background: var(--gold-soft); border-color: var(--gold); color: var(--gold-2); font-weight: 600; }
+.ssc.bkd { opacity: .3; cursor: not-allowed; }
+.session-slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; min-height: 30px; }
+.ssl { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; text-align: center; cursor: pointer; transition: all .15s; }
+.ssl:hover:not(.bkd) { border-color: var(--line-2); background: var(--surface-3); }
+.ssl.sel { background: var(--gold-soft); border-color: var(--gold); }
+.ssl.bkd { opacity: .3; cursor: not-allowed; }
+.ssl-t { font-size: 15px; font-weight: 600; color: var(--ink); }
+.ssl-s { font-size: 9.5px; margin-top: 2px; letter-spacing: .03em; }
+.ssl-s.ok { color: var(--green); }
+.ssl-s.bkd { color: var(--red); }
+.ssl-s.sel { color: var(--gold-2); }
+@media (max-width: 640px) {
+  .session-picker { grid-template-columns: 1fr; }
+}
