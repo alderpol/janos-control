@@ -333,7 +333,7 @@ function contactWatchItems() {
 
 function renderClients() {
   const modeClients=state.clients.filter(c=>clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c));
-  const salons=visibleSalons([...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])]);
+  const salons=salonsInUse();
   const months=[...new Set(modeClients.map(c=>monthKey(c.eventDate)).filter(Boolean))].sort();
   const upcomingCount=state.clients.filter(c=>!isPastEvent(c)).length,archivedCount=state.clients.length-upcomingCount;
   const _html = `<div class="view-switch" aria-label="Archivo de eventos"><button class="${clientViewMode==="upcoming"?"active":""}" data-client-view="upcoming">Próximos <b>${upcomingCount}</b></button><button class="${clientViewMode==="archived"?"active":""}" data-client-view="archived">Realizados <b>${archivedCount}</b></button></div><div class="client-filters"><div class="filter-heading"><div><p class="eyebrow">${clientViewMode==="archived"?"Archivo de eventos":"Organizar eventos"}</p><strong>${clientViewMode==="archived"?"Eventos cuya fecha ya pasó":"Elegí un salón y un mes"}</strong></div><span id="clientResultCount" class="muted">${eventCountLabel(modeClients.length)}</span></div><div class="toolbar"><div class="search"><input id="clientSearch" placeholder="Buscar por nombre o código"></div><select id="clientSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select><select id="clientMonthFilter" aria-label="Filtrar por mes"><option value="">Todos los meses</option>${months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join("")}</select><select id="clientPackFilter" aria-label="Filtrar por pack"><option value="">Todos los packs</option><option value="silver">Silver</option><option value="gold">Golden / All Inclusive</option><option value="vip">VIP</option><option value="informal">Informal</option></select><select id="clientAddonFilter" aria-label="Filtrar por adicional"><option value="">Todos los adicionales</option>${ADDONS.map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select></div></div><div class="client-actions"><button class="secondary-btn" id="downloadClientTemplate">Descargar CSV</button><button class="primary-btn" id="importClientsBtn">Importar lote</button><input id="clientCsvInput" type="file" accept=".csv,text/csv" hidden></div><div id="clientGrid" class="client-grid">${clientCards(modeClients)}</div>`;
@@ -394,7 +394,7 @@ async function connectGoogleCalendar() {
 }
 function renderCalendar(){
   const view=document.getElementById("calendarView"); if(!view) return;
-  const salons=visibleSalons([...new Set([...MANAGED_SALONS,...state.clients.map(c=>String(c.salon||"").trim()).filter(Boolean)])]);
+  const salons=salonsInUse();
   const [year,month]=calendarMonth.split("-").map(Number);
   const startWeekday=(new Date(year,month-1,1).getDay()+6)%7;
   const daysInMonth=new Date(year,month,0).getDate();
@@ -495,7 +495,7 @@ function filterTasks() {
 }
 function renderTasks() {
   const view = document.getElementById("tasksView"); if (!view) return;
-  const salons = visibleSalons([...new Set([...MANAGED_SALONS, ...state.clients.map(c => String(c.salon || "").trim()).filter(Boolean)])]);
+  const salons = salonsInUse();
   const { fotoCount, videoCount, todosCount, body } = taskViewData();
   view.innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Filtrar tareas por rol"><button class="${taskRoleFilter === "todos" ? "active" : ""}" data-task-role="todos">Todos <b id="taskCountTodos">${todosCount}</b></button><button class="${taskRoleFilter === "foto" ? "active" : ""}" data-task-role="foto">📷 Fotógrafo <b id="taskCountFoto">${fotoCount}</b></button><button class="${taskRoleFilter === "video" ? "active" : ""}" data-task-role="video">🎥 Videógrafo <b id="taskCountVideo">${videoCount}</b></button></div><input id="taskSearch" placeholder="Buscar por código o fecha" value="${escapeHtml(taskSearchFilter)}"><select id="taskSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s => `<option value="${escapeHtml(s)}" ${taskSalonFilter === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}</select></div><div id="taskGroups" class="task-groups">${body}</div>`;
 }
@@ -730,6 +730,12 @@ function visibleSalons(allSalons) {
   if (accessProfile?.role === "admin" || !mine.length) return allSalons;
   return allSalons.filter(s => mine.includes(s));
 }
+// Salones que realmente aparecen en los clientes cargados (vía CSV o alta manual).
+// A diferencia de visibleSalons(), no depende del rol ni de "salones que administro":
+// cada cuenta ya ve solo sus propios clientes (RLS), así que alcanza con mirar qué
+// salones usó. MANAGED_SALONS sigue completo en el código para el alta de clientes
+// nuevos y el checklist de registro; esto es solo para los desplegables de filtro.
+function salonsInUse() { return [...new Set(state.clients.map(c => String(c.salon || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")); }
 function setConflictBanner(visible,text){const el=document.getElementById("conflictBanner");if(el){el.classList.toggle("hidden",!visible);const span=el.querySelector("span");if(span&&text)span.textContent=text;}}
 function syncedSnapshotKey(key){return `${key}:synced`;}
 function loadSyncedSnapshot(key){try{const raw=localStorage.getItem(syncedSnapshotKey(key));return raw?JSON.parse(raw):null;}catch{return null;}}
