@@ -461,6 +461,7 @@ async function sendDriveEmail(id){
     client.history=client.history||[];
     client.history.push({date:client.linkSentAt,text:"Mail con material (Drive) enviado al cliente",type:"drive_email"});
     saveState();
+    const detail=document.getElementById("detailDialog");if(detail?.open)openClientDetail(id);
     toast(`Mail enviado. Disponible hasta el ${dateText(addDaysIso(isoDate(client.linkSentAt),180))}`);
   }catch(err){
     toast(err.message||"No se pudo enviar el mail");
