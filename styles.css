@@ -580,4 +580,17 @@ legend { padding: 0 6px; }
 .ssc-custom { border-style: dashed; color: var(--muted); }
 .ssc-custom.sel { border-style: solid; }
 .session-slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; min-height: 30px; }
-.ssl { background: var(--
+.ssl { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; text-align: center; cursor: pointer; transition: all .15s; }
+.ssl:hover:not(.bkd) { border-color: var(--line-2); background: var(--surface-3); }
+.ssl.sel { background: var(--gold-soft); border-color: var(--gold); }
+.ssl.bkd { opacity: .3; cursor: not-allowed; }
+.ssl-custom { border-style: dashed; }
+.ssl-custom.sel { border-style: solid; }
+.ssl-t { font-size: 15px; font-weight: 600; color: var(--ink); }
+.ssl-s { font-size: 9.5px; margin-top: 2px; letter-spacing: .03em; }
+.ssl-s.ok { color: var(--green); }
+.ssl-s.bkd { color: var(--red); }
+.ssl-s.sel { color: var(--gold-2); }
+@media (max-width: 640px) {
+  .session-picker { grid-template-columns: 1fr; }
+}

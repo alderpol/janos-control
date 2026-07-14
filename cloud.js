@@ -346,4 +346,24 @@ export async function syncCloudState(state, user) {
   })));
   if (taskRows.length) await upsertInBatches("tasks", taskRows, "Guardado de tareas");
 
-  const renditionRows = state.renditions.map((it
+  const renditionRows = state.renditions.map((item) => ({
+    id: item.id, owner_id: ownerId, client_id: item.clientId, task_id: item.taskId || null,
+    category: item.category, work: item.work, amount: Number(item.amount || 0), status: item.status,
+    observations: item.observations || null,
+    work_date: item.workDate,
+    period_end: item.periodEnd,
+    archived_at: item.archivedAt || null,
+    submitted_at: item.submittedAt || (item.status === "submitted" ? new Date().toISOString() : null),
+    paid_at: item.paidAt || (item.status === "paid" ? new Date().toISOString() : null),
+    is_manual: Boolean(item.isManual),
+    event_date: item.eventDate || null,
+    salon: item.salon || null,
+  }));
+  if (renditionRows.length) await upsertInBatches("renditions", renditionRows, "Guardado de rendiciones");
+
+  const validFrom = state.rateEffectiveDate || "2026-08-01";
+  const rateRows = Object.entries(state.rates).map(([key, amount]) => ({
+    owner_id: ownerId, rate_key: key, label: key, amount: Number(amount || 0), valid_from: validFrom,
+  }));
+  await upsertInBatches("rates", rateRows, "Guardado de tarifas", { onConflict: "owner_id,rate_key,valid_from" });
+}

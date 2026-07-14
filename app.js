@@ -1440,4 +1440,37 @@ async function startApplication(session){
 
 async function bootstrap(){
   if(!cloudEnabled){await startApplication(null);setSyncStatus("Modo local · Supabase sin configurar");return;}
-  try{const recoveryType=new URLSearchParams(window.location.hash.replace(/^#/,"")).get("type");const session=await getSession();if(session&&recoveryType==="recovery"){curre
+  try{const recoveryType=new URLSearchParams(window.location.hash.replace(/^#/,"")).get("type");const session=await getSession();if(session&&recoveryType==="recovery"){currentUser=session.user;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("reset");}else if(session)await startApplication(session);else{document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");}}catch(error){console.error(error);document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","No se pudo conectar con Supabase.");}
+}
+
+window.updateManualRenditionWorks = updateManualRenditionWorks;
+window.updateManualRenditionRate = updateManualRenditionRate;
+window.saveManualRendition = saveManualRendition;
+
+document.getElementById("globalSearch").addEventListener("input", e => runGlobalSearch(e.target.value));
+document.getElementById("globalSearch").addEventListener("keydown", e => { if (e.key === "Escape") closeGlobalSearch(); });
+document.getElementById("globalSearchResults").addEventListener("click", e => {
+  const item = e.target.closest("[data-search-result]");
+  if (!item) return;
+  const idx = Number(item.dataset.searchResult);
+  const result = window._globalSearchResults?.[idx];
+  if (result) result.action();
+  closeGlobalSearch();
+});
+document.addEventListener("click", e => {
+  const wrap = document.querySelector(".global-search-wrap");
+  if (wrap && !wrap.contains(e.target)) closeGlobalSearch();
+});
+
+(function handleGcalRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("calendar_connected") === "1") {
+    history.replaceState({}, "", "/");
+    setTimeout(() => { setView("calendar"); toast("Google Calendar conectado correctamente"); fetchGcalEvents(calendarMonth); }, 800);
+  }
+  if (params.get("calendar_error")) {
+    history.replaceState({}, "", "/");
+    setTimeout(() => toast("Error al conectar Google Calendar: " + params.get("calendar_error")), 800);
+  }
+})();
+bootstrap();
