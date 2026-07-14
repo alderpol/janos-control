@@ -1,4 +1,4 @@
-import { cloudEnabled, supabase, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { cloudEnabled, supabase, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -448,6 +448,26 @@ function whatsappUrl(client){const phone=whatsappNumber(client.clientPhone);retu
 function contactClient(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=whatsappUrl(client);if(!url){openClientForm(client);toast("Agregá el WhatsApp del cliente para contactarlo");return;}window.open(url,"_blank","noopener,noreferrer");client.contactedAt=new Date().toISOString();client.history=client.history||[];client.history.push({date:client.contactedAt,text:"Contacto inicial por WhatsApp registrado",type:"whatsapp_contact"});saveState();toast("Contacto registrado");}
 function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
 function openDriveFolder(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.driveUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
+function addDaysIso(value,days){const d=parseDate(value);d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
+async function sendDriveEmail(id){
+  const client=state.clients.find(item=>item.id===id);if(!client)return;
+  const url=(client.driveUrl||"").trim(), email=(client.clientEmail||"").trim();
+  if(!url||!email){openClientForm(client);toast("Completá el email del cliente y el link de Drive para poder enviar el material.");return;}
+  if(!confirm(`¿Enviar el mail con el material a ${email}?`))return;
+  const btns=[...document.querySelectorAll(`[data-send-email="${id}"]`)];btns.forEach(b=>b.disabled=true);
+  try{
+    await sendDriveEmailNow(id);
+    client.linkSentAt=new Date().toISOString();
+    client.history=client.history||[];
+    client.history.push({date:client.linkSentAt,text:"Mail con material (Drive) enviado al cliente",type:"drive_email"});
+    saveState();
+    toast(`Mail enviado. Disponible hasta el ${dateText(addDaysIso(isoDate(client.linkSentAt),180))}`);
+  }catch(err){
+    toast(err.message||"No se pudo enviar el mail");
+  }finally{
+    btns.forEach(b=>b.disabled=false);
+  }
+}
 function sessionDateTimeText(session){if(!session?.date||!session?.time)return "Sin agendar";return `${dateText(session.date)} · ${session.time}`;}
 function photoSessionSummary(client){const session=client.photoSession;if(!session?.date)return "Sin sesión agendada";return `${sessionDateTimeText(session)} · ${session.location||client.salon}`;}
 // Silver no incluye sesión de fotos salvo que contrate "Sesión extra" (Mini Flex/Flex/Pixel), Sans Souci, o sea Gold/VIP.
@@ -467,7 +487,7 @@ function calendarDatePart(date,time){return `${date.replaceAll("-","")}T${time.r
 function addMinutesToTime(date,time,minutes){const value=new Date(`${date}T${time}:00`);value.setMinutes(value.getMinutes()+Number(minutes||90));return {date:`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`,time:`${String(value.getHours()).padStart(2,"0")}:${String(value.getMinutes()).padStart(2,"0")}`};}
 function googleCalendarUrl(client,session){const end=addMinutesToTime(session.date,session.time,90);const optional=[session.includesFashionProduction?"Incluye producción de moda":"",session.includesMakeupHair?"Incluye maquillaje y peinado":""].filter(Boolean);const details=[`Cliente: ${client.clientName||client.honoree}`,`Evento: #${client.code} · ${client.honoree}`,`Fecha del evento: ${dateText(client.eventDate)}`,optional.length?`Opcionales: ${optional.join(" · ")}`:"",session.notes?`Notas: ${session.notes}`:""].filter(Boolean).join("\n");const params=new URLSearchParams({action:"TEMPLATE",text:`#${client.code} Book ${client.honoree} · ${session.location} · ${session.time}`,dates:`${calendarDatePart(session.date,session.time)}/${calendarDatePart(end.date,end.time)}`,details,location:session.location,ctz:"America/Argentina/Buenos_Aires"});return `https://calendar.google.com/calendar/render?${params.toString()}`;}
 function savePhotoSession(form){const data=Object.fromEntries(new FormData(form)),client=state.clients.find(item=>item.id===data.clientId);if(!client)return false;const session={date:data.date,time:data.time,location:data.location.trim(),team:String(data.team||"").trim(),includesFashionProduction:form.elements.includesFashionProduction.checked,includesMakeupHair:form.elements.includesMakeupHair.checked,notes:String(data.notes||"").trim(),updatedAt:new Date().toISOString()};if(!session.date||!session.time||!session.location){toast("Completá día, hora y lugar de la sesión.");return false;}client.photoSession=session;client.history=client.history||[];client.history.push({date:session.updatedAt,text:`Sesión de fotos agendada para ${sessionDateTimeText(session)} en ${session.location}`,type:"photo_session",photoSession:session});const _coordTask=client.tasks.find(t=>t.key==="coordinateSession");if(_coordTask&&_coordTask.status!=="done"){_coordTask.status="done";_coordTask.completedAt=session.date||todayIso();}syncTasks(client);saveState();window.open(googleCalendarUrl(client,session),"_blank","noopener,noreferrer");toast(session.includesFashionProduction?"Sesión guardada, Google Calendar abierto y adicional de Moda agregado a rendir":"Sesión guardada y Google Calendar abierto");return true;}
-function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag${c.isExternal?" external":""}">${c.isExternal?"Externo":isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button>${photoSessionButtonHtml(c)}<button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
+function clientCards(clients) { return clients.length ? [...clients].sort((a,b)=>clientViewMode==="archived"?parseDate(b.eventDate)-parseDate(a.eventDate):parseDate(a.eventDate)-parseDate(b.eventDate)).map(c => `<article class="client-card ${isPastEvent(c)?"archived-card":""}"><div class="client-card-top"><span class="tag${c.isExternal?" external":""}">${c.isExternal?"Externo":isPastEvent(c)?"Realizado":packLabel(c.pack)}</span><span class="muted">${dateText(c.eventDate)}</span></div><h3>${escapeHtml(c.honoree)}</h3><p>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)} · ${escapeHtml(c.type)}</p><div class="session-note ${c.photoSession?.date?"scheduled":""}">${escapeHtml(photoSessionSummary(c))}</div><div class="progress-line"><i style="width:${progress(c)}%"></i></div><div class="card-meta"><span>${progress(c)}% completo</span><span>${c.tasks.filter(t=>t.status==="pending").length} pendientes</span></div><div class="card-actions"><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Enviado</span><small>${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button>${photoSessionButtonHtml(c)}<button class="secondary-btn" data-open-client="${c.id}">Ver tareas</button><button class="ghost-btn" data-edit-client="${c.id}">Editar</button></div></article>`).join("") : empty(clientViewMode==="archived"?"Todavía no hay eventos realizados":"No hay eventos para estos filtros", clientViewMode==="archived"?"Cuando pase la fecha, aparecerán automáticamente aquí.":"Probá otro salón, mes o criterio de búsqueda."); }
 function progress(c) { const applicable=c.tasks.filter(t=>t.status!=="na"); return applicable.length ? Math.round(applicable.filter(t=>t.status==="done").length/applicable.length*100) : 0; }
 function empty(title, text) { return `<div class="empty"><strong>${title}</strong>${text}</div>`; }
 
@@ -671,7 +691,7 @@ function openClientForm(client=null) {
   const form=document.getElementById("clientForm"); form.reset(); form.elements.id.value=client?.id||"";
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
-  if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","whatsappGroupUrl","driveUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
+  if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","clientEmail","whatsappGroupUrl","driveUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField(); updatePixelField();
 }
 function renderFormChecks(client) {
@@ -698,6 +718,7 @@ function saveClient(form) {
   const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value); const pixelServices=[...form.querySelectorAll('[name="pixelServices"]:checked')].map(x=>x.value);
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   data.driveUrl=String(data.driveUrl||"").trim();
+  data.clientEmail=String(data.clientEmail||"").trim();
   if(data.clientPhone&&whatsappNumber(data.clientPhone).length<12){toast("Ingresá el WhatsApp con código de área, por ejemplo +54 9 11 1234 5678.");form.elements.clientPhone.focus();return false;}
   const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&countFlexSlots(flexServices)>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
   const duplicate=state.clients.find(c=>c.code===data.code&&c.id!==data.id); if(duplicate){toast("Ya existe un cliente con ese código."); return false;}
@@ -1007,7 +1028,7 @@ endlocal`;
 
 function openClientDetail(id) {
   const c=state.clients.find(x=>x.id===id); if(!c)return; const phases=[...new Set(c.tasks.map(t=>t.phase))];
-  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
+  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button><button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Enviado</span><small>${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
   const dialog=document.getElementById("detailDialog"); if(!dialog.open)dialog.showModal();
 }
 function taskRow(c,t){
@@ -1115,6 +1136,7 @@ document.addEventListener("click", e => {
   const contact=e.target.closest("[data-contact-client]");if(contact)contactClient(contact.dataset.contactClient);
   const whatsappGroup=e.target.closest("[data-whatsapp-group]");if(whatsappGroup)openWhatsappGroup(whatsappGroup.dataset.whatsappGroup);
   const driveFolder=e.target.closest("[data-drive-folder]");if(driveFolder)openDriveFolder(driveFolder.dataset.driveFolder);
+  const sendEmail=e.target.closest("[data-send-email]");if(sendEmail)sendDriveEmail(sendEmail.dataset.sendEmail);
   const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
   const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;const _ct=c.tasks.find(t=>t.key==="coordinateSession");if(_ct&&_ct.status==="done"){_ct.status="pending";_ct.completedAt="";}c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
   if(e.target.closest("[data-session-cal-prev]")){sessionPicker.m--;if(sessionPicker.m<0){sessionPicker.m=11;sessionPicker.y--;}renderSessionPicker();return;}
@@ -1418,37 +1440,4 @@ async function startApplication(session){
 
 async function bootstrap(){
   if(!cloudEnabled){await startApplication(null);setSyncStatus("Modo local · Supabase sin configurar");return;}
-  try{const recoveryType=new URLSearchParams(window.location.hash.replace(/^#/,"")).get("type");const session=await getSession();if(session&&recoveryType==="recovery"){currentUser=session.user;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("reset");}else if(session)await startApplication(session);else{document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");}}catch(error){console.error(error);document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","No se pudo conectar con Supabase.");}
-}
-
-window.updateManualRenditionWorks = updateManualRenditionWorks;
-window.updateManualRenditionRate = updateManualRenditionRate;
-window.saveManualRendition = saveManualRendition;
-
-document.getElementById("globalSearch").addEventListener("input", e => runGlobalSearch(e.target.value));
-document.getElementById("globalSearch").addEventListener("keydown", e => { if (e.key === "Escape") closeGlobalSearch(); });
-document.getElementById("globalSearchResults").addEventListener("click", e => {
-  const item = e.target.closest("[data-search-result]");
-  if (!item) return;
-  const idx = Number(item.dataset.searchResult);
-  const result = window._globalSearchResults?.[idx];
-  if (result) result.action();
-  closeGlobalSearch();
-});
-document.addEventListener("click", e => {
-  const wrap = document.querySelector(".global-search-wrap");
-  if (wrap && !wrap.contains(e.target)) closeGlobalSearch();
-});
-
-(function handleGcalRedirect() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("calendar_connected") === "1") {
-    history.replaceState({}, "", "/");
-    setTimeout(() => { setView("calendar"); toast("Google Calendar conectado correctamente"); fetchGcalEvents(calendarMonth); }, 800);
-  }
-  if (params.get("calendar_error")) {
-    history.replaceState({}, "", "/");
-    setTimeout(() => toast("Error al conectar Google Calendar: " + params.get("calendar_error")), 800);
-  }
-})();
-bootstrap();
+  try{const recoveryType=new URLSearchParams(window.location.hash.replace(/^#/,"")).get("type");const session=await getSession();if(session&&recoveryType==="recovery"){curre

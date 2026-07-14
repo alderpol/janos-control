@@ -170,6 +170,27 @@ export async function deleteUser(userId) {
   });
   if (!response.ok) throw new Error("No se pudo eliminar el usuario");
 }
+// Envía el mail con el link de Drive (fotos y videos) al cliente, usando la
+// cuenta de Zoho que corresponda a su salón. Se dispara a mano desde el botón
+// "Enviar material" en la ficha del cliente — no hay cron. La función solo
+// envía el mail; quien la llama (app.js) es responsable de guardar linkSentAt
+// en el cliente y sincronizarlo como el resto del estado.
+export async function sendDriveEmailNow(clientId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch(`${supabaseUrl}/functions/v1/send-drive-email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ clientId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo enviar el mail.");
+  return data;
+}
+
 export async function getLatestUpdateAt() {
   if (!supabase) return null;
   const [clientsResult, tasksResult, renditionsResult] = await Promise.all([
@@ -228,6 +249,8 @@ export async function loadCloudState(defaultRates) {
     clientPhone: row.client_phone || "",
     whatsappGroupUrl: row.whatsapp_group_url || "",
     driveUrl: row.drive_url || "",
+    clientEmail: row.client_email || "",
+    linkSentAt: row.link_sent_at || "",
     contactedAt: row.contacted_at || "",
     guests: row.guests,
     pack: row.pack,
@@ -305,6 +328,7 @@ export async function syncCloudState(state, user) {
     salon: client.salon, event_type: client.type, honoree: client.honoree,
     client_name: client.clientName || null, client_phone: client.clientPhone || null,
     whatsapp_group_url: client.whatsappGroupUrl || null, drive_url: client.driveUrl || null,
+    client_email: client.clientEmail || null, link_sent_at: client.linkSentAt || null,
     contacted_at: client.contactedAt || null, guests: Number(client.guests || 0), pack: client.pack,
     addons: client.addons || [], flex_services: client.flexServices || [], pixel_services: client.pixelServices || [], notes: client.notes || null,
     photo_session: client.photoSession || null,
@@ -322,24 +346,4 @@ export async function syncCloudState(state, user) {
   })));
   if (taskRows.length) await upsertInBatches("tasks", taskRows, "Guardado de tareas");
 
-  const renditionRows = state.renditions.map((item) => ({
-    id: item.id, owner_id: ownerId, client_id: item.clientId, task_id: item.taskId || null,
-    category: item.category, work: item.work, amount: Number(item.amount || 0), status: item.status,
-    observations: item.observations || null,
-    work_date: item.workDate,
-    period_end: item.periodEnd,
-    archived_at: item.archivedAt || null,
-    submitted_at: item.submittedAt || (item.status === "submitted" ? new Date().toISOString() : null),
-    paid_at: item.paidAt || (item.status === "paid" ? new Date().toISOString() : null),
-    is_manual: Boolean(item.isManual),
-    event_date: item.eventDate || null,
-    salon: item.salon || null,
-  }));
-  if (renditionRows.length) await upsertInBatches("renditions", renditionRows, "Guardado de rendiciones");
-
-  const validFrom = state.rateEffectiveDate || "2026-08-01";
-  const rateRows = Object.entries(state.rates).map(([key, amount]) => ({
-    owner_id: ownerId, rate_key: key, label: key, amount: Number(amount || 0), valid_from: validFrom,
-  }));
-  await upsertInBatches("rates", rateRows, "Guardado de tarifas", { onConflict: "owner_id,rate_key,valid_from" });
-}
+  const renditionRows = state.renditions.map((it

@@ -246,6 +246,13 @@ nav { display: grid; gap: 3px; }
 .drive-btn:hover { background: #4c8ff0; box-shadow: 0 2px 12px rgba(96,165,250,.25); }
 .drive-btn.missing { border-color: var(--line-2); color: var(--muted); background: transparent; }
 .drive-btn.missing:hover { background: var(--surface-2); }
+.email-btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid rgba(251,191,36,.35); color: #0f0a18; background: var(--amber); transition: all .15s; }
+.email-btn:hover { background: #f0ab0d; box-shadow: 0 2px 12px rgba(251,191,36,.25); }
+.email-btn.sent { flex-direction: column; border-color: var(--line-2); color: var(--muted); background: var(--surface-2); }
+.email-btn.sent:hover { background: var(--surface-3); }
+.email-btn.missing { border-color: var(--line-2); color: var(--muted); background: transparent; }
+.email-btn.missing:hover { background: var(--surface-2); }
+.email-btn small { color: inherit; font-size: 10px; }
 
 /* ── RENDITIONS ── */
 .rendition-controls { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
@@ -573,17 +580,4 @@ legend { padding: 0 6px; }
 .ssc-custom { border-style: dashed; color: var(--muted); }
 .ssc-custom.sel { border-style: solid; }
 .session-slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; min-height: 30px; }
-.ssl { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; text-align: center; cursor: pointer; transition: all .15s; }
-.ssl:hover:not(.bkd) { border-color: var(--line-2); background: var(--surface-3); }
-.ssl.sel { background: var(--gold-soft); border-color: var(--gold); }
-.ssl.bkd { opacity: .3; cursor: not-allowed; }
-.ssl-custom { border-style: dashed; }
-.ssl-custom.sel { border-style: solid; }
-.ssl-t { font-size: 15px; font-weight: 600; color: var(--ink); }
-.ssl-s { font-size: 9.5px; margin-top: 2px; letter-spacing: .03em; }
-.ssl-s.ok { color: var(--green); }
-.ssl-s.bkd { color: var(--red); }
-.ssl-s.sel { color: var(--gold-2); }
-@media (max-width: 640px) {
-  .session-picker { grid-template-columns: 1fr; }
-}
+.ssl { background: var(--

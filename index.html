@@ -144,6 +144,7 @@
         <label>Homenajeado/a<input name="honoree" required placeholder="Nombre visible del evento"></label>
         <label>Cliente<input name="clientName" placeholder="Nombre de contacto"></label>
         <label>WhatsApp del cliente<input name="clientPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej. +54 9 11 1234 5678"></label>
+        <label>Email del cliente<input name="clientEmail" type="email" inputmode="email" autocomplete="email" placeholder="cliente@email.com"></label>
         <label>Grupo de WhatsApp<input name="whatsappGroupUrl" type="text" inputmode="url" placeholder="Pegá el link de invitación: https://chat.whatsapp.com/..."></label>
         <label>Link de Drive<input name="driveUrl" type="text" inputmode="url" placeholder="Pegá el link de la carpeta de Drive con fotos y videos"></label>
         <label>Invitados<input name="guests" type="number" min="0" placeholder="100"></label>
@@ -234,10 +235,4 @@
         <button class="secondary-btn" type="button" data-close-photo-session>Cancelar</button>
         <button class="primary-btn" type="submit" id="saveSessionBtn" disabled>Agendar en Google Calendar</button>
       </div>
-    </form>
-  </dialog>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/app.js"></script>
-</body>
-</html>
+    </form
