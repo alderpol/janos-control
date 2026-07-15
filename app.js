@@ -8,7 +8,7 @@ if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==
 const STORAGE_KEY = "janos-control-v1";
 const MANAGED_SALONS = ["Acceso Oeste","Acceso Oeste 2","Adrogue","Ambulante","Avellaneda 1","Avellaneda 2","Avellaneda 3","Avellaneda 4","Bayres Eventos","Bella Vista","Bella Vista 2","Benavidez 1","Benavidez 2","Berazategui","Berazategui 2","Berisso","CABA Boutique","Caballito 1","Caballito 2","Campana","Canning","Champagnat Boutique","Costanera 1","Costanera 2","Dardo Rocha","Darwin 1","Darwin 2","Del Viso","DOT","Escobar","General Rodriguez","Haedo","Haedo 2","Hipodromo La Plata","Holiday Inn","Holiday Inn 2","Hotel","House","Hudson","Hudson 2","Hurlingham","Ituzaingo","Ituzaingo 2","Jose C Paz","La Plata","La Plata 2","La Plata Boutique","Liniers","Lomas","Lomas Boutique","Martinez","Maschwitz","Merlo","Merlo 2","Moreno","Moron","Nuñez","Olivos","Olivos 2","Palacio Sans Souci","Palermo Hollywood","Palermo Soho","Pilar","Pilar boutique","Pilar Hotel","Puerto Madero","Puerto Madero Boutique","Quilmes Boutique","Quinta","Ramos Boutique","Ramos Boutique 2","Ramos Mejia","Ramos Mejia 2","Recoleta","San Isidro","San Justo","San Justo 2","San Martin 1","San Martin 2","San Martin 3","San Telmo","San Telmo 2","San Telmo Boutique","Temperley","Vicente Lopez","Villa de Mayo","Villa de Mayo Boutique"];
 const STATUS_LABELS = { pending: "Pendiente", waiting: "Esperando cliente", progress: "En proceso", done: "Terminado", na: "No corresponde" };
-const RENDITION_STATUS = { pending: "Pendiente", submitted: "Rendido", approved: "Aprobado", paid: "Pagado" };
+const RENDITION_STATUS = { pending: "Pendiente", submitted: "Rendido", paid: "Pagado" };
 const DEFAULT_WHATSAPP_TEMPLATE = `Hola {nombre}, ¡buenos días!
 
 Mi nombre es {remitente}, del Departamento de Fotografía de Janos. ¡Es un gusto poder comenzar a trabajar juntos!
@@ -571,20 +571,59 @@ function renderTasks() {
 
 let renditionCategoryFilter = "";
 let renditionStatusFilter = "";
+let selectedRenditionIds = new Set();
 function renderRenditions() {
   const activeCount=state.renditions.filter(r=>!r.archivedAt).length,archivedCount=state.renditions.length-activeCount;
   const rows=state.renditions.filter(r=>renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
   const categories=["PERSONAL FOTOGRAFIA","PERSONAL VIDEO","COMPLEMENTOS","GUARDIA FOTO","GUARDIA VIDEO"];
   const categorySummary=categories.map(cat=>{const total=rows.filter(r=>r.category===cat).reduce((s,r)=>s+Number(r.amount||0),0);return total>0?`<div class="category-kpi"><span>${cat}</span><strong>${money(total)}</strong></div>`:""}).join("");
-  document.getElementById("renditionsView").innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Archivo de rendiciones"><button class="${renditionViewMode==="active"?"active":""}" data-rendition-view="active">Activas <b>${activeCount}</b></button><button class="${renditionViewMode==="archived"?"active":""}" data-rendition-view="archived">Archivadas <b>${archivedCount}</b></button></div><select id="renditionCategoryFilter"><option value="">Todas las categorías</option>${categories.map(c=>`<option value="${c}">${c}</option>`).join("")}</select><select id="renditionFilter"><option value="">Todos los estados</option>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select><button class="secondary-btn" id="exportRenditionsCsv" title="Exporta las rendiciones pendientes en el formato que usa el script de carga automática">Exportar CSV</button></div>${categorySummary?`<div class="category-summary">${categorySummary}</div>`:""}<div class="rendition-total" aria-live="polite"><div><span>Total a cobrar</span><small id="renditionTotalCount">${renditionCountLabel(rows.length)}</small></div><strong id="renditionTotalAmount">${money(renditionTotal(rows))}</strong></div><div class="panel"><div class="rendition-row header"><span>Trabajo</span><span>Evento</span><span>Categoría</span><span>Importe</span><span>Estado</span><span>Acciones</span></div><div id="renditionRows">${renditionRows(rows)}</div></div>`;
+  document.getElementById("renditionsView").innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Archivo de rendiciones"><button class="${renditionViewMode==="active"?"active":""}" data-rendition-view="active">Activas <b>${activeCount}</b></button><button class="${renditionViewMode==="archived"?"active":""}" data-rendition-view="archived">Archivadas <b>${archivedCount}</b></button></div><select id="renditionCategoryFilter"><option value="">Todas las categorías</option>${categories.map(c=>`<option value="${c}">${c}</option>`).join("")}</select><select id="renditionFilter"><option value="">Todos los estados</option>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select><button class="secondary-btn" id="exportRenditionsCsv" title="Exporta las rendiciones pendientes en el formato que usa el script de carga automática">Exportar CSV</button></div>${categorySummary?`<div class="category-summary">${categorySummary}</div>`:""}<div id="renditionBulkBar" class="rendition-bulk-bar"></div><div class="rendition-total" aria-live="polite"><div><span>Total a cobrar</span><small id="renditionTotalCount">${renditionCountLabel(rows.length)}</small></div><strong id="renditionTotalAmount">${money(renditionTotal(rows))}</strong></div><div class="panel"><div class="rendition-row header"><span class="rendition-select-cell"><input type="checkbox" id="renditionSelectAll" aria-label="Seleccionar todas"> Trabajo</span><span>Evento</span><span>Categoría</span><span>Importe</span><span>Estado</span><span>Acciones</span></div><div id="renditionRows">${renditionRows(rows)}</div></div>`;
   const cf=document.getElementById("renditionCategoryFilter");if(cf)cf.value=renditionCategoryFilter;
   const rf=document.getElementById("renditionFilter");if(rf)rf.value=renditionStatusFilter;
+  updateRenditionBulkBar(rows);
   if(renditionCategoryFilter||renditionStatusFilter)filterRenditions();
 }
 function renditionTotal(rows){return rows.reduce((total,item)=>total+Number(item.amount||0),0);}
 function renditionCountLabel(count){return `${count} ${count===1?"trabajo visible":"trabajos visibles"}`;}
 function updateRenditionTotal(rows){const amount=document.getElementById("renditionTotalAmount"),count=document.getElementById("renditionTotalCount");if(amount)amount.textContent=money(renditionTotal(rows));if(count)count.textContent=renditionCountLabel(rows.length);}
-function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId),processed=r.status!=="pending";const actions=r.archivedAt?`<button class="small-btn" data-restore-rendition="${r.id}">Restaurar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:processed?`<button class="small-btn" data-archive-rendition="${r.id}">Archivar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:`<span class="muted">Rendila para archivar</span>`; return `<div class="rendition-row"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(r.isManual?(r.salon||"Sin salón"):(c?.honoree||"Cliente eliminado"))} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div><span>${r.isManual?dateText(r.eventDate):(c?dateText(c.eventDate):"-")}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}" ${r.archivedAt?"disabled title=\"Restaurá la rendición para cambiar su estado\"":""}>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select><div class="rendition-actions">${actions}</div></div>`;}).join("") : empty(renditionViewMode==="archived"?"No hay rendiciones archivadas":"Sin rendiciones activas", renditionViewMode==="archived"?"Las rendiciones que archives aparecerán aquí.":"Al completar un trabajo remunerado aparecerá aquí."); }
+function updateRenditionBulkBar(rows){
+  const bar=document.getElementById("renditionBulkBar");
+  const n=selectedRenditionIds.size;
+  if(bar)bar.innerHTML=n?`<span>${n} seleccionada${n===1?"":"s"}</span><div class="rendition-bulk-actions"><button class="small-btn" id="renditionBulkArchive">Archivar seleccionadas</button><button class="small-btn danger" id="renditionBulkDelete">Eliminar seleccionadas</button><button class="small-btn" id="renditionBulkClear">Cancelar selección</button></div>`:"";
+  if(bar)bar.classList.toggle("show",n>0);
+  const selectAll=document.getElementById("renditionSelectAll");
+  if(selectAll){
+    const visibleIds=rows.map(r=>r.id);
+    const allSelected=visibleIds.length>0&&visibleIds.every(id=>selectedRenditionIds.has(id));
+    selectAll.checked=allSelected;
+    selectAll.indeterminate=!allSelected&&visibleIds.some(id=>selectedRenditionIds.has(id));
+  }
+}
+function currentRenditionRows(){return state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!renditionStatusFilter||r.status===renditionStatusFilter)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));}
+function toggleRenditionSelect(id,checked){if(checked)selectedRenditionIds.add(id);else selectedRenditionIds.delete(id);const rows=currentRenditionRows();updateRenditionTotal(rows);updateRenditionBulkBar(rows);}
+function toggleRenditionSelectAll(checked){const rows=currentRenditionRows();rows.forEach(r=>checked?selectedRenditionIds.add(r.id):selectedRenditionIds.delete(r.id));document.getElementById("renditionRows").innerHTML=renditionRows(rows);updateRenditionBulkBar(rows);}
+function bulkArchiveRenditions(){
+  const items=[...selectedRenditionIds].map(id=>state.renditions.find(r=>r.id===id)).filter(Boolean);
+  const archivable=items.filter(r=>r.status!=="pending"&&!r.archivedAt);
+  const skipped=items.length-archivable.length;
+  if(!archivable.length){toast("Ninguna de las seleccionadas se puede archivar (primero hay que rendirlas).");return;}
+  if(!confirm(`¿Archivar ${archivable.length} rendición${archivable.length===1?"":"es"}?${skipped?` (${skipped} no se archivan por estar pendientes)`:""}`))return;
+  archivable.forEach(item=>{item.archivedAt=new Date().toISOString();logRenditionArchive(item,true);});
+  selectedRenditionIds.clear();
+  saveState();
+  toast(`${archivable.length} rendición${archivable.length===1?"":"es"} archivada${archivable.length===1?"":"s"}`);
+}
+function bulkDeleteRenditions(){
+  const ids=[...selectedRenditionIds];
+  if(!ids.length)return;
+  if(!confirm(`¿Eliminar definitivamente ${ids.length} rendición${ids.length===1?"":"es"}? Las tareas de los clientes se conservan.`))return;
+  ids.forEach(id=>{const item=state.renditions.find(r=>r.id===id);if(!item)return;const client=state.clients.find(c=>c.id===item.clientId);if(client){client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición eliminada: ${item.work}`,type:"rendition_delete",renditionId:item.id});}});
+  state.renditions=state.renditions.filter(r=>!ids.includes(r.id));
+  selectedRenditionIds.clear();
+  saveState();
+  toast(`${ids.length} rendición${ids.length===1?"":"es"} eliminada${ids.length===1?"":"s"}`);
+}
+function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId),processed=r.status!=="pending";const actions=r.archivedAt?`<button class="small-btn" data-restore-rendition="${r.id}">Restaurar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:processed?`<button class="small-btn" data-archive-rendition="${r.id}">Archivar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:`<span class="muted">Rendila para archivar</span>`; return `<div class="rendition-row ${selectedRenditionIds.has(r.id)?"selected":""}"><div class="rendition-work-cell"><input type="checkbox" class="rendition-check" data-rendition-select="${r.id}" ${selectedRenditionIds.has(r.id)?"checked":""} aria-label="Seleccionar"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(r.isManual?(r.salon||"Sin salón"):(c?.honoree||"Cliente eliminado"))} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div></div><span>${r.isManual?dateText(r.eventDate):(c?dateText(c.eventDate):"-")}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}" ${r.archivedAt?"disabled title=\"Restaurá la rendición para cambiar su estado\"":""}>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select><div class="rendition-actions">${actions}</div></div>`;}).join("") : empty(renditionViewMode==="archived"?"No hay rendiciones archivadas":"Sin rendiciones activas", renditionViewMode==="archived"?"Las rendiciones que archives aparecerán aquí.":"Al completar un trabajo remunerado aparecerá aquí."); }
 
 function logRenditionArchive(item, archived){const client=state.clients.find(c=>c.id===item.clientId);if(!client)return;client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición ${archived?"archivada":"restaurada"}: ${item.work}`,type:"rendition_archive",renditionId:item.id,archived});}
 function archiveRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;if(item.status==="pending"){toast("Primero marcá la rendición como rendida.");return;}item.archivedAt=new Date().toISOString();logRenditionArchive(item,true);saveState();toast("Rendición archivada");}
@@ -1180,7 +1219,7 @@ document.addEventListener("click", e => {
   const go=e.target.closest("[data-go]"); if(go)setView(go.dataset.go);
   const clientView=e.target.closest("[data-client-view]");if(clientView){clientViewMode=clientView.dataset.clientView;renderClients();}
   const taskRoleBtn=e.target.closest("[data-task-role]");if(taskRoleBtn)setTaskRoleFilter(taskRoleBtn.dataset.taskRole);
-  const renditionView=e.target.closest("[data-rendition-view]");if(renditionView){renditionViewMode=renditionView.dataset.renditionView;renderRenditions();}
+  const renditionView=e.target.closest("[data-rendition-view]");if(renditionView){renditionViewMode=renditionView.dataset.renditionView;selectedRenditionIds.clear();renderRenditions();}
   const open=e.target.closest("[data-open-client]"); if(open)openClientDetail(open.dataset.openClient);
   const contact=e.target.closest("[data-contact-client]");if(contact)contactClient(contact.dataset.contactClient);
   const whatsappGroup=e.target.closest("[data-whatsapp-group]");if(whatsappGroup)openWhatsappGroup(whatsappGroup.dataset.whatsappGroup);
@@ -1204,6 +1243,9 @@ document.addEventListener("click", e => {
   if(e.target.closest("[data-close-photo-session]"))document.getElementById("photoSessionDialog").close();
   const generateBat=e.target.closest("[data-generate-bat]");if(generateBat)generateSelectionBat(generateBat.dataset.generateBat);
   const del=e.target.closest("[data-delete-client]"); if(del&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(del.dataset.deleteClient);
+  if(e.target.id==="renditionBulkArchive")bulkArchiveRenditions();
+  if(e.target.id==="renditionBulkDelete")bulkDeleteRenditions();
+  if(e.target.id==="renditionBulkClear"){selectedRenditionIds.clear();renderRenditions();}
   const archive=e.target.closest("[data-archive-rendition]");if(archive)archiveRendition(archive.dataset.archiveRendition);
   const restore=e.target.closest("[data-restore-rendition]");if(restore)restoreRendition(restore.dataset.restoreRendition);
   const deleteWork=e.target.closest("[data-delete-rendition]");if(deleteWork&&confirm("¿Eliminar definitivamente esta rendición? La tarea del cliente se conservará."))deleteRendition(deleteWork.dataset.deleteRendition);
@@ -1231,6 +1273,8 @@ document.addEventListener("change", e => {
   if(e.target.dataset.taskDate){const [c,t]=e.target.dataset.taskDate.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.completedAt=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition&&e.target.value){rendition.workDate=e.target.value;rendition.periodEnd=periodEndFor(e.target.value);}saveState();}}
   if(e.target.dataset.taskNotes){const [c,t]=e.target.dataset.taskNotes.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.notes=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition)rendition.observations=e.target.value;saveState();}}
   if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
+  if(e.target.dataset.renditionSelect)toggleRenditionSelect(e.target.dataset.renditionSelect,e.target.checked);
+  if(e.target.id==="renditionSelectAll")toggleRenditionSelectAll(e.target.checked);
 
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
   if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
@@ -1242,7 +1286,7 @@ document.addEventListener("change", e => {
 document.addEventListener("input",e=>{if(e.target.id==="clientSearch")filterClients();if(e.target.id==="taskSearch")filterTasks();if(e.target.id==="sessionCustomLocation"){sessionPicker.salon=e.target.value;syncSessionFormFields();}if(e.target.id==="sessionCustomTime"){sessionPicker.time=e.target.value;syncSessionFormFields();}});
 document.addEventListener("change",e=>{if(e.target.dataset.taskCheck){const[c,t]=e.target.dataset.taskCheck.split("|");updateTask(c,t,e.target.checked?"done":"pending");}});
 function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"",addon=document.getElementById("clientAddonFilter")?.value||"";clientFilters={search:q,salon,month,pack,addon};const filtered=state.clients.filter(c=>(clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c))&&(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&(!addon||(c.addons||[]).includes(addon))&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
-function filterRenditions(){renditionStatusFilter=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";const filtered=state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!renditionStatusFilter||r.status===renditionStatusFilter)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);}
+function filterRenditions(){renditionStatusFilter=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";selectedRenditionIds.clear();const filtered=currentRenditionRows();document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);updateRenditionBulkBar(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
 document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
 

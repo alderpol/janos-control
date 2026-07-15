@@ -277,6 +277,13 @@ nav { display: grid; gap: 3px; }
 .rendition-row > select:disabled { opacity: .5; cursor: not-allowed; }
 .rendition-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .rendition-actions .muted { font-size: 10px; text-align: right; }
+.rendition-work-cell { display: flex; align-items: center; gap: 10px; }
+.rendition-select-cell { display: flex; align-items: center; gap: 8px; }
+.rendition-check, #renditionSelectAll { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0; }
+.rendition-row.selected { background: var(--gold-soft); }
+.rendition-bulk-bar { display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; margin-bottom: 12px; border-radius: var(--radius); border: 1px solid var(--gold-border); background: var(--gold-soft); color: var(--ink); font-size: 13px; }
+.rendition-bulk-bar.show { display: flex; }
+.rendition-bulk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .small-btn { border: 1px solid var(--line-2); border-radius: 7px; padding: 6px 10px; color: var(--ink-2); background: var(--surface-2); font-size: 11px; font-weight: 600; transition: all .15s; }
 .small-btn:hover { background: var(--surface-3); border-color: var(--line-2); }
 .small-btn.danger { color: var(--red); border-color: rgba(248,113,113,.2); background: var(--red-soft); }
