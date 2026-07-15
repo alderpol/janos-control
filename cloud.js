@@ -172,13 +172,17 @@ export async function deleteUser(userId) {
 }
 // Envía el mail con el link de Drive (fotos y videos) al cliente, usando la
 // cuenta de Zoho que corresponda a su salón. Se dispara a mano desde el botón
-// "Enviar material" en la ficha del cliente — no hay cron. La función solo
-// envía el mail; quien la llama (app.js) es responsable de guardar linkSentAt
-// en el cliente y sincronizarlo como el resto del estado.
+// "Enviar material" en la ficha del cliente — no hay cron.
+//
+// Esto pega a /api/send-drive-email (una funcion de Vercel, no de Supabase):
+// Supabase Edge Functions tiene un limite de 2s de CPU y el envio SMTP
+// siempre lo supera (error 546) aunque el mail llegue igual, asi que el
+// envio se mueve a donde ya vive la app. La funcion tambien guarda
+// link_sent_at ella misma (no depende de que esto sincronice con la nube).
 export async function sendDriveEmailNow(clientId) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("No hay sesión activa.");
-  const res = await fetch(`${supabaseUrl}/functions/v1/send-drive-email`, {
+  const res = await fetch("/api/send-drive-email", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
