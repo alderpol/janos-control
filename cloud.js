@@ -119,6 +119,17 @@ export async function saveMyZohoAccount({ email, password, fromName }) {
   if (error) throw error;
 }
 
+// Borra la cuenta de Zoho propia (a diferencia de guardar, acá sí se
+// vacían las 3 columnas a propósito). Después de esto, el envío de mail
+// vuelve a usar la cuenta fija del salón (Quinta/Pilar Hotel).
+export async function clearMyZohoAccount() {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No hay sesión activa.");
+  const { error } = await supabase.from("profiles").update({ zoho_email: null, zoho_app_password: null, zoho_from_name: null }).eq("id", user.id);
+  if (error) throw error;
+}
+
 export async function listUserProfiles() {
   const { data: { session } } = await supabase.auth.getSession();
   const response = await fetch(`${supabaseUrl}/functions/v1/list-profiles`, {
