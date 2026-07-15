@@ -11,11 +11,13 @@ import nodemailer from "nodemailer";
 // tiene esa restriccion.
 //
 // La cuenta de envio se elige asi: primero se fija si el usuario logueado
-// cargo su propia cuenta de Zoho en su perfil (Ajustes > "Mi cuenta de
-// email" -> profiles.zoho_email/zoho_app_password). Si no cargo nada, se
-// usa el mapa fijo ACCOUNTS segun clients.salon (Quinta o Pilar Hotel),
-// cuyas variables ZOHO_*_USER / ZOHO_*_PASS se configuran en Vercel
-// (Project Settings > Environment Variables), no viven en el repo.
+// cargo su propia cuenta de Zoho PARA EL SALON DE ESTE CLIENTE, en su perfil
+// (Ajustes > "Mi cuenta de email" -> profiles.zoho_accounts[client.salon],
+// un usuario puede tener una cuenta distinta por cada salon en el que
+// trabaja). Si no cargo nada para ese salon, se usa el mapa fijo ACCOUNTS
+// segun clients.salon (Quinta o Pilar Hotel), cuyas variables ZOHO_*_USER /
+// ZOHO_*_PASS se configuran en Vercel (Project Settings > Environment
+// Variables), no viven en el repo.
 //
 // Usa el JWT del propio usuario (no service role), asi que el RLS de
 // Supabase ya limita la lectura/escritura del cliente a sus propias filas.
@@ -78,27 +80,36 @@ export default async function handler(req, res) {
     if (!client.drive_url) return res.status(400).json({ error: "El cliente no tiene link de Drive cargado" });
 
     // Cada usuario (colega) puede cargar su propia cuenta de Zoho en su perfil
-    // (Ajustes > "Mi cuenta de email"). Si la cargó, se usa esa en vez de las
-    // 2 cuentas fijas por salón (pensadas originalmente solo para Quinta/Pilar
-    // Hotel, que no tienen sentido para otro fotógrafo/colega con otro salón).
+    // (Ajustes > "Mi cuenta de email"), una por cada salón en el que trabaja
+    // (zoho_accounts es un jsonb {salon: {email,password,fromName}}). Si
+    // tiene una cargada para el salón de ESTE cliente, se usa esa.
+    //
+    // Las 2 cuentas fijas (ZOHO_QUINTA_*/ZOHO_PILAR_*) son las cuentas
+    // personales del administrador — SOLO el administrador puede usarlas
+    // como respaldo si no cargó una cuenta propia. Un colega sin cuenta
+    // propia cargada NO puede usarlas: tiene que cargar la suya.
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("display_name,zoho_email,zoho_app_password,zoho_from_name")
+      .select("display_name,role,status,zoho_accounts")
       .eq("id", userData.user.id)
       .maybeSingle();
     if (profileError) return res.status(500).json({ error: profileError.message });
 
+    const isAdmin = profile?.role === "admin" && profile?.status === "active";
+    const personalAccount = profile?.zoho_accounts?.[client.salon];
     let account;
-    if (profile?.zoho_email && profile?.zoho_app_password) {
+    if (personalAccount?.email && personalAccount?.password) {
       account = {
-        user: profile.zoho_email,
-        pass: profile.zoho_app_password,
-        fromName: profile.zoho_from_name || profile.display_name || "Janos Fotografía y Video",
+        user: personalAccount.email,
+        pass: personalAccount.password,
+        fromName: personalAccount.fromName || profile.display_name || "Janos Fotografía y Video",
       };
+    } else if (!isAdmin) {
+      return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada para "${client.salon}". Cargala en Ajustes > Mi cuenta de email para poder enviar el material.` });
     } else {
       account = ACCOUNTS[client.salon];
       if (!account) {
-        return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada (Ajustes > Mi cuenta de email), y no hay una cuenta general para el salón "${client.salon}"` });
+        return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada para "${client.salon}" (Ajustes > Mi cuenta de email), y no hay una cuenta general para ese salón` });
       }
       if (!account.user || !account.pass) {
         return res.status(500).json({ error: `Faltan las variables de Zoho para "${client.salon}" en Vercel` });
@@ -146,7 +157,7 @@ export default async function handler(req, res) {
       // Es un dato mal cargado, no un error del servidor, asi que devolvemos
       // un mensaje en español y accionable en vez del texto crudo de Zoho.
       if (sendError?.responseCode === 535 || sendError?.code === "EAUTH") {
-        const who = profile?.zoho_email && profile?.zoho_app_password ? "tu cuenta personal (Ajustes > Mi cuenta de email)" : `la cuenta configurada para "${client.salon}"`;
+        const who = personalAccount?.email && personalAccount?.password ? `tu cuenta personal de "${client.salon}" (Ajustes > Mi cuenta de email)` : `la cuenta configurada para "${client.salon}"`;
         return res.status(400).json({ error: `Zoho rechazó el email o la contraseña de aplicación de ${who}. Revisalos y volvé a intentar.` });
       }
       throw sendError;

@@ -87,7 +87,7 @@ export async function getAccessProfile() {
   if (!user) return { role: "user", status: "blocked", display_name: "" };
   // FIX: filtrar por id. Con la RLS actual (auth.uid()=id OR is_app_admin())
   // el admin ve TODOS los perfiles y .maybeSingle() sin filtro falla con 2+ filas.
-  const { data, error } = await supabase.from("profiles").select("role,status,display_name,salons,zoho_email,zoho_from_name,zoho_app_password").eq("id", user.id).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("role,status,display_name,salons,zoho_accounts").eq("id", user.id).maybeSingle();
   if (error) throw error;
   // Fail closed: if for any reason the profile row doesn't exist yet, treat
   // the user as blocked rather than active. The DB now creates this row
@@ -95,50 +95,67 @@ export async function getAccessProfile() {
   // defensive fallback, not the primary gate.
   if (!data) return { role: "user", status: "blocked", display_name: "", salons: [] };
   // No guardamos la contraseña en claro en el estado de la app: solo si hay una cargada.
-  const { zoho_app_password, ...rest } = data;
-  return { ...rest, hasZohoPassword: Boolean(zoho_app_password) };
+  const { zoho_accounts, ...rest } = data;
+  const zohoAccounts = {};
+  for (const [salon, acc] of Object.entries(zoho_accounts || {})) {
+    zohoAccounts[salon] = { email: acc?.email || "", fromName: acc?.fromName || "", hasPassword: Boolean(acc?.password) };
+  }
+  return { ...rest, zohoAccounts };
 }
 
-// Cuenta de Zoho Mail propia del usuario logueado, usada por
-// api/send-drive-email.js para enviar el material al cliente desde su
-// propia casilla en vez de las cuentas fijas de Quinta/Pilar Hotel.
-export async function saveMyZohoAccount({ email, password, fromName }) {
+// Cuenta de Zoho Mail propia del usuario logueado, una por cada salon en el
+// que trabaja (un usuario puede estar en 2 salones y necesitar 2 cuentas
+// distintas, como Quinta y Pilar Hotel). Usada por api/send-drive-email.js
+// para enviar el material al cliente desde la casilla del salon
+// correspondiente en vez de las cuentas fijas.
+export async function saveMyZohoAccount({ salon, email, password, fromName }) {
   if (!supabase) throw new Error("Supabase no está configurado.");
+  if (!salon) throw new Error("Falta el salón.");
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No hay sesión activa.");
+  const { data: current, error: readError } = await supabase.from("profiles").select("zoho_accounts").eq("id", user.id).maybeSingle();
+  if (readError) throw readError;
+  const accounts = { ...(current?.zoho_accounts || {}) };
+  const existing = accounts[salon] || {};
   // Los 3 campos se comportan igual: si se dejan vacíos, se conserva lo que
   // ya estaba guardado (no se borra por error al guardar sin completarlos).
-  const update = {};
   const trimmedEmail = String(email || "").trim();
   const trimmedFromName = String(fromName || "").trim();
-  if (trimmedEmail) update.zoho_email = trimmedEmail;
-  if (trimmedFromName) update.zoho_from_name = trimmedFromName;
-  if (password) update.zoho_app_password = password;
-  if (!Object.keys(update).length) return;
-  const { error } = await supabase.from("profiles").update(update).eq("id", user.id);
+  accounts[salon] = {
+    email: trimmedEmail || existing.email || "",
+    fromName: trimmedFromName || existing.fromName || "",
+    password: password || existing.password || "",
+  };
+  const { error } = await supabase.from("profiles").update({ zoho_accounts: accounts }).eq("id", user.id);
   if (error) throw error;
 }
 
-// Borra la cuenta de Zoho propia (a diferencia de guardar, acá sí se
-// vacían las 3 columnas a propósito). Después de esto, el envío de mail
-// vuelve a usar la cuenta fija del salón (Quinta/Pilar Hotel).
-export async function clearMyZohoAccount() {
+// Borra la cuenta de Zoho de un salon puntual (a diferencia de guardar, acá
+// sí se borra a propósito). Después de esto, el envío de mail para ese
+// salon vuelve a usar la cuenta fija (Quinta/Pilar Hotel) si existe.
+export async function clearMyZohoAccount(salon) {
   if (!supabase) throw new Error("Supabase no está configurado.");
+  if (!salon) throw new Error("Falta el salón.");
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No hay sesión activa.");
-  const { error } = await supabase.from("profiles").update({ zoho_email: null, zoho_app_password: null, zoho_from_name: null }).eq("id", user.id);
+  const { data: current, error: readError } = await supabase.from("profiles").select("zoho_accounts").eq("id", user.id).maybeSingle();
+  if (readError) throw readError;
+  const accounts = { ...(current?.zoho_accounts || {}) };
+  delete accounts[salon];
+  const { error } = await supabase.from("profiles").update({ zoho_accounts: accounts }).eq("id", user.id);
   if (error) throw error;
 }
 
-// Prueba con Zoho (login SMTP, sin mandar mail) la cuenta que el usuario ya
-// tiene guardada. Se usa justo después de guardar para avisar al toque si
-// el usuario/contraseña están mal.
-export async function verifyMyZohoAccount() {
+// Prueba con Zoho (login SMTP, sin mandar mail) la cuenta de un salon
+// puntual que el usuario ya tiene guardada. Se usa justo después de
+// guardar para avisar al toque si el usuario/contraseña están mal.
+export async function verifyMyZohoAccount(salon) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("No hay sesión activa.");
   const res = await fetch("/api/verify-zoho-account", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ salon }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

@@ -29,22 +29,26 @@ export default async function handler(req, res) {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) return res.status(401).json({ error: "No autorizado" });
 
+    const { salon } = req.body || {};
+    if (!salon) return res.status(400).json({ error: "Falta el salón" });
+
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("zoho_email,zoho_app_password")
+      .select("zoho_accounts")
       .eq("id", userData.user.id)
       .maybeSingle();
     if (profileError) return res.status(500).json({ error: profileError.message });
 
-    if (!profile?.zoho_email || !profile?.zoho_app_password) {
-      return res.status(400).json({ error: "No tenés una cuenta de Zoho propia cargada" });
+    const account = profile?.zoho_accounts?.[salon];
+    if (!account?.email || !account?.password) {
+      return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada para "${salon}"` });
     }
 
     const transporter = nodemailer.createTransport({
       host: "smtp.zoho.com",
       port: 465,
       secure: true,
-      auth: { user: profile.zoho_email, pass: profile.zoho_app_password },
+      auth: { user: account.email, pass: account.password },
     });
 
     try {

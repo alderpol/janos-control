@@ -449,22 +449,25 @@ function contactClient(id){const client=state.clients.find(item=>item.id===id);i
 function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
 function openDriveFolder(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.driveUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
 function addDaysIso(value,days){const d=parseDate(value);d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
-async function saveZohoAccount(){
-  const email=document.getElementById("zohoEmail")?.value.trim()||"";
-  const password=document.getElementById("zohoAppPassword")?.value||"";
-  const fromName=document.getElementById("zohoFromName")?.value.trim()||"";
+function salonSlug(salon){return String(salon||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");}
+async function saveZohoAccount(salon){
+  const slug=salonSlug(salon);
+  const email=document.getElementById(`zohoEmail-${slug}`)?.value.trim()||"";
+  const password=document.getElementById(`zohoAppPassword-${slug}`)?.value||"";
+  const fromName=document.getElementById(`zohoFromName-${slug}`)?.value.trim()||"";
   if(email&&!/^\S+@\S+\.\S+$/.test(email)){toast("Ingresá un email válido.");return;}
-  const btn=document.getElementById("saveZohoAccount");if(btn)btn.disabled=true;
+  const btn=document.querySelector(`[data-save-zoho="${CSS.escape(salon)}"]`);if(btn)btn.disabled=true;
   try{
-    await saveMyZohoAccount({email,password,fromName});
-    if(email)accessProfile.zoho_email=email;
-    if(fromName)accessProfile.zoho_from_name=fromName;
-    if(password)accessProfile.hasZohoPassword=true;
+    await saveMyZohoAccount({salon,email,password,fromName});
+    accessProfile.zohoAccounts=accessProfile.zohoAccounts||{};
+    const prev=accessProfile.zohoAccounts[salon]||{};
+    accessProfile.zohoAccounts[salon]={email:email||prev.email||"",fromName:fromName||prev.fromName||"",hasPassword:Boolean(password)||Boolean(prev.hasPassword)};
     renderSettings();
-    if(accessProfile.zoho_email&&accessProfile.hasZohoPassword){
+    const acc=accessProfile.zohoAccounts[salon];
+    if(acc.email&&acc.hasPassword){
       try{
-        await verifyMyZohoAccount();
-        toast("Cuenta de Zoho guardada y verificada con Zoho ✓");
+        await verifyMyZohoAccount(salon);
+        toast(`Cuenta de ${salon} guardada y verificada con Zoho ✓`);
       }catch(verifyErr){
         if(verifyErr.invalid){
           alert("Usuario y/o contraseña incorrectos.");
@@ -473,7 +476,7 @@ async function saveZohoAccount(){
         }
       }
     }else{
-      toast("Cuenta de Zoho guardada");
+      toast(`Cuenta de ${salon} guardada`);
     }
   }catch(err){
     toast(err.message||"No se pudo guardar la cuenta de Zoho");
@@ -481,16 +484,14 @@ async function saveZohoAccount(){
     if(btn)btn.disabled=false;
   }
 }
-async function clearZohoAccount(){
-  if(!confirm("¿Borrar tu cuenta de Zoho guardada? Volvés a usar la cuenta general del salón para enviar el material."))return;
-  const btn=document.getElementById("clearZohoAccount");if(btn)btn.disabled=true;
+async function clearZohoAccount(salon){
+  if(!confirm(`¿Borrar la cuenta de Zoho de ${salon}? Volvés a usar la cuenta general de ese salón para enviar el material.`))return;
+  const btn=document.querySelector(`[data-clear-zoho="${CSS.escape(salon)}"]`);if(btn)btn.disabled=true;
   try{
-    await clearMyZohoAccount();
-    accessProfile.zoho_email="";
-    accessProfile.zoho_from_name="";
-    accessProfile.hasZohoPassword=false;
+    await clearMyZohoAccount(salon);
+    if(accessProfile.zohoAccounts)delete accessProfile.zohoAccounts[salon];
     renderSettings();
-    toast("Cuenta de Zoho borrada");
+    toast(`Cuenta de ${salon} borrada`);
   }catch(err){
     toast(err.message||"No se pudo borrar la cuenta de Zoho");
   }finally{
@@ -641,8 +642,17 @@ function archiveRendition(id){const item=state.renditions.find(r=>r.id===id);if(
 function restoreRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;item.archivedAt="";logRenditionArchive(item,false);saveState();toast("Rendición restaurada");}
 function deleteRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;const client=state.clients.find(c=>c.id===item.clientId);if(client){client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición eliminada: ${item.work}`,type:"rendition_delete",renditionId:item.id});}state.renditions=state.renditions.filter(r=>r.id!==id);saveState();toast("Rendición eliminada");}
 
+function zohoAccountsPanelBody(){
+  const mySalons=(accessProfile.salons&&accessProfile.salons.length)?accessProfile.salons:salonsInUse();
+  if(!mySalons.length)return `<p class="muted">Todavía no hay salones para configurar. Cuando tengas clientes cargados o salones asignados a tu cuenta, vas a poder cargar acá tu cuenta de Zoho para cada uno.</p>`;
+  const accounts=accessProfile.zohoAccounts||{};
+  return `<p class="muted">El botón "Enviar material" de la ficha del cliente manda el mail desde la casilla del salón del cliente. Si no cargás nada acá, se usa la cuenta general de ese salón. Necesitás una <strong>contraseña de aplicación</strong> de Zoho (no la contraseña normal de tu cuenta). Si trabajás en más de un salón, cargá una cuenta para cada uno.</p>${mySalons.map(salon=>{
+    const slug=salonSlug(salon),acc=accounts[salon]||{};
+    return `<div class="zoho-account-block"><h4>${escapeHtml(salon)}</h4><label>Email de Zoho<input id="zohoEmail-${slug}" type="email" placeholder="tuemail@janoseventos.com" value="${escapeHtml(acc.email||"")}"></label><label>Contraseña de aplicación<div class="password-field"><input id="zohoAppPassword-${slug}" type="password" placeholder="${acc.hasPassword?"Ya cargada · dejalo vacío para no cambiarla":"Contraseña de aplicación de Zoho"}" autocomplete="new-password"><button type="button" class="icon-btn toggle-password" data-toggle-password="zohoAppPassword-${slug}" aria-label="Mostrar contraseña">👁</button></div></label><label>Nombre que va a ver el cliente<input id="zohoFromName-${slug}" type="text" placeholder="Ej: Juan Pérez Fotografía" value="${escapeHtml(acc.fromName||"")}"></label><div class="modal-actions"><button class="primary-btn" data-save-zoho="${escapeHtml(salon)}">Guardar cuenta de ${escapeHtml(salon)}</button>${acc.email||acc.hasPassword?`<button class="danger-btn" data-clear-zoho="${escapeHtml(salon)}">Borrar cuenta de ${escapeHtml(salon)}</button>`:""}</div></div>`;
+  }).join("")}`;
+}
 function renderSettings() {
-  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><label>Texto del mensaje<textarea id="whatsappTemplate" rows="7">${escapeHtml(state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE)}</textarea></label><p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="secondary-btn" id="resetWhatsappTemplate">Restaurar original</button><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensaje</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">El botón "Enviar material" de la ficha del cliente manda el mail desde esta casilla. Si no cargás nada acá, se usa la cuenta general de tu salón (Quinta o Pilar Hotel). Necesitás una <strong>contraseña de aplicación</strong> de Zoho (no la contraseña normal de tu cuenta).</p><label>Email de Zoho<input id="zohoEmail" type="email" placeholder="tuemail@janoseventos.com" value="${escapeHtml(accessProfile.zoho_email||"")}"></label><label>Contraseña de aplicación<div class="password-field"><input id="zohoAppPassword" type="password" placeholder="${accessProfile.hasZohoPassword?"Ya cargada · dejalo vacío para no cambiarla":"Contraseña de aplicación de Zoho"}" autocomplete="new-password"><button type="button" class="icon-btn toggle-password" data-toggle-password="zohoAppPassword" aria-label="Mostrar contraseña">👁</button></div></label><label>Nombre que va a ver el cliente<input id="zohoFromName" type="text" placeholder="Ej: Juan Pérez Fotografía" value="${escapeHtml(accessProfile.zoho_from_name||"")}"></label><div class="modal-actions"><button class="primary-btn" id="saveZohoAccount">Guardar cuenta de Zoho</button>${accessProfile.zoho_email||accessProfile.hasZohoPassword?`<button class="danger-btn" id="clearZohoAccount">Borrar cuenta de Zoho</button>`:""}</div></div></details></div>`;
+  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><label>Texto del mensaje<textarea id="whatsappTemplate" rows="7">${escapeHtml(state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE)}</textarea></label><p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="secondary-btn" id="resetWhatsappTemplate">Restaurar original</button><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensaje</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details></div>`;
 }
 function accessDate(value){return value?new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value)):"Nunca";}
 function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
@@ -1265,8 +1275,8 @@ document.addEventListener("click", e => {
   if(e.target.id==="saveRates"){document.querySelectorAll("[data-rate]").forEach(i=>state.rates[i.dataset.rate]=Number(i.value||0));saveState();toast("Tarifas actualizadas");}
   if(e.target.id==="saveWhatsappTemplate"){const template=document.getElementById("whatsappTemplate")?.value.trim();if(!template){toast("El mensaje no puede quedar vacío.");return;}state.settings={...(state.settings||{}),whatsappTemplate:template};saveState();toast("Mensaje de WhatsApp guardado");}
   if(e.target.id==="resetWhatsappTemplate"){const field=document.getElementById("whatsappTemplate");if(field)field.value=DEFAULT_WHATSAPP_TEMPLATE;}
-  if(e.target.id==="saveZohoAccount")saveZohoAccount();
-  if(e.target.id==="clearZohoAccount")clearZohoAccount();
+  const saveZoho=e.target.closest("[data-save-zoho]");if(saveZoho)saveZohoAccount(saveZoho.dataset.saveZoho);
+  const clearZoho=e.target.closest("[data-clear-zoho]");if(clearZoho)clearZohoAccount(clearZoho.dataset.clearZoho);
   const togglePwd=e.target.closest("[data-toggle-password]");if(togglePwd){const input=document.getElementById(togglePwd.dataset.togglePassword);if(input){const show=input.type==="password";input.type=show?"text":"password";togglePwd.textContent=show?"🙈":"👁";togglePwd.setAttribute("aria-label",show?"Ocultar contraseña":"Mostrar contraseña");}}
   if(e.target.id==="downloadClientTemplate")downloadClientTemplate();
   if(e.target.id==="exportRenditionsCsv")exportRenditionsCsv();
