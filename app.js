@@ -651,7 +651,32 @@ function zohoAccountsPanelBody(){
   const accounts=accessProfile.zohoAccounts||{};
   const isAdmin=accessProfile.role==="admin";
   const fallbackNote=isAdmin?"Si no cargás nada, se usa la cuenta general del salón (la que ya tenés configurada).":"Si no cargás tu cuenta acá, no vas a poder enviar material — tenés que cargar la tuya.";
-  return `<p class="muted">Acá cargás la cuenta de Zoho para mandarle el material a tus clientes. ${fallbackNote}</p><details class="zoho-help"><summary>¿Cómo consigo mi contraseña de aplicación de Zoho?</summary><ol><li>Entrá a <a href="https://accounts.zoho.com/home#security/app-passwords" target="_blank" rel="noopener noreferrer">accounts.zoho.com/home#security/app-passwords</a> con tu cuenta de Zoho.</li><li>Si te pide tu contraseña para confirmar identidad, escribila y confirmá.</li><li>En "Contraseñas específicas de aplicación", hacé clic en "+ Generar nueva contraseña" y ponele un nombre (ej: Janos Control).</li><li>Copiala apenas aparezca — Zoho solo la muestra una vez.</li><li>Pegala acá abajo, en el campo "Contraseña de aplicación" (no uses tu contraseña normal de Zoho).</li></ol><p>¿Te equivocaste o la necesitás de nuevo? Volvé a esa misma página de Zoho, borrá ("Suprimir") la que no sirve, y generá otra siguiendo los mismos pasos.</p></details>${mySalons.length>1?`<p class="muted">Trabajás en más de un salón: cargá una cuenta para cada uno.</p>`:""}${mySalons.map(salon=>{
+  const zohoHelp=`<details class="zoho-help"><summary>Cómo generar tu contraseña de Zoho para Janos Control</summary>
+    <p>Para que Janos Control pueda enviar el material a los clientes desde tu propia casilla de Zoho, necesitás cargar tu email y una contraseña de Zoho.</p>
+    <p><strong>Primero probá con tu contraseña normal de Zoho</strong> (la que usás siempre para entrar a tu correo). Si al guardar la cuenta la app te avisa que Zoho rechazó la conexión, es porque tenés activada la verificación en dos pasos — en ese caso necesitás generar una <strong>contraseña de aplicación</strong>: una clave especial, distinta a la de siempre, que se usa solo para esto. Seguí estos pasos:</p>
+    <h5>Pasos a seguir</h5>
+    <ol>
+      <li>Entrá a esta dirección con tu cuenta de Zoho: <a href="https://accounts.zoho.com/home#security/app-passwords" target="_blank" rel="noopener noreferrer">accounts.zoho.com/home#security/app-passwords</a></li>
+      <li>Si te pide confirmar tu contraseña ("Confirme su identidad"), escribila y confirmá. Es un paso normal de seguridad de Zoho.</li>
+      <li>Vas a ver la sección "Contraseñas específicas de aplicación". Hacé clic en "+ Generar nueva contraseña".</li>
+      <li>Escribí un nombre para identificarla, por ejemplo: Janos Control.</li>
+      <li><strong>Importante:</strong> Zoho te va a mostrar la contraseña generada UNA SOLA VEZ, en ese momento. Copiala enseguida (o anotala) antes de cerrar esa ventana. Si la cerrás sin copiarla, no hay forma de volver a verla — vas a tener que generar una nueva.</li>
+      <li>Andá a Janos Control → Ajustes → "Mi cuenta de email (Zoho)". Buscá el bloque correspondiente a tu salón.</li>
+      <li>Completá los 3 campos de ese salón:
+        <ul>
+          <li>Email de Zoho: tu email real de Zoho (el de siempre).</li>
+          <li>Contraseña de aplicación: la que acabás de copiar (NO tu contraseña real).</li>
+          <li>Nombre que va a ver el cliente: tu nombre o el de tu estudio, como querés que aparezca en el mail.</li>
+        </ul>
+      </li>
+      <li>Apretá "Guardar cuenta de [tu salón]". La app va a probar la conexión con Zoho automáticamente y te va a avisar si está todo bien o si hay que revisar algo.</li>
+    </ol>
+    <h5>Si trabajás en más de un salón</h5>
+    <p>Repetí este proceso para cada salón en el que trabajes: cada uno tiene su propio bloque en Ajustes, con su propio email y contraseña. Así, cuando envíes material a un cliente, la app usa automáticamente la cuenta correcta según el salón de ese cliente.</p>
+    <h5>Si te equivocaste o necesitás generar otra</h5>
+    <p>Podés volver a la misma página de Zoho, borrar ("Suprimir") la contraseña vieja que no sirve, y generar una nueva siguiendo los mismos pasos.</p>
+  </details>`;
+  return `<p class="muted">Acá cargás la cuenta de Zoho para mandarle el material a tus clientes. ${fallbackNote}</p>${zohoHelp}${mySalons.map(salon=>{
     const slug=salonSlug(salon),acc=accounts[salon]||{};
     return `<div class="zoho-account-block"><h4>${escapeHtml(salon)}</h4><label>Email de Zoho<input id="zohoEmail-${slug}" type="email" placeholder="tuemail@janoseventos.com" value="${escapeHtml(acc.email||"")}"></label><label>Contraseña de aplicación<div class="password-field"><input id="zohoAppPassword-${slug}" type="password" placeholder="${acc.hasPassword?"Ya cargada · dejalo vacío para no cambiarla":"Contraseña de aplicación de Zoho"}" autocomplete="new-password"><button type="button" class="icon-btn toggle-password" data-toggle-password="zohoAppPassword-${slug}" aria-label="Mostrar contraseña">👁</button></div></label><label>Nombre que va a ver el cliente<input id="zohoFromName-${slug}" type="text" placeholder="Ej: Juan Pérez Fotografía" value="${escapeHtml(acc.fromName||"")}"></label><div class="modal-actions"><button class="primary-btn" data-save-zoho="${escapeHtml(salon)}">Guardar cuenta de ${escapeHtml(salon)}</button>${acc.email||acc.hasPassword?`<button class="danger-btn" data-clear-zoho="${escapeHtml(salon)}">Borrar cuenta de ${escapeHtml(salon)}</button>`:""}</div></div>`;
   }).join("")}`;
