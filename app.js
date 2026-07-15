@@ -589,7 +589,8 @@ function updateRenditionTotal(rows){const amount=document.getElementById("rendit
 function updateRenditionBulkBar(rows){
   const bar=document.getElementById("renditionBulkBar");
   const n=selectedRenditionIds.size;
-  if(bar)bar.innerHTML=n?`<span>${n} seleccionada${n===1?"":"s"}</span><div class="rendition-bulk-actions"><button class="small-btn" id="renditionBulkArchive">Archivar seleccionadas</button><button class="small-btn danger" id="renditionBulkDelete">Eliminar seleccionadas</button><button class="small-btn" id="renditionBulkClear">Cancelar selección</button></div>`:"";
+  const primaryBtn=renditionViewMode==="archived"?`<button class="small-btn" id="renditionBulkRestore">Restaurar seleccionadas</button>`:`<button class="small-btn" id="renditionBulkArchive">Archivar seleccionadas</button>`;
+  if(bar)bar.innerHTML=n?`<span>${n} seleccionada${n===1?"":"s"}</span><div class="rendition-bulk-actions">${primaryBtn}<button class="small-btn danger" id="renditionBulkDelete">Eliminar seleccionadas</button><button class="small-btn" id="renditionBulkClear">Cancelar selección</button></div>`:"";
   if(bar)bar.classList.toggle("show",n>0);
   const selectAll=document.getElementById("renditionSelectAll");
   if(selectAll){
@@ -612,6 +613,16 @@ function bulkArchiveRenditions(){
   selectedRenditionIds.clear();
   saveState();
   toast(`${archivable.length} rendición${archivable.length===1?"":"es"} archivada${archivable.length===1?"":"s"}`);
+}
+function bulkRestoreRenditions(){
+  const items=[...selectedRenditionIds].map(id=>state.renditions.find(r=>r.id===id)).filter(Boolean);
+  const restorable=items.filter(r=>r.archivedAt);
+  if(!restorable.length){toast("Ninguna de las seleccionadas está archivada.");return;}
+  if(!confirm(`¿Restaurar ${restorable.length} rendición${restorable.length===1?"":"es"}?`))return;
+  restorable.forEach(item=>{item.archivedAt="";logRenditionArchive(item,false);});
+  selectedRenditionIds.clear();
+  saveState();
+  toast(`${restorable.length} rendición${restorable.length===1?"":"es"} restaurada${restorable.length===1?"":"s"}`);
 }
 function bulkDeleteRenditions(){
   const ids=[...selectedRenditionIds];
@@ -1244,6 +1255,7 @@ document.addEventListener("click", e => {
   const generateBat=e.target.closest("[data-generate-bat]");if(generateBat)generateSelectionBat(generateBat.dataset.generateBat);
   const del=e.target.closest("[data-delete-client]"); if(del&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(del.dataset.deleteClient);
   if(e.target.id==="renditionBulkArchive")bulkArchiveRenditions();
+  if(e.target.id==="renditionBulkRestore")bulkRestoreRenditions();
   if(e.target.id==="renditionBulkDelete")bulkDeleteRenditions();
   if(e.target.id==="renditionBulkClear"){selectedRenditionIds.clear();renderRenditions();}
   const archive=e.target.closest("[data-archive-rendition]");if(archive)archiveRendition(archive.dataset.archiveRendition);
