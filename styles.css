@@ -410,6 +410,8 @@ legend { padding: 0 6px; }
 .settings-grid { display: flex; flex-direction: column; gap: 16px; }
 .whatsapp-settings { }
 .whatsapp-settings textarea { resize: vertical; }
+.whatsapp-type-block textarea { width: 100%; box-sizing: border-box; min-height: 220px; border: 1px solid var(--input-border); border-radius: 9px; padding: 12px 14px; color: var(--ink); background: var(--input-bg); font-size: 13.5px; line-height: 1.6; }
+.whatsapp-type-block textarea:focus { outline: none; border-color: var(--gold-border); }
 .template-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
 .template-help code { display: inline-block; margin-right: 4px; padding: 1px 6px; border-radius: 5px; color: var(--gold); background: var(--gold-soft); border: 1px solid var(--gold-border); }
 
