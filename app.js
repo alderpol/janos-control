@@ -23,15 +23,31 @@ Una vez que todos hayan ingresado al grupo, enviame un mensaje por allí para qu
 
 ¡Estamos a su entera disposición! ¡Muchas gracias!`;
 
+const WEDDING_WHATSAPP_TEMPLATE = `Hola {nombre}, ¡buenos días!
+
+Mi nombre es {remitente}, del Departamento de Fotografía de Janos. ¡Es un gusto poder comenzar a trabajar juntos!
+
+Te escribo para presentarme y contarte que nuestro equipo realizará la cobertura de fotografía y video de su boda, programado para el {fecha} en {salon}.
+
+He creado un grupo de WhatsApp para que podamos estar en contacto permanente y evacuar cualquier duda relacionada con fotografía y video.
+
+En breve te enviaré el enlace de acceso. Compartile ese enlace a tu prometido/a.
+
+Una vez ambos hayan ingresado al grupo, enviame un mensaje por allí para que pueda compartirles información importante.
+
+¡Estamos a su entera disposición! ¡Muchas gracias!`;
+
 // El texto del mensaje inicial ahora se elige según el "Tipo de evento" del
 // cliente (select "type" en el form de cliente: 15/Boda/Cumpleaños/
 // Corporativo/Egresados/Otro), no según quién lo manda. "general" cubre los
-// tipos que no tienen mensaje propio (Corporativo, Egresados, Otro).
+// tipos que no tienen mensaje propio (Corporativo, Egresados, Otro). Cada
+// entrada tiene su propio "default": el texto al que vuelve ese tipo si se
+// aprieta "Restaurar mensaje original" en su bloque.
 const WHATSAPP_TYPE_TEMPLATES = [
-  { key: "Boda", label: "Bodas" },
-  { key: "15", label: "15 años" },
-  { key: "Cumpleaños", label: "Cumpleaños" },
-  { key: "general", label: "Otros eventos (Corporativo, Egresados, Otro)" },
+  { key: "Boda", label: "Bodas", default: WEDDING_WHATSAPP_TEMPLATE },
+  { key: "15", label: "15 años", default: DEFAULT_WHATSAPP_TEMPLATE },
+  { key: "Cumpleaños", label: "Cumpleaños", default: DEFAULT_WHATSAPP_TEMPLATE },
+  { key: "general", label: "Otros eventos (Corporativo, Egresados, Otro)", default: DEFAULT_WHATSAPP_TEMPLATE },
 ];
 
 const ADDONS = [
@@ -510,7 +526,7 @@ function saveWhatsappSenders(){
   const updatedTemplates={};
   WHATSAPP_TYPE_TEMPLATES.forEach(t=>{
     const value=document.querySelector(`[data-type-template="${CSS.escape(t.key)}"]`)?.value.trim()||"";
-    updatedTemplates[t.key]=value||DEFAULT_WHATSAPP_TEMPLATE;
+    updatedTemplates[t.key]=value||t.default||DEFAULT_WHATSAPP_TEMPLATE;
   });
   state.settings={...(state.settings||{}),whatsappSenders:updatedSenders,whatsappTemplatesByType:updatedTemplates};
   saveState();
@@ -758,7 +774,7 @@ function whatsappSendersPanelBody(){
   const senders=whatsappSenders();
   const activeId=localStorage.getItem("janosActiveSender")||senders[0]?.id;
   const typeMap=whatsappTemplatesByType();
-  return `<p class="muted">¿Quién sos en este dispositivo? Marcá tu nombre en la lista de abajo. Esta elección se guarda solo en este celular/computadora — cada persona la elige una vez, en el suyo. Solo define con qué nombre se firma (variable {remitente}): el texto del mensaje es el mismo para todos, y se elige según el tipo de evento.</p><div class="whatsapp-name-list">${senders.map(s=>`<div class="whatsapp-sender-row"><label class="whatsapp-sender-pick" title="Elegir como quién sos en este dispositivo"><input type="radio" name="whatsappActiveSenderPick" value="${s.id}" ${s.id===activeId?"checked":""}></label><input type="text" data-sender-name="${s.id}" value="${escapeHtml(s.name)}" placeholder="Ej: Melani">${senders.length>1?`<button class="danger-btn" type="button" data-delete-sender="${s.id}">Eliminar</button>`:""}</div>`).join("")}</div><div class="modal-actions"><button class="secondary-btn" type="button" id="addWhatsappSender">+ Agregar remitente</button></div><h3 class="whatsapp-types-title">Mensajes según el tipo de evento</h3><p class="muted">Cada cliente tiene un "Tipo de evento" cargado en su ficha (Boda, 15, Cumpleaños, Corporativo, Egresados u Otro). El mensaje inicial se elige automáticamente según ese tipo; "Otros eventos" se usa para Corporativo, Egresados y Otro.</p>${WHATSAPP_TYPE_TEMPLATES.map(t=>`<div class="whatsapp-type-block"><h4>${escapeHtml(t.label)}</h4><textarea rows="7" data-type-template="${t.key}">${escapeHtml(typeMap[t.key]||typeMap.general||DEFAULT_WHATSAPP_TEMPLATE)}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-type="${t.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensajes</button></div>`;
+  return `<p class="muted">¿Quién sos en este dispositivo? Marcá tu nombre en la lista de abajo. Esta elección se guarda solo en este celular/computadora — cada persona la elige una vez, en el suyo. Solo define con qué nombre se firma (variable {remitente}): el texto del mensaje es el mismo para todos, y se elige según el tipo de evento.</p><div class="whatsapp-name-list">${senders.map(s=>`<div class="whatsapp-sender-row"><label class="whatsapp-sender-pick" title="Elegir como quién sos en este dispositivo"><input type="radio" name="whatsappActiveSenderPick" value="${s.id}" ${s.id===activeId?"checked":""}></label><input type="text" data-sender-name="${s.id}" value="${escapeHtml(s.name)}" placeholder="Ej: Melani">${senders.length>1?`<button class="danger-btn" type="button" data-delete-sender="${s.id}">Eliminar</button>`:""}</div>`).join("")}</div><div class="modal-actions"><button class="secondary-btn" type="button" id="addWhatsappSender">+ Agregar remitente</button></div><h3 class="whatsapp-types-title">Mensajes según el tipo de evento</h3><p class="muted">Cada cliente tiene un "Tipo de evento" cargado en su ficha (Boda, 15, Cumpleaños, Corporativo, Egresados u Otro). El mensaje inicial se elige automáticamente según ese tipo; "Otros eventos" se usa para Corporativo, Egresados y Otro.</p>${WHATSAPP_TYPE_TEMPLATES.map(t=>`<div class="whatsapp-type-block"><h4>${escapeHtml(t.label)}</h4><textarea rows="7" data-type-template="${t.key}">${escapeHtml(typeMap[t.key]||t.default||typeMap.general||DEFAULT_WHATSAPP_TEMPLATE)}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-type="${t.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensajes</button></div>`;
 }
 function renderSettings() {
   document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details></div>`;
@@ -1385,7 +1401,7 @@ document.addEventListener("click", e => {
   if(e.target.id==="saveWhatsappTemplate")saveWhatsappSenders();
   if(e.target.id==="addWhatsappSender")addWhatsappSender();
   const deleteSender=e.target.closest("[data-delete-sender]");if(deleteSender)deleteWhatsappSender(deleteSender.dataset.deleteSender);
-  const resetType=e.target.closest("[data-reset-type]");if(resetType){const field=document.querySelector(`[data-type-template="${CSS.escape(resetType.dataset.resetType)}"]`);if(field)field.value=DEFAULT_WHATSAPP_TEMPLATE;}
+  const resetType=e.target.closest("[data-reset-type]");if(resetType){const key=resetType.dataset.resetType;const def=WHATSAPP_TYPE_TEMPLATES.find(t=>t.key===key)?.default||DEFAULT_WHATSAPP_TEMPLATE;const field=document.querySelector(`[data-type-template="${CSS.escape(key)}"]`);if(field)field.value=def;}
   const saveZoho=e.target.closest("[data-save-zoho]");if(saveZoho)saveZohoAccount(saveZoho.dataset.saveZoho);
   const clearZoho=e.target.closest("[data-clear-zoho]");if(clearZoho)clearZohoAccount(clearZoho.dataset.clearZoho);
   const togglePwd=e.target.closest("[data-toggle-password]");if(togglePwd){const input=document.getElementById(togglePwd.dataset.togglePassword);if(input){const show=input.type==="password";input.type=show?"text":"password";togglePwd.textContent=show?"🙈":"👁";togglePwd.setAttribute("aria-label",show?"Ocultar contraseña":"Mostrar contraseña");}}
