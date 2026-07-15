@@ -134,12 +134,23 @@ export default async function handler(req, res) {
       auth: { user: account.user, pass: account.pass },
     });
 
-    await transporter.sendMail({
-      from: `"${account.fromName}" <${account.user}>`,
-      to: client.client_email,
-      subject: "Tu material de fotos y video ya está disponible",
-      html,
-    });
+    try {
+      await transporter.sendMail({
+        from: `"${account.fromName}" <${account.user}>`,
+        to: client.client_email,
+        subject: "Tu material de fotos y video ya está disponible",
+        html,
+      });
+    } catch (sendError) {
+      // 535 / EAUTH = Zoho rechazó el usuario o la contraseña de aplicación.
+      // Es un dato mal cargado, no un error del servidor, asi que devolvemos
+      // un mensaje en español y accionable en vez del texto crudo de Zoho.
+      if (sendError?.responseCode === 535 || sendError?.code === "EAUTH") {
+        const who = profile?.zoho_email && profile?.zoho_app_password ? "tu cuenta personal (Ajustes > Mi cuenta de email)" : `la cuenta configurada para "${client.salon}"`;
+        return res.status(400).json({ error: `Zoho rechazó el email o la contraseña de aplicación de ${who}. Revisalos y volvé a intentar.` });
+      }
+      throw sendError;
+    }
 
     const { error: updateError } = await supabase
       .from("clients")

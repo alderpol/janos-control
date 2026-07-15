@@ -1,4 +1,4 @@
-import { clearMyZohoAccount, cloudEnabled, supabase, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode } from "./cloud.js";
+import { clearMyZohoAccount, cloudEnabled, supabase, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -461,7 +461,16 @@ async function saveZohoAccount(){
     if(fromName)accessProfile.zoho_from_name=fromName;
     if(password)accessProfile.hasZohoPassword=true;
     renderSettings();
-    toast("Cuenta de Zoho guardada");
+    if(accessProfile.zoho_email&&accessProfile.hasZohoPassword){
+      try{
+        await verifyMyZohoAccount();
+        toast("Cuenta de Zoho guardada y verificada con Zoho ✓");
+      }catch(verifyErr){
+        toast(`Se guardó, pero ${(verifyErr.message||"no se pudo verificar con Zoho").charAt(0).toLowerCase()}${(verifyErr.message||"no se pudo verificar con Zoho").slice(1)}`);
+      }
+    }else{
+      toast("Cuenta de Zoho guardada");
+    }
   }catch(err){
     toast(err.message||"No se pudo guardar la cuenta de Zoho");
   }finally{

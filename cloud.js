@@ -130,6 +130,21 @@ export async function clearMyZohoAccount() {
   if (error) throw error;
 }
 
+// Prueba con Zoho (login SMTP, sin mandar mail) la cuenta que el usuario ya
+// tiene guardada. Se usa justo después de guardar para avisar al toque si
+// el usuario/contraseña están mal.
+export async function verifyMyZohoAccount() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch("/api/verify-zoho-account", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo verificar la cuenta con Zoho.");
+  return data;
+}
+
 export async function listUserProfiles() {
   const { data: { session } } = await supabase.auth.getSession();
   const response = await fetch(`${supabaseUrl}/functions/v1/list-profiles`, {
