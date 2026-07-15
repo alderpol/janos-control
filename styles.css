@@ -121,8 +121,13 @@ nav { display: grid; gap: 3px; }
 .zoho-account-block { padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--line); }
 .zoho-account-block:first-of-type { padding-top: 0; margin-top: 0; border-top: 0; }
 .zoho-account-block h4 { margin: 0 0 8px; color: var(--gold); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
-.whatsapp-sender-block { padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--line); }
-.whatsapp-sender-block:first-of-type { padding-top: 0; margin-top: 0; border-top: 0; }
+.whatsapp-type-block { padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--line); }
+.whatsapp-type-block:first-of-type { padding-top: 0; margin-top: 0; border-top: 0; }
+.whatsapp-type-block h4 { margin: 0 0 8px; }
+.whatsapp-types-title { margin: 22px 0 4px; }
+.whatsapp-name-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.whatsapp-sender-row { display: flex; gap: 8px; align-items: center; }
+.whatsapp-sender-row input { flex: 1; }
 .zoho-help { margin-bottom: 16px; padding: 10px 14px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--surface-2); }
 .zoho-help summary { cursor: pointer; color: var(--ink); font-weight: 700; font-size: 13px; }
 .zoho-help p { margin: 10px 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.6; }
