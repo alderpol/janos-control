@@ -115,6 +115,9 @@ nav { display: grid; gap: 3px; }
 .danger-btn { color: var(--red); background: var(--red-soft); border-color: rgba(248,113,113,.2); }
 .danger-btn:hover { background: rgba(248,113,113,.2); }
 .icon-btn { border: 0; background: transparent; color: var(--muted); font-size: 22px; padding: 4px 8px; }
+.password-field { position: relative; }
+.password-field input { padding-right: 40px !important; }
+.password-field .toggle-password { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); font-size: 16px; line-height: 1; }
 .icon-btn:hover { color: var(--ink); }
 .mobile-only { display: none; }
 
