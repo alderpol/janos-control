@@ -106,8 +106,15 @@ export async function saveMyZohoAccount({ email, password, fromName }) {
   if (!supabase) throw new Error("Supabase no está configurado.");
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No hay sesión activa.");
-  const update = { zoho_email: String(email || "").trim() || null, zoho_from_name: String(fromName || "").trim() || null };
+  // Los 3 campos se comportan igual: si se dejan vacíos, se conserva lo que
+  // ya estaba guardado (no se borra por error al guardar sin completarlos).
+  const update = {};
+  const trimmedEmail = String(email || "").trim();
+  const trimmedFromName = String(fromName || "").trim();
+  if (trimmedEmail) update.zoho_email = trimmedEmail;
+  if (trimmedFromName) update.zoho_from_name = trimmedFromName;
   if (password) update.zoho_app_password = password;
+  if (!Object.keys(update).length) return;
   const { error } = await supabase.from("profiles").update(update).eq("id", user.id);
   if (error) throw error;
 }

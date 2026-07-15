@@ -1,0 +1,12 @@
+-- Sin este grant, cualquier usuario logueado recibia "permission denied for
+-- table profiles" al intentar guardar su propia cuenta de Zoho desde
+-- Ajustes > "Mi cuenta de email" (el permiso de tabla es independiente de
+-- las politicas RLS).
+--
+-- Se otorga UPDATE solo sobre estas 3 columnas (no sobre toda la tabla) a
+-- proposito: profiles tambien tiene columnas sensibles como role/status/
+-- salons, y un UPDATE sin restriccion de columnas le permitiria a cualquier
+-- usuario auto-otorgarse rol de administrador o desbloquear su propia
+-- cuenta, ya que la RLS de profiles_update solo valida "id = auth.uid()"
+-- sin restringir columnas.
+grant update (zoho_email, zoho_app_password, zoho_from_name) on public.profiles to authenticated;

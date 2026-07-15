@@ -457,8 +457,8 @@ async function saveZohoAccount(){
   const btn=document.getElementById("saveZohoAccount");if(btn)btn.disabled=true;
   try{
     await saveMyZohoAccount({email,password,fromName});
-    accessProfile.zoho_email=email;
-    accessProfile.zoho_from_name=fromName;
+    if(email)accessProfile.zoho_email=email;
+    if(fromName)accessProfile.zoho_from_name=fromName;
     if(password)accessProfile.hasZohoPassword=true;
     renderSettings();
     toast("Cuenta de Zoho guardada");
