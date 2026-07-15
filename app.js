@@ -466,7 +466,11 @@ async function saveZohoAccount(){
         await verifyMyZohoAccount();
         toast("Cuenta de Zoho guardada y verificada con Zoho ✓");
       }catch(verifyErr){
-        toast(`Se guardó, pero ${(verifyErr.message||"no se pudo verificar con Zoho").charAt(0).toLowerCase()}${(verifyErr.message||"no se pudo verificar con Zoho").slice(1)}`);
+        if(verifyErr.invalid){
+          alert("Usuario y/o contraseña incorrectos.");
+        }else{
+          toast(`Se guardó, pero ${(verifyErr.message||"no se pudo verificar con Zoho").charAt(0).toLowerCase()}${(verifyErr.message||"no se pudo verificar con Zoho").slice(1)}`);
+        }
       }
     }else{
       toast("Cuenta de Zoho guardada");

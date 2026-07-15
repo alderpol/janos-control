@@ -51,7 +51,7 @@ export default async function handler(req, res) {
       await transporter.verify();
     } catch (verifyError) {
       if (verifyError?.responseCode === 535 || verifyError?.code === "EAUTH") {
-        return res.status(400).json({ error: "Zoho rechazó el email o la contraseña de aplicación cargados." });
+        return res.status(400).json({ error: "Zoho rechazó el email o la contraseña de aplicación cargados.", invalid: true });
       }
       return res.status(500).json({ error: `No se pudo conectar con Zoho: ${String(verifyError?.message || verifyError)}` });
     }

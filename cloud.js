@@ -141,7 +141,11 @@ export async function verifyMyZohoAccount() {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "No se pudo verificar la cuenta con Zoho.");
+  if (!res.ok) {
+    const err = new Error(data.error || "No se pudo verificar la cuenta con Zoho.");
+    err.invalid = Boolean(data.invalid);
+    throw err;
+  }
   return data;
 }
 
