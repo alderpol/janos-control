@@ -87,13 +87,29 @@ export async function getAccessProfile() {
   if (!user) return { role: "user", status: "blocked", display_name: "" };
   // FIX: filtrar por id. Con la RLS actual (auth.uid()=id OR is_app_admin())
   // el admin ve TODOS los perfiles y .maybeSingle() sin filtro falla con 2+ filas.
-  const { data, error } = await supabase.from("profiles").select("role,status,display_name,salons").eq("id", user.id).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("role,status,display_name,salons,zoho_email,zoho_from_name,zoho_app_password").eq("id", user.id).maybeSingle();
   if (error) throw error;
   // Fail closed: if for any reason the profile row doesn't exist yet, treat
   // the user as blocked rather than active. The DB now creates this row
   // automatically (blocked) via a trigger on signup, so this is just a
   // defensive fallback, not the primary gate.
-  return data || { role: "user", status: "blocked", display_name: "", salons: [] };
+  if (!data) return { role: "user", status: "blocked", display_name: "", salons: [] };
+  // No guardamos la contraseña en claro en el estado de la app: solo si hay una cargada.
+  const { zoho_app_password, ...rest } = data;
+  return { ...rest, hasZohoPassword: Boolean(zoho_app_password) };
+}
+
+// Cuenta de Zoho Mail propia del usuario logueado, usada por
+// api/send-drive-email.js para enviar el material al cliente desde su
+// propia casilla en vez de las cuentas fijas de Quinta/Pilar Hotel.
+export async function saveMyZohoAccount({ email, password, fromName }) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No hay sesión activa.");
+  const update = { zoho_email: String(email || "").trim() || null, zoho_from_name: String(fromName || "").trim() || null };
+  if (password) update.zoho_app_password = password;
+  const { error } = await supabase.from("profiles").update(update).eq("id", user.id);
+  if (error) throw error;
 }
 
 export async function listUserProfiles() {

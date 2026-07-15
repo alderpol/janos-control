@@ -10,9 +10,12 @@ import nodemailer from "nodemailer";
 // siempre lo supera (error 546), aunque el mail termine llegando. Vercel no
 // tiene esa restriccion.
 //
-// La cuenta de envio (Quinta o Pilar Hotel) se elige segun clients.salon.
-// Las variables ZOHO_*_USER / ZOHO_*_PASS se configuran en Vercel (Project
-// Settings > Environment Variables), no viven en el repo.
+// La cuenta de envio se elige asi: primero se fija si el usuario logueado
+// cargo su propia cuenta de Zoho en su perfil (Ajustes > "Mi cuenta de
+// email" -> profiles.zoho_email/zoho_app_password). Si no cargo nada, se
+// usa el mapa fijo ACCOUNTS segun clients.salon (Quinta o Pilar Hotel),
+// cuyas variables ZOHO_*_USER / ZOHO_*_PASS se configuran en Vercel
+// (Project Settings > Environment Variables), no viven en el repo.
 //
 // Usa el JWT del propio usuario (no service role), asi que el RLS de
 // Supabase ya limita la lectura/escritura del cliente a sus propias filas.
@@ -74,12 +77,32 @@ export default async function handler(req, res) {
     if (!client.client_email) return res.status(400).json({ error: "El cliente no tiene email cargado" });
     if (!client.drive_url) return res.status(400).json({ error: "El cliente no tiene link de Drive cargado" });
 
-    const account = ACCOUNTS[client.salon];
-    if (!account) {
-      return res.status(400).json({ error: `No hay cuenta de Zoho configurada para el salón "${client.salon}"` });
-    }
-    if (!account.user || !account.pass) {
-      return res.status(500).json({ error: `Faltan las variables de Zoho para "${client.salon}" en Vercel` });
+    // Cada usuario (colega) puede cargar su propia cuenta de Zoho en su perfil
+    // (Ajustes > "Mi cuenta de email"). Si la cargó, se usa esa en vez de las
+    // 2 cuentas fijas por salón (pensadas originalmente solo para Quinta/Pilar
+    // Hotel, que no tienen sentido para otro fotógrafo/colega con otro salón).
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("display_name,zoho_email,zoho_app_password,zoho_from_name")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+    if (profileError) return res.status(500).json({ error: profileError.message });
+
+    let account;
+    if (profile?.zoho_email && profile?.zoho_app_password) {
+      account = {
+        user: profile.zoho_email,
+        pass: profile.zoho_app_password,
+        fromName: profile.zoho_from_name || profile.display_name || "Janos Fotografía y Video",
+      };
+    } else {
+      account = ACCOUNTS[client.salon];
+      if (!account) {
+        return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada (Ajustes > Mi cuenta de email), y no hay una cuenta general para el salón "${client.salon}"` });
+      }
+      if (!account.user || !account.pass) {
+        return res.status(500).json({ error: `Faltan las variables de Zoho para "${client.salon}" en Vercel` });
+      }
     }
 
     const sentAt = new Date();

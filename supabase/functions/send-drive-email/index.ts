@@ -18,9 +18,9 @@ const corsHeaders = {
 // Supabase (Project Settings > Edge Functions > Secrets), no viven en el
 // repo.
 //
-// Esta funcion NO escribe en la base — solo manda el mail. Quien la llama
-// (app.js) es responsable de guardar clients.link_sent_at si el envio salio
-// bien, igual que el resto del estado se sincroniza con syncCloudState.
+// Ademas de mandar el mail, esta funcion guarda clients.link_sent_at ella
+// misma (no depende de que app.js llegue a sincronizarlo con la nube), asi
+// queda persistido aunque el navegador se cierre o recargue justo despues.
 
 const ACCOUNTS: Record<string, { user: string | undefined; pass: string | undefined; fromName: string }> = {
   "Quinta": {
@@ -103,7 +103,9 @@ serve(async (req) => {
             Ver mis fotos y videos
           </a>
         </p>
-        <p>El material va a estar disponible en este link hasta el <strong>${availableUntil}</strong> (180 días desde este mail). Te recomendamos descargarlo antes de esa fecha, ya que luego será eliminado.</p>
+        <p>Vas a poder descargarlo desde este link hasta el <strong>${availableUntil}</strong> (180 días desde este mail). Te recomendamos guardarlo en tu computadora o en tu propia nube antes de esa fecha, para tenerlo siempre a mano.</p>
+        <p>¡Gracias por haber elegido a Janos para acompañarte en un día tan especial! Fue un placer para todo el equipo.</p>
+        <p>Un abrazo,<br>El equipo de Janos Fotografía y Video</p>
         <p style="margin-top:24px;color:#888;font-size:12px">Janos Fotografía · ${client.salon}</p>
       </div>
     `;
@@ -117,15 +119,27 @@ serve(async (req) => {
       },
     });
 
-    try {
-      await smtp.send({
-        from: `${account.fromName} <${account.user}>`,
-        to: client.client_email,
-        subject: "Tu material de fotos y video ya está disponible",
-        html,
-      });
-    } finally {
-      await smtp.close();
+    await smtp.send({
+      from: `${account.fromName} <${account.user}>`,
+      to: client.client_email,
+      subject: "Tu material de fotos y video ya está disponible",
+      html,
+    });
+    // No esperamos al cierre de la conexion: una vez que send() resuelve, el
+    // mail ya quedo en manos de Zoho. Esperar el cierre (QUIT/TLS shutdown)
+    // hacia que la funcion se pasara del limite de CPU de Supabase (error 546)
+    // y devolviera error aunque el mail ya se hubiera entregado bien.
+    smtp.close().catch(() => {});
+
+    // Guardamos link_sent_at aca mismo (no solo del lado de la app) para que
+    // quede persistido incluso si el navegador se cierra o recarga antes de
+    // que termine su propia sincronizacion con la nube.
+    const { error: updateError } = await userClient
+      .from("clients")
+      .update({ link_sent_at: sentAt.toISOString() })
+      .eq("id", clientId);
+    if (updateError) {
+      return jsonResponse({ ok: true, warning: `El mail se envió, pero no se pudo guardar la fecha: ${updateError.message}`, sentAt: sentAt.toISOString(), availableUntil: addDays(sentAt, 180).toISOString() });
     }
 
     return jsonResponse({ ok: true, sentAt: sentAt.toISOString(), availableUntil: addDays(sentAt, 180).toISOString() });
