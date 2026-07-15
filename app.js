@@ -485,7 +485,10 @@ async function saveZohoAccount(salon){
   }
 }
 async function clearZohoAccount(salon){
-  if(!confirm(`¿Borrar la cuenta de Zoho de ${salon}? Volvés a usar la cuenta general de ese salón para enviar el material.`))return;
+  const confirmMsg=accessProfile.role==="admin"
+    ?`¿Borrar la cuenta de Zoho de ${salon}? Volvés a usar la cuenta general de ese salón para enviar el material.`
+    :`¿Borrar la cuenta de Zoho de ${salon}? Vas a dejar de poder enviar material para ese salón hasta que cargues una cuenta de nuevo.`;
+  if(!confirm(confirmMsg))return;
   const btn=document.querySelector(`[data-clear-zoho="${CSS.escape(salon)}"]`);if(btn)btn.disabled=true;
   try{
     await clearMyZohoAccount(salon);
@@ -646,7 +649,9 @@ function zohoAccountsPanelBody(){
   const mySalons=(accessProfile.salons&&accessProfile.salons.length)?accessProfile.salons:salonsInUse();
   if(!mySalons.length)return `<p class="muted">Todavía no hay salones para configurar. Cuando tengas clientes cargados o salones asignados a tu cuenta, vas a poder cargar acá tu cuenta de Zoho para cada uno.</p>`;
   const accounts=accessProfile.zohoAccounts||{};
-  return `<p class="muted">Acá cargás la cuenta de Zoho para mandarle el material a tus clientes. Si no cargás nada, se usa la cuenta general del salón.</p><details class="zoho-help"><summary>¿Cómo consigo mi contraseña de aplicación de Zoho?</summary><ol><li>Entrá a <a href="https://accounts.zoho.com/home#security/app-passwords" target="_blank" rel="noopener noreferrer">accounts.zoho.com/home#security/app-passwords</a> con tu cuenta de Zoho.</li><li>Si te pide tu contraseña para confirmar identidad, escribila y confirmá.</li><li>En "Contraseñas específicas de aplicación", hacé clic en "+ Generar nueva contraseña" y ponele un nombre (ej: Janos Control).</li><li>Copiala apenas aparezca — Zoho solo la muestra una vez.</li><li>Pegala acá abajo, en el campo "Contraseña de aplicación" (no uses tu contraseña normal de Zoho).</li></ol></details>${mySalons.length>1?`<p class="muted">Trabajás en más de un salón: cargá una cuenta para cada uno.</p>`:""}${mySalons.map(salon=>{
+  const isAdmin=accessProfile.role==="admin";
+  const fallbackNote=isAdmin?"Si no cargás nada, se usa la cuenta general del salón (la que ya tenés configurada).":"Si no cargás tu cuenta acá, no vas a poder enviar material — tenés que cargar la tuya.";
+  return `<p class="muted">Acá cargás la cuenta de Zoho para mandarle el material a tus clientes. ${fallbackNote}</p><details class="zoho-help"><summary>¿Cómo consigo mi contraseña de aplicación de Zoho?</summary><ol><li>Entrá a <a href="https://accounts.zoho.com/home#security/app-passwords" target="_blank" rel="noopener noreferrer">accounts.zoho.com/home#security/app-passwords</a> con tu cuenta de Zoho.</li><li>Si te pide tu contraseña para confirmar identidad, escribila y confirmá.</li><li>En "Contraseñas específicas de aplicación", hacé clic en "+ Generar nueva contraseña" y ponele un nombre (ej: Janos Control).</li><li>Copiala apenas aparezca — Zoho solo la muestra una vez.</li><li>Pegala acá abajo, en el campo "Contraseña de aplicación" (no uses tu contraseña normal de Zoho).</li></ol></details>${mySalons.length>1?`<p class="muted">Trabajás en más de un salón: cargá una cuenta para cada uno.</p>`:""}${mySalons.map(salon=>{
     const slug=salonSlug(salon),acc=accounts[salon]||{};
     return `<div class="zoho-account-block"><h4>${escapeHtml(salon)}</h4><label>Email de Zoho<input id="zohoEmail-${slug}" type="email" placeholder="tuemail@janoseventos.com" value="${escapeHtml(acc.email||"")}"></label><label>Contraseña de aplicación<div class="password-field"><input id="zohoAppPassword-${slug}" type="password" placeholder="${acc.hasPassword?"Ya cargada · dejalo vacío para no cambiarla":"Contraseña de aplicación de Zoho"}" autocomplete="new-password"><button type="button" class="icon-btn toggle-password" data-toggle-password="zohoAppPassword-${slug}" aria-label="Mostrar contraseña">👁</button></div></label><label>Nombre que va a ver el cliente<input id="zohoFromName-${slug}" type="text" placeholder="Ej: Juan Pérez Fotografía" value="${escapeHtml(acc.fromName||"")}"></label><div class="modal-actions"><button class="primary-btn" data-save-zoho="${escapeHtml(salon)}">Guardar cuenta de ${escapeHtml(salon)}</button>${acc.email||acc.hasPassword?`<button class="danger-btn" data-clear-zoho="${escapeHtml(salon)}">Borrar cuenta de ${escapeHtml(salon)}</button>`:""}</div></div>`;
   }).join("")}`;
