@@ -443,7 +443,51 @@ function renderCalendar(){
     </div>`;
 }
 function whatsappNumber(value){let digits=String(value||"").replace(/\D/g,"").replace(/^00/,"");if(!digits)return "";if(digits.startsWith("549"))return digits;if(digits.startsWith("54"))return `549${digits.slice(2)}`;if(digits.length>10)return digits;return `549${digits.replace(/^0/,"")}`;}
-function whatsappMessage(client){const metadata=currentUser?.user_metadata||{};const values={nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:metadata.first_name||metadata.full_name||"el equipo"};return Object.entries(values).reduce((message,[key,value])=>message.split(`{${key}}`).join(String(value||"")),state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE);}
+// Varias personas pueden compartir el mismo login de Janos Control pero
+// querer firmar sus mensajes de WhatsApp con su propio nombre y texto. Como
+// no hay forma de distinguirlas por la cuenta (es la misma para las 3), cada
+// dispositivo (celular/computadora) recuerda cuál es "su" remitente en
+// localStorage — no viaja a la nube, es local a ese navegador.
+function whatsappSenders(){
+  const list=state.settings?.whatsappSenders;
+  if(Array.isArray(list)&&list.length)return list;
+  // Compatibilidad con el mensaje único que había antes de esto.
+  return [{id:"default",name:"General",template:state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE}];
+}
+function activeWhatsappSender(){
+  const senders=whatsappSenders();
+  const activeId=localStorage.getItem("janosActiveSender");
+  return senders.find(s=>s.id===activeId)||senders[0];
+}
+function whatsappMessage(client){const metadata=currentUser?.user_metadata||{};const sender=activeWhatsappSender();const values={nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:sender.name||metadata.first_name||metadata.full_name||"el equipo"};return Object.entries(values).reduce((message,[key,value])=>message.split(`{${key}}`).join(String(value||"")),sender.template||DEFAULT_WHATSAPP_TEMPLATE);}
+function addWhatsappSender(){
+  const senders=whatsappSenders();
+  const newSender={id:uid(),name:"",template:DEFAULT_WHATSAPP_TEMPLATE};
+  state.settings={...(state.settings||{}),whatsappSenders:[...senders,newSender]};
+  saveState();
+  renderSettings();
+}
+function deleteWhatsappSender(id){
+  const senders=whatsappSenders();
+  if(senders.length<=1){toast("Tiene que quedar al menos un remitente.");return;}
+  if(!confirm("¿Eliminar este remitente y su mensaje?"))return;
+  state.settings={...(state.settings||{}),whatsappSenders:senders.filter(s=>s.id!==id)};
+  saveState();
+  if(localStorage.getItem("janosActiveSender")===id)localStorage.removeItem("janosActiveSender");
+  renderSettings();
+}
+function saveWhatsappSenders(){
+  const senders=whatsappSenders();
+  const updated=senders.map(s=>{
+    const name=document.querySelector(`[data-sender-name="${CSS.escape(s.id)}"]`)?.value.trim()||"";
+    const template=document.querySelector(`[data-sender-template="${CSS.escape(s.id)}"]`)?.value.trim()||"";
+    return {id:s.id,name:name||"Sin nombre",template:template||DEFAULT_WHATSAPP_TEMPLATE};
+  });
+  state.settings={...(state.settings||{}),whatsappSenders:updated};
+  saveState();
+  renderSettings();
+  toast("Mensajes de WhatsApp guardados");
+}
 function whatsappUrl(client){const phone=whatsappNumber(client.clientPhone);return phone?`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage(client))}`:"";}
 function contactClient(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=whatsappUrl(client);if(!url){openClientForm(client);toast("Agregá el WhatsApp del cliente para contactarlo");return;}window.open(url,"_blank","noopener,noreferrer");client.contactedAt=new Date().toISOString();client.history=client.history||[];client.history.push({date:client.contactedAt,text:"Contacto inicial por WhatsApp registrado",type:"whatsapp_contact"});saveState();toast("Contacto registrado");}
 function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
@@ -681,8 +725,13 @@ function zohoAccountsPanelBody(){
     return `<div class="zoho-account-block"><h4>${escapeHtml(salon)}</h4><label>Email de Zoho<input id="zohoEmail-${slug}" type="email" placeholder="tuemail@janoseventos.com" value="${escapeHtml(acc.email||"")}"></label><label>Contraseña de aplicación<div class="password-field"><input id="zohoAppPassword-${slug}" type="password" placeholder="${acc.hasPassword?"Ya cargada · dejalo vacío para no cambiarla":"Contraseña de aplicación de Zoho"}" autocomplete="new-password"><button type="button" class="icon-btn toggle-password" data-toggle-password="zohoAppPassword-${slug}" aria-label="Mostrar contraseña">👁</button></div></label><label>Nombre que va a ver el cliente<input id="zohoFromName-${slug}" type="text" placeholder="Ej: Juan Pérez Fotografía" value="${escapeHtml(acc.fromName||"")}"></label><div class="modal-actions"><button class="primary-btn" data-save-zoho="${escapeHtml(salon)}">Guardar cuenta de ${escapeHtml(salon)}</button>${acc.email||acc.hasPassword?`<button class="danger-btn" data-clear-zoho="${escapeHtml(salon)}">Borrar cuenta de ${escapeHtml(salon)}</button>`:""}</div></div>`;
   }).join("")}`;
 }
+function whatsappSendersPanelBody(){
+  const senders=whatsappSenders();
+  const activeId=localStorage.getItem("janosActiveSender")||senders[0]?.id;
+  return `<label>¿Quién sos en este dispositivo?<select id="whatsappActiveSender">${senders.map(s=>`<option value="${escapeHtml(s.id)}" ${s.id===activeId?"selected":""}>${escapeHtml(s.name||"Sin nombre")}</option>`).join("")}</select></label><p class="muted">Esta elección se guarda solo en este celular/computadora. Cada persona la elige una vez, en el suyo.</p>${senders.map(s=>`<div class="whatsapp-sender-block"><label>Nombre del remitente<input type="text" data-sender-name="${s.id}" value="${escapeHtml(s.name)}" placeholder="Ej: Melani"></label><label>Mensaje<textarea rows="7" data-sender-template="${s.id}">${escapeHtml(s.template)}</textarea></label><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-sender="${s.id}">Restaurar mensaje original</button>${senders.length>1?`<button class="danger-btn" type="button" data-delete-sender="${s.id}">Eliminar remitente</button>`:""}</div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="secondary-btn" id="addWhatsappSender">+ Agregar remitente</button><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensajes</button></div>`;
+}
 function renderSettings() {
-  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><label>Texto del mensaje<textarea id="whatsappTemplate" rows="7">${escapeHtml(state.settings?.whatsappTemplate||DEFAULT_WHATSAPP_TEMPLATE)}</textarea></label><p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="secondary-btn" id="resetWhatsappTemplate">Restaurar original</button><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensaje</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details></div>`;
+  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details></div>`;
 }
 function accessDate(value){return value?new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value)):"Nunca";}
 function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
@@ -1303,8 +1352,10 @@ document.addEventListener("click", e => {
   const deleteWork=e.target.closest("[data-delete-rendition]");if(deleteWork&&confirm("¿Eliminar definitivamente esta rendición? La tarea del cliente se conservará."))deleteRendition(deleteWork.dataset.deleteRendition);
   if(e.target.id==="deleteClientFromForm"){const id=document.getElementById("clientForm").elements.id.value;if(id&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(id);}
   if(e.target.id==="saveRates"){document.querySelectorAll("[data-rate]").forEach(i=>state.rates[i.dataset.rate]=Number(i.value||0));saveState();toast("Tarifas actualizadas");}
-  if(e.target.id==="saveWhatsappTemplate"){const template=document.getElementById("whatsappTemplate")?.value.trim();if(!template){toast("El mensaje no puede quedar vacío.");return;}state.settings={...(state.settings||{}),whatsappTemplate:template};saveState();toast("Mensaje de WhatsApp guardado");}
-  if(e.target.id==="resetWhatsappTemplate"){const field=document.getElementById("whatsappTemplate");if(field)field.value=DEFAULT_WHATSAPP_TEMPLATE;}
+  if(e.target.id==="saveWhatsappTemplate")saveWhatsappSenders();
+  if(e.target.id==="addWhatsappSender")addWhatsappSender();
+  const deleteSender=e.target.closest("[data-delete-sender]");if(deleteSender)deleteWhatsappSender(deleteSender.dataset.deleteSender);
+  const resetSender=e.target.closest("[data-reset-sender]");if(resetSender){const field=document.querySelector(`[data-sender-template="${CSS.escape(resetSender.dataset.resetSender)}"]`);if(field)field.value=DEFAULT_WHATSAPP_TEMPLATE;}
   const saveZoho=e.target.closest("[data-save-zoho]");if(saveZoho)saveZohoAccount(saveZoho.dataset.saveZoho);
   const clearZoho=e.target.closest("[data-clear-zoho]");if(clearZoho)clearZohoAccount(clearZoho.dataset.clearZoho);
   const togglePwd=e.target.closest("[data-toggle-password]");if(togglePwd){const input=document.getElementById(togglePwd.dataset.togglePassword);if(input){const show=input.type==="password";input.type=show?"text":"password";togglePwd.textContent=show?"🙈":"👁";togglePwd.setAttribute("aria-label",show?"Ocultar contraseña":"Mostrar contraseña");}}
@@ -1327,6 +1378,7 @@ document.addEventListener("change", e => {
   if(e.target.dataset.renditionStatus){const r=state.renditions.find(x=>x.id===e.target.dataset.renditionStatus);if(r){r.status=e.target.value;saveState();toast("Estado de rendición actualizado");}}
   if(e.target.dataset.renditionSelect)toggleRenditionSelect(e.target.dataset.renditionSelect,e.target.checked);
   if(e.target.id==="renditionSelectAll")toggleRenditionSelectAll(e.target.checked);
+  if(e.target.id==="whatsappActiveSender"){localStorage.setItem("janosActiveSender",e.target.value);toast("Este dispositivo va a firmar como ese remitente de acá en más");}
 
   if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
   if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
