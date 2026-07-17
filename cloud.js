@@ -15,6 +15,23 @@ function check(result, label) {
   return result.data;
 }
 
+// "Borrar todos los datos" e "Importar copia" (Ajustes) son borrados/reemplazos masivos
+// LEGITIMOS que chocarían con la salvaguarda anti-borrado-masivo de deleteMissing().
+// Antes de esos flujos, la app llama a approveMassDeletion(): deja una autorización con
+// vencimiento (15 min, cubre los reintentos del sync) para que esa sincronización pueda
+// borrar más de la mitad de las filas sin que la salvaguarda la frene. Cualquier borrado
+// masivo NO precedido por esta autorización explícita del usuario sigue bloqueado.
+const MASS_DELETION_FLAG = "janos-mass-deletion-ok-until";
+export function approveMassDeletion(minutes = 15) {
+  try { localStorage.setItem(MASS_DELETION_FLAG, String(Date.now() + minutes * 60000)); } catch {}
+}
+function massDeletionApproved() {
+  try { return Date.now() < Number(localStorage.getItem(MASS_DELETION_FLAG) || 0); } catch { return false; }
+}
+function clearMassDeletionApproval() {
+  try { localStorage.removeItem(MASS_DELETION_FLAG); } catch {}
+}
+
 // Supabase/PostgREST devuelve como mucho 1000 filas por consulta (limite
 // "Max Rows" del proyecto), en silencio, sin avisar que corto el resultado.
 // Con >1000 tareas en la cuenta (facil de superar: ~200 clientes x ~10
@@ -409,7 +426,7 @@ async function deleteMissing(table, ownerId, ids) {
   // masivo real (ej. limpieza a propósito de muchos clientes viejos), hacerlo directo en la
   // base con supervisión, no vía este sync automático.
   const deletionRatio = existingRows.length ? obsoleteIds.length / existingRows.length : 0;
-  if (existingRows.length > 10 && deletionRatio > 0.5) {
+  if (existingRows.length > 10 && deletionRatio > 0.5 && !massDeletionApproved()) {
     throw new Error(`Guardado detenido por seguridad: se iba a borrar ${obsoleteIds.length} de ${existingRows.length} filas de "${table}" de una sola vez. Si es intencional, avisar para revisarlo manualmente.`);
   }
   for (const batch of chunks(obsoleteIds)) {
@@ -514,4 +531,7 @@ export async function syncCloudState(state, user) {
     owner_id: ownerId, rate_key: key, label: key, amount: Number(amount || 0), valid_from: validFrom,
   }));
   await upsertInBatches("rates", rateRows, "Guardado de tarifas", { onConflict: "owner_id,rate_key,valid_from" });
+  // Sincronización completa OK: si había una autorización de borrado masivo pendiente
+  // (Borrar todos los datos / Importar copia), ya cumplió su función.
+  clearMassDeletionApproval();
 }
