@@ -1110,7 +1110,7 @@ async function importClientCsv(file){
   let rows;
   try{rows=parseCsv(text);}catch(parseError){console.error("Error al parsear CSV:",parseError);toast("El archivo no se pudo leer. Verificá que sea un CSV válido exportado correctamente.");return;}
   if(!rows.length){toast("El CSV no contiene filas para importar.");return;}
-  let created=0,existingSkipped=0,skipped=0,duplicatedInFile=0,rowErrors=0;const seenCodes=new Set();
+  let created=0,existingSkipped=0,skipped=0,duplicatedInFile=0,rowErrors=0,emailsUpdated=0;const seenCodes=new Set();
   const conflicts=[];
   rows.forEach((row,index)=>{
     try{
@@ -1118,7 +1118,9 @@ async function importClientCsv(file){
       const existing=state.clients.find(c=>String(c.code)===String(code));
       const rawPack=firstValue(row,["pack_upgrades","pack_y_upgrades","fotografia","pack","servicios"]),addonsText=[rawPack,firstValue(row,["adicionales","upgrades","complementos"])].filter(Boolean).join(" "),flexText=firstValue(row,["servicios_flex","elecciones_flex","mini_flex","flex"]);
       const csvPack=parsePack(rawPack),csvAddons=parseAddons(addonsText),csvFlex=parseFlexServices(flexText);
+      const csvEmail=String(firstValue(row,["email","correo","mail","email_cliente","correo_electronico"])||"").trim();
       if(existing){
+        if(csvEmail&&existing.clientEmail!==csvEmail){existing.clientEmail=csvEmail;emailsUpdated+=1;}
         const packChanged=existing.pack!==csvPack;
         const addonsChanged=JSON.stringify([...existing.addons].sort())!==JSON.stringify([...csvAddons].sort());
         if(!packChanged&&!addonsChanged){existingSkipped+=1;return;}
@@ -1128,7 +1130,7 @@ async function importClientCsv(file){
         conflicts.push({client:existing,csvPack,csvAddons,csvFlex,diffs});
         return;
       }
-      const incoming={code,eventDate,salon:firstValue(row,["salon","sede"])||"Otro",type:firstValue(row,["tipo","tipo_evento"])||"Otro",honoree:firstValue(row,["homenajeado","homenajeada","homenajead","nombre_evento"])||firstValue(row,["cliente","nombre_cliente"])||`Evento ${code}`,clientName:firstValue(row,["cliente","nombre_cliente","contacto_cliente"]),clientPhone:(()=>{const raw=firstValue(row,["whatsapp","telefono","telefono_cliente","celular"]);return raw&&raw.replace(/\D/g,"").length>=8?raw:"";})(),guests:Number(firstValue(row,["invitados","cantidad_invitados"])||0),pack:csvPack,addons:csvAddons,flexServices:csvFlex,notes:firstValue(row,["notas","observaciones","comentarios"])};const client={...incoming,id:uid(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente importado desde CSV"}]};client.tasks=createTasks(client);state.clients.push(client);created+=1;
+      const incoming={code,eventDate,salon:firstValue(row,["salon","sede"])||"Otro",type:firstValue(row,["tipo","tipo_evento"])||"Otro",honoree:firstValue(row,["homenajeado","homenajeada","homenajead","nombre_evento"])||firstValue(row,["cliente","nombre_cliente"])||`Evento ${code}`,clientName:firstValue(row,["cliente","nombre_cliente","contacto_cliente"]),clientEmail:csvEmail,clientPhone:(()=>{const raw=firstValue(row,["whatsapp","telefono","telefono_cliente","celular"]);return raw&&raw.replace(/\D/g,"").length>=8?raw:"";})(),guests:Number(firstValue(row,["invitados","cantidad_invitados"])||0),pack:csvPack,addons:csvAddons,flexServices:csvFlex,notes:firstValue(row,["notas","observaciones","comentarios"])};const client={...incoming,id:uid(),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente importado desde CSV"}]};client.tasks=createTasks(client);state.clients.push(client);created+=1;
     }catch(rowError){console.error(`Error en la fila ${index+2} del CSV:`,rowError,row);rowErrors+=1;}
   });
   // Process conflicts one by one, using a custom modal that supports "apply all"/"skip all"
@@ -1154,13 +1156,13 @@ async function importClientCsv(file){
       else{existingSkipped+=1;}
     }catch(conflictError){console.error("Error al procesar conflicto de cliente:",conflictError,client);rowErrors+=1;}
   }
-  saveState();toast(`${created} nuevos agregados${updated?` · ${updated} actualizados`:""}${existingSkipped?` · ${existingSkipped} sin cambios`:""}${duplicatedInFile?` · ${duplicatedInFile} código(s) repetido(s) en el archivo`:""}${skipped?` · ${skipped} filas omitidas`:""}${rowErrors?` · ${rowErrors} fila(s) con error (ver consola)`:""}`);
+  saveState();toast(`${created} nuevos agregados${updated?` · ${updated} actualizados`:""}${emailsUpdated?` · ${emailsUpdated} email(s) actualizados`:""}${existingSkipped?` · ${existingSkipped} sin cambios`:""}${duplicatedInFile?` · ${duplicatedInFile} código(s) repetido(s) en el archivo`:""}${skipped?` · ${skipped} filas omitidas`:""}${rowErrors?` · ${rowErrors} fila(s) con error (ver consola)`:""}`);
   }catch(error){
     console.error("Error al importar CSV:",error);
     toast("Ocurrió un error al importar el archivo. Verificá el formato del CSV y volvé a intentar.");
   }
 }
-function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;homenajeado;cliente;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones\n43828;04/07/2026;Pilar Hotel;15;Cliente de ejemplo;Contacto;+54 9 11 1234 5678;120;(SILVER)(GOLD)(PANT);PIXEL;;\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plantilla_clientes_janos.csv";a.click();URL.revokeObjectURL(a.href);}
+function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;homenajeado;cliente;email;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones\n43828;04/07/2026;Pilar Hotel;15;Cliente de ejemplo;Contacto;contacto@ejemplo.com;+54 9 11 1234 5678;120;(SILVER)(GOLD)(PANT);PIXEL;;\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plantilla_clientes_janos.csv";a.click();URL.revokeObjectURL(a.href);}
 function escapeCsvCell(value){const text=String(value??"");return /[",\n\r]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;}
 function exportRenditionsCsv(){const rows=state.renditions.filter(r=>r.status==="pending"&&!r.archivedAt);if(!rows.length){toast("No hay rendiciones pendientes para exportar.");return;}const header=["categoria","fecha","salon","trabajo","observaciones"];const lines=rows.map(r=>{const client=state.clients.find(c=>c.id===r.clientId);return [r.category,dateText(r.workDate),client?.salon||"",r.work,r.observations||""].map(escapeCsvCell).join(",");});const content=[header.join(","),...lines].join("\r\n")+"\r\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`rendiciones_pendientes_${todayIso()}.csv`;a.click();URL.revokeObjectURL(a.href);toast(`${rows.length} rendici\u00F3n${rows.length===1?"":"es"} exportada${rows.length===1?"":"s"}`);}
 
