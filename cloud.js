@@ -401,6 +401,17 @@ async function deleteMissing(table, ownerId, ids) {
   const existingRows = await fetchAllRows(`Lectura de ${table}`, () => supabase.from(table).select("id").eq("owner_id", ownerId).order("id"));
   const validIds = new Set(ids);
   const obsoleteIds = existingRows.map(row => row.id).filter(id => !validIds.has(id));
+  // Salvaguarda: si de golpe pareciera que hay que borrar una porción enorme de las filas
+  // que ya existen en la nube, es mucho más probable que sea un bug local (un estado vacío
+  // o incompleto por error, como pasó semanas con el límite de 1000 filas de PostgREST) que
+  // un borrado real e intencional. Frenar acá y avisar, en vez de borrar en silencio, evita
+  // repetir la pérdida de datos que ya sufrimos una vez. Si alguna vez hace falta un borrado
+  // masivo real (ej. limpieza a propósito de muchos clientes viejos), hacerlo directo en la
+  // base con supervisión, no vía este sync automático.
+  const deletionRatio = existingRows.length ? obsoleteIds.length / existingRows.length : 0;
+  if (existingRows.length > 10 && deletionRatio > 0.5) {
+    throw new Error(`Guardado detenido por seguridad: se iba a borrar ${obsoleteIds.length} de ${existingRows.length} filas de "${table}" de una sola vez. Si es intencional, avisar para revisarlo manualmente.`);
+  }
   for (const batch of chunks(obsoleteIds)) {
     check(await supabase.from(table).delete().eq("owner_id", ownerId).in("id", batch), `Limpieza de ${table}`);
   }

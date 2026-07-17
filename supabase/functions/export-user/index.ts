@@ -10,6 +10,25 @@ const corsHeaders = {
 // se subio al repo (.gitignore la excluia). Esta version usa el JWT del
 // propio usuario (no service role), asi que el RLS ya limita el resultado a
 // sus propias filas — no hace falta logica extra de autorizacion.
+
+// Mismo limite silencioso de 1000 filas ("Max Rows" del proyecto) que ya
+// causo perdida de datos en otros dos lugares (loadCloudState en cloud.js y
+// el backup diario). Esta cuenta ya supera las 1000 tareas, asi que sin
+// paginar, el export de "mis datos" tambien quedaria truncado en silencio.
+async function fetchAll(builderFn: () => any) {
+  const pageSize = 1000;
+  let rows: any[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await builderFn().order("id").range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows = rows.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -32,20 +51,20 @@ serve(async (req) => {
 
     const [profile, clients, tasks, renditions, rates] = await Promise.all([
       userClient.from("profiles").select("*").eq("id", userData.user.id).maybeSingle(),
-      userClient.from("clients").select("*"),
-      userClient.from("tasks").select("*"),
-      userClient.from("renditions").select("*"),
-      userClient.from("rates").select("*"),
+      fetchAll(() => userClient.from("clients").select("*")),
+      fetchAll(() => userClient.from("tasks").select("*")),
+      fetchAll(() => userClient.from("renditions").select("*")),
+      fetchAll(() => userClient.from("rates").select("*")),
     ]);
 
     const payload = {
       generated_at: new Date().toISOString(),
       user: { id: userData.user.id, email: userData.user.email },
       profile: profile.data || null,
-      clients: clients.data || [],
-      tasks: tasks.data || [],
-      renditions: renditions.data || [],
-      rates: rates.data || [],
+      clients: clients || [],
+      tasks: tasks || [],
+      renditions: renditions || [],
+      rates: rates || [],
     };
 
     return new Response(JSON.stringify(payload, null, 2), {
