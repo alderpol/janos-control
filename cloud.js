@@ -412,6 +412,24 @@ export async function syncCloudState(state, user) {
   const displayName = metadata.full_name || [metadata.first_name, metadata.last_name].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Usuario";
   check(await supabase.from("profiles").upsert({ id: ownerId, display_name: displayName, email: user.email || null, whatsapp: metadata.whatsapp || null, last_seen_at: new Date().toISOString(), settings: state.settings || {} }), "Perfil");
 
+  // Si localmente se borró una rendición pero la tarea siguió marcada "hecha", updateTask()
+  // puede generar más tarde una rendición NUEVA (id fresco) para esa misma tarea. Si en la nube
+  // ya existe una fila para (owner_id, task_id) con OTRO id (por ejemplo, quedó pendiente de
+  // limpiar, o la creó otra pestaña/dispositivo), el upsert de más abajo -que hace ON CONFLICT
+  // (owner_id, task_id)- intenta reemplazar el id de esa fila existente por el nuevo. Eso puede
+  // chocar contra la primary key y frenar TODO el guardado de rendiciones con "duplicate key
+  // value violates unique constraint renditions_pkey". Para evitarlo, adoptamos acá el id que
+  // ya está en la nube para cada tarea, así el upsert siempre actualiza la misma fila en vez de
+  // intentar moverle el id.
+  const { data: existingTaskRenditions, error: existingTaskRenditionsError } = await supabase
+    .from("renditions").select("id,task_id").eq("owner_id", ownerId).not("task_id", "is", null);
+  if (existingTaskRenditionsError) throw new Error(`Lectura de rendiciones existentes: ${existingTaskRenditionsError.message}`);
+  const existingRenditionIdByTaskId = new Map((existingTaskRenditions || []).map((row) => [row.task_id, row.id]));
+  state.renditions.forEach((item) => {
+    const existingId = item.taskId ? existingRenditionIdByTaskId.get(item.taskId) : null;
+    if (existingId && existingId !== item.id) item.id = existingId;
+  });
+
   // Primero se borran las filas huérfanas (claves de tarea que ya no se generan, ej. tras renombrar
   // "Civil" en foto/video, o rendiciones/clientes eliminados) y recién después se suben las nuevas.
   // Si se hace al revés, una fila vieja con la misma (client_id, task_key) puede chocar con la nueva
