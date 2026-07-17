@@ -478,14 +478,25 @@ export async function syncCloudState(state, user) {
     event_date: item.eventDate || null,
     salon: item.salon || null,
   }));
-  // onConflict apunta a (owner_id, task_id), la restricción única real de renditions,
-  // igual que se hizo con tasks: si una rendición ya existente cambia de id localmente
-  // (o queda un id viejo huérfano de otra sesión), esto la actualiza en vez de intentar
-  // un INSERT que choque con renditions_owner_task_unique y frene la sincronización.
-  // Requiere la migración 20260717150000_renditions_full_unique_constraint.sql (cambia
-  // el índice parcial por un unique constraint normal: ON CONFLICT no puede inferir un
-  // índice parcial sin repetir su condición, algo que la API de PostgREST no permite).
-  if (renditionRows.length) await upsertInBatches("renditions", renditionRows, "Guardado de rendiciones", { onConflict: "owner_id,task_id" });
+  // onConflict apunta a (owner_id, task_id) SOLO para las rendiciones ligadas a una tarea:
+  // si una rendición ya existente cambia de id localmente (o queda un id viejo huérfano de
+  // otra sesión), esto la actualiza en vez de intentar un INSERT que choque con
+  // renditions_owner_task_unique y frene la sincronización. Requiere la migración
+  // 20260717150000_renditions_full_unique_constraint.sql (cambia el índice parcial por un
+  // unique constraint normal: ON CONFLICT no puede inferir un índice parcial sin repetir su
+  // condición, algo que la API de PostgREST no permite).
+  //
+  // Las rendiciones MANUALES (task_id null) NO pueden usar ese mismo onConflict: en SQL,
+  // NULL nunca es igual a otro NULL, así que "(owner_id, task_id)" jamás encuentra una fila
+  // manual ya existente y Postgres intenta un INSERT nuevo en cada sincronización. Como esa
+  // fila ya existe con ese mismo id, cada guardado posterior chocaba con "duplicate key value
+  // violates unique constraint renditions_pkey" -en TODAS las rendiciones, no solo las
+  // manuales, porque un solo error en el batch frena el resto-. Por eso van en un batch
+  // aparte con onConflict por "id" (su identidad real).
+  const taskRenditionRows = renditionRows.filter((row) => row.task_id);
+  const manualRenditionRows = renditionRows.filter((row) => !row.task_id);
+  if (taskRenditionRows.length) await upsertInBatches("renditions", taskRenditionRows, "Guardado de rendiciones", { onConflict: "owner_id,task_id" });
+  if (manualRenditionRows.length) await upsertInBatches("renditions", manualRenditionRows, "Guardado de rendiciones manuales", { onConflict: "id" });
 
   const validFrom = state.rateEffectiveDate || "2026-08-01";
   const rateRows = Object.entries(state.rates).map(([key, amount]) => ({
