@@ -460,7 +460,14 @@ export async function syncCloudState(state, user) {
     event_date: item.eventDate || null,
     salon: item.salon || null,
   }));
-  if (renditionRows.length) await upsertInBatches("renditions", renditionRows, "Guardado de rendiciones");
+  // onConflict apunta a (owner_id, task_id), la restricción única real de renditions,
+  // igual que se hizo con tasks: si una rendición ya existente cambia de id localmente
+  // (o queda un id viejo huérfano de otra sesión), esto la actualiza en vez de intentar
+  // un INSERT que choque con renditions_owner_task_unique y frene la sincronización.
+  // Requiere la migración 20260717150000_renditions_full_unique_constraint.sql (cambia
+  // el índice parcial por un unique constraint normal: ON CONFLICT no puede inferir un
+  // índice parcial sin repetir su condición, algo que la API de PostgREST no permite).
+  if (renditionRows.length) await upsertInBatches("renditions", renditionRows, "Guardado de rendiciones", { onConflict: "owner_id,task_id" });
 
   const validFrom = state.rateEffectiveDate || "2026-08-01";
   const rateRows = Object.entries(state.rates).map(([key, amount]) => ({
