@@ -11,6 +11,26 @@ function base64FromUtf8(str: string): string {
   return btoa(binary);
 }
 
+// Supabase/PostgREST corta cualquier select() sin paginar en 1000 filas (limite
+// "Max Rows" del proyecto), en silencio. Con >1000 tareas en la cuenta esto
+// hacia que el backup diario quedara truncado hace semanas sin que nadie lo
+// notara (el asunto del mail siempre decia "1000 tareas" seas cuantos
+// clientes hubiera). fetchAll pagina con .range() + un desempate por "id"
+// hasta traer todas las filas.
+async function fetchAll(builderFn: () => any) {
+  const pageSize = 1000;
+  let rows: any[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await builderFn().order("id").range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows = rows.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
 serve(async (req) => {
   try {
     // Antes cualquiera podia invocar esta funcion (solo requeria la anon key
@@ -29,20 +49,20 @@ serve(async (req) => {
     );
 
     const [profiles, clients, tasks, renditions, rates] = await Promise.all([
-      supabase.from("profiles").select("*"),
-      supabase.from("clients").select("*"),
-      supabase.from("tasks").select("*"),
-      supabase.from("renditions").select("*"),
-      supabase.from("rates").select("*"),
+      fetchAll(() => supabase.from("profiles").select("*")),
+      fetchAll(() => supabase.from("clients").select("*")),
+      fetchAll(() => supabase.from("tasks").select("*")),
+      fetchAll(() => supabase.from("renditions").select("*")),
+      fetchAll(() => supabase.from("rates").select("*")),
     ]);
 
     const backup = {
       generated_at: new Date().toISOString(),
-      profiles: profiles.data || [],
-      clients: clients.data || [],
-      tasks: tasks.data || [],
-      renditions: renditions.data || [],
-      rates: rates.data || [],
+      profiles,
+      clients,
+      tasks,
+      renditions,
+      rates,
     };
 
     const json = JSON.stringify(backup, null, 2);
