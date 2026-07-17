@@ -414,6 +414,14 @@ async function upsertInBatches(table, rows, label, options) {
   for (const batch of chunks(rows)) check(await supabase.from(table).upsert(batch, options), label);
 }
 
+// "renditions" queda afuera de la salvaguarda de más abajo: a diferencia de clientes/tareas
+// (datos irremplazables de un evento real), acá es normal y frecuente borrar muchas de una
+// sola vez a propósito (ej. limpiar rendiciones ya cobradas/procesadas). Con el umbral
+// general, ese uso normal quedaba bloqueado con "no se pudo guardar en la nube" y, al
+// reabrir la app, las rendiciones "volvían a aparecer" porque el borrado nunca había llegado
+// a subirse. clients/tasks sí mantienen la salvaguarda estricta.
+const MASS_DELETION_EXEMPT_TABLES = new Set(["renditions"]);
+
 async function deleteMissing(table, ownerId, ids) {
   const existingRows = await fetchAllRows(`Lectura de ${table}`, () => supabase.from(table).select("id").eq("owner_id", ownerId).order("id"));
   const validIds = new Set(ids);
@@ -426,7 +434,7 @@ async function deleteMissing(table, ownerId, ids) {
   // masivo real (ej. limpieza a propósito de muchos clientes viejos), hacerlo directo en la
   // base con supervisión, no vía este sync automático.
   const deletionRatio = existingRows.length ? obsoleteIds.length / existingRows.length : 0;
-  if (existingRows.length > 10 && deletionRatio > 0.5 && !massDeletionApproved()) {
+  if (existingRows.length > 10 && deletionRatio > 0.5 && !massDeletionApproved() && !MASS_DELETION_EXEMPT_TABLES.has(table)) {
     throw new Error(`Guardado detenido por seguridad: se iba a borrar ${obsoleteIds.length} de ${existingRows.length} filas de "${table}" de una sola vez. Si es intencional, avisar para revisarlo manualmente.`);
   }
   for (const batch of chunks(obsoleteIds)) {
