@@ -148,3 +148,26 @@ Dark/cinematic · Acentos dorados (`#c9a84c`) · Tipografía Inter
 3. Nunca trabajar desde `/mnt/project/` si hay un output más actualizado en la sesión actual.
 4. Después de cada sesión: subir los outputs a la carpeta local → GitHub → y al proyecto de Claude.
 5. **Nunca deployar una Edge Function sin commitear su código al repo primero** (o inmediatamente después). Esto ya causó que `export-user` y toda la integración de Google Calendar quedaran huérfanas — funcionando en producción pero invisibles en git.
+
+---
+
+## Importación masiva de clientes (CSV desde fotografia.janosgroup.com)
+
+Pablo carga tandas nuevas de clientes (por salón: Pilar Hotel, Quinta, etc.) exportando PDFs desde `fotografia.janosgroup.com` (vista "Seguimiento", filtrada por salón + rango de fechas) y pidiendo que se arme el CSV para importar en Janos Control. Proceso a seguir:
+
+**Formato del CSV** (separador `;`, UTF-8 con BOM), columnas en este orden:
+`codigo;fecha_evento;salon;tipo;homenajeado;cliente;email;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones`
+
+**Mapeo desde la tabla del PDF** (columnas: Fecha Evento, Codigo Evento, Tipo, Pack, Salon, Invitados, Fotografia, Cliente, Celular, Homenajead@):
+- `salon`: debe coincidir EXACTO con una entrada de `MANAGED_SALONS` en `app.js` (ej. "Pilar Hotel", "Quinta"), no el texto crudo de la columna "Salon" del PDF (ej. "113 - Pilar Hotel").
+- `homenajeado`: si el PDF trae "-" o "." (placeholder de vacío), dejarlo en blanco en el CSV — así el importador cae en el fallback al nombre de `cliente` en vez de guardar literalmente "-".
+- `pack_upgrades`: copiar tal cual la columna "Fotografia" del PDF, ej. `(GOLD)(MAQUI)(PANT)` — `parsePack()`/`parseAddons()` en `app.js` interpretan pack (SILVER/GOLD/VIP/INFORMAL) y adicionales vía regex sobre ese texto entre paréntesis, tiene que mantener ese formato.
+- `adicionales` y `servicios_flex`: vacíos (ya cubierto por `pack_upgrades`).
+- `observaciones`: `Contrato: <valor>`, usando la columna "Pack" del PDF (All Inclusive / Boda / Golden Pack / Premium / Egresados VIP / Informal) — es una categoría distinta de `pack_upgrades` que no está modelada en Janos Control, se deja solo de referencia.
+- `email`: **no viene en el PDF de Seguimiento.** Hay que buscarlo aparte (ver abajo). El importador de CSV recién soporta esta columna desde el fix del 17/07/2026 (acepta alias `email`/`correo`/`mail`/`email_cliente`/`correo_electronico`, escribe en `clientEmail`) — si en algún momento no aparece un campo Email en el formulario de cliente, puede ser que ese fix se haya perdido; revisar `importClientCsv()`.
+
+**Cómo sacar el email:** cada cliente tiene una ficha en `https://fotografia.janosgroup.com/ver_seguimiento.php?id=<codigo_evento>` con una tabla "Informacion del cliente" (columnas Nombre y Apellido / Telefono 1 / Telefono 2 / Mail). Con la extensión de Chrome conectada (la sesión suele seguir logueada de usos anteriores), usar `browser_batch` combinando `navigate` + `get_page_text` por cada código, en tandas de ~15 códigos por llamada — mucho más rápido que uno por uno. No usar `fetch()` con `credentials:'include'` vía `javascript_tool`: lo bloquea el filtro de seguridad por verse como exfiltración de cookies/sesión.
+
+**Verificación:** la extracción automática de tablas de `pdfplumber` no funciona bien con el layout de export de este sitio (fragmenta filas). Conviene transcribir leyendo el PDF renderizado y después validar cada código/teléfono contra `pdfplumber`'s `page.extract_text()` (texto plano, sí es confiable) para detectar errores de tipeo antes de dar el CSV por bueno.
+
+**Entrega:** el CSV final va a la raíz de esta carpeta; Pablo lo importa él mismo desde Clientes → "Importar lote".
