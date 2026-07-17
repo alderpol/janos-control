@@ -15,6 +15,29 @@ function check(result, label) {
   return result.data;
 }
 
+// Supabase/PostgREST devuelve como mucho 1000 filas por consulta (limite
+// "Max Rows" del proyecto), en silencio, sin avisar que corto el resultado.
+// Con >1000 tareas en la cuenta (facil de superar: ~200 clientes x ~10
+// tareas c/u) una consulta sin paginar devolvia solo una porcion parcial
+// -cada cliente aparecia con 4-5 tareas en vez de las que realmente tiene-
+// y esa porcion incompleta se guardaba como si fuera el estado real, con
+// riesgo de que un guardado posterior borrara de la base las tareas
+// "faltantes" pensando que ya no existen. fetchAllRows pagina con .range()
+// hasta traer todas las filas, sin importar cuantas sean.
+const PAGE_SIZE = 1000;
+async function fetchAllRows(label, builderFn) {
+  let rows = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await builderFn().range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`${label}: ${error.message}`);
+    rows = rows.concat(data || []);
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return rows;
+}
+
 export async function getSession() {
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getSession();
@@ -278,19 +301,19 @@ export async function getLatestUpdateAt() {
 
 export async function loadCloudState(defaultRates) {
   const { data: { user } } = await supabase.auth.getUser();
-  const [profileResult, clientsResult, tasksResult, renditionsResult, ratesResult] = await Promise.all([
+  // order() lleva un segundo criterio (id, siempre unico) para que la paginacion con
+  // .range() sea estable: sin un desempate unico, filas con el mismo valor de orden
+  // (fechas repetidas, sort_order repetido entre clientes distintos, etc.) podian
+  // quedar duplicadas o directamente salteadas entre una pagina y la siguiente.
+  const [profileResult, clientRows, taskRows, renditionRows, rateRows] = await Promise.all([
     supabase.from("profiles").select("settings").eq("id", user?.id ?? "").maybeSingle(),
-    supabase.from("clients").select("*").order("event_date"),
-    supabase.from("tasks").select("*").order("sort_order"),
-    supabase.from("renditions").select("*").order("created_at", { ascending: false }),
-    supabase.from("rates").select("*").order("valid_from"),
+    fetchAllRows("Clientes", () => supabase.from("clients").select("*").order("event_date").order("id")),
+    fetchAllRows("Tareas", () => supabase.from("tasks").select("*").order("sort_order").order("id")),
+    fetchAllRows("Rendiciones", () => supabase.from("renditions").select("*").order("created_at", { ascending: false }).order("id")),
+    fetchAllRows("Tarifas", () => supabase.from("rates").select("*").order("valid_from").order("id")),
   ]);
 
   const profileRow = check(profileResult, "Perfil");
-  const clientRows = check(clientsResult, "Clientes");
-  const taskRows = check(tasksResult, "Tareas");
-  const renditionRows = check(renditionsResult, "Rendiciones");
-  const rateRows = check(ratesResult, "Tarifas");
   const tasksByClient = new Map();
 
   taskRows.forEach((row) => {
@@ -375,7 +398,7 @@ async function upsertInBatches(table, rows, label, options) {
 }
 
 async function deleteMissing(table, ownerId, ids) {
-  const existingRows = check(await supabase.from(table).select("id").eq("owner_id", ownerId), `Lectura de ${table}`);
+  const existingRows = await fetchAllRows(`Lectura de ${table}`, () => supabase.from(table).select("id").eq("owner_id", ownerId).order("id"));
   const validIds = new Set(ids);
   const obsoleteIds = existingRows.map(row => row.id).filter(id => !validIds.has(id));
   for (const batch of chunks(obsoleteIds)) {
