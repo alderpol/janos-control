@@ -418,7 +418,11 @@ export async function syncCloudState(state, user) {
     rendition_category: task.category || null, rendition_work: task.work || null,
     rate_key: task.rateKey || null, sort_order: index,
   })));
-  if (taskRows.length) await upsertInBatches("tasks", taskRows, "Guardado de tareas");
+  // onConflict apunta a la restricción única real (client_id, task_key) en lugar de "id" (el default):
+  // si por algún motivo local ya cambió el id de una tarea existente (o quedó un id viejo huérfano
+  // en otro dispositivo/sesión), esto actualiza esa fila en vez de intentar un INSERT que choca con
+  // la restricción tasks_client_id_task_key_key y frena toda la sincronización con un 409 en loop.
+  if (taskRows.length) await upsertInBatches("tasks", taskRows, "Guardado de tareas", { onConflict: "client_id,task_key" });
 
   const renditionRows = state.renditions.map((item) => ({
     id: item.id, owner_id: ownerId, client_id: item.clientId, task_id: item.taskId || null,
