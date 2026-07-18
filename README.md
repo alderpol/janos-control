@@ -171,3 +171,118 @@ Pablo carga tandas nuevas de clientes (por salón: Pilar Hotel, Quinta, etc.) ex
 **Verificación:** la extracción automática de tablas de `pdfplumber` no funciona bien con el layout de export de este sitio (fragmenta filas). Conviene transcribir leyendo el PDF renderizado y después validar cada código/teléfono contra `pdfplumber`'s `page.extract_text()` (texto plano, sí es confiable) para detectar errores de tipeo antes de dar el CSV por bueno.
 
 **Entrega:** el CSV final va a la raíz de esta carpeta; Pablo lo importa él mismo desde Clientes → "Importar lote".
+
+---
+
+## Historial de incidentes y por qué el código es así (17/07/2026)
+
+Esta sección documenta bugs reales que causaron pérdida de datos o bloquearon
+el guardado en producción, ya corregidos. El objetivo es que un cambio futuro
+(de Pablo o de otra sesión de Claude) no reintroduzca alguno de estos por no
+conocer la razón detrás de código que puede parecer innecesario o raro a
+primera vista. **No revertir ni "simplificar" nada de esto sin entender el
+motivo de abajo primero.**
+
+### 1. Pérdida silenciosa de datos por el límite de 1000 filas de PostgREST (CRÍTICO)
+Supabase/PostgREST corta cualquier `select()` sin paginar en 1000 filas
+("Max Rows" del proyecto), **sin avisar**. Con esta cuenta superando los
+1000 registros de `tasks`, tanto `loadCloudState()` (`cloud.js`) como el
+backup diario (`backup-daily`) y el export de "mis datos" (`export-user`)
+traían solo una porción parcial de los datos — y esa porción incompleta se
+guardaba/exportaba como si fuera el estado completo, con riesgo de que un
+guardado posterior borrara de la base lo que en realidad sí existía pero no
+se había llegado a leer. Esto causó pérdida real de datos durante semanas
+antes de detectarse (backups diarios truncados, tareas ya completadas que
+aparecían como pendientes).
+**Fix:** `fetchAllRows()`/`fetchAll()` — pagina con `.range()` + un
+desempate por `id` hasta traer todas las filas, sin importar cuántas sean.
+**Regla:** cualquier `select()` nuevo sobre `clients`, `tasks` o
+`renditions` que pueda devolver más de 1000 filas tiene que usar este
+helper, nunca un `.select("*")` directo.
+
+### 2. Guardado de tareas en loop de error 409 (`tasks_client_id_task_key_key`)
+`upsertInBatches` usaba el conflicto por default de Supabase (`id`). Si una
+tarea cambiaba de id localmente o quedaba un id viejo huérfano de otra
+sesión/dispositivo, el upsert intentaba un INSERT que chocaba contra la
+restricción única real `(client_id, task_key)`, y frenaba TODA la
+sincronización en loop.
+**Fix:** `onConflict: "client_id,task_key"` en el upsert de tareas.
+
+### 3. Rendiciones duplicadas al re-tildar una tarea ya completada
+Mismo mecanismo que el punto 2, pero en `renditions`: sin `onConflict`
+explícito, un reintento de guardado podía crear una rendición duplicada
+para la misma tarea (esto le pasó a un cliente real: la rendición se
+cargaba dos veces al re-tildar checkboxes que habían quedado sin guardar).
+El índice único de `renditions` además era **parcial**
+(`where task_id is not null`), y `ON CONFLICT` no puede apuntar a un índice
+parcial sin repetir su condición — algo que la API de PostgREST no permite.
+**Fix:** migración `20260717150000_renditions_full_unique_constraint.sql`
+cambia el índice parcial por un `unique constraint (owner_id, task_id)`
+normal (por semántica estándar de SQL, `NULL` nunca es igual a otro `NULL`,
+así que varias rendiciones manuales con `task_id` null siguen coexistiendo
+sin chocar, igual que con el índice parcial — ver punto 4). El upsert de
+rendiciones ligadas a tarea usa `onConflict: "owner_id,task_id"`.
+
+### 4. Rendiciones MANUALES (`task_id` null) chocaban con la primary key en cada guardado
+Consecuencia no obvia del punto 3: en SQL, `NULL` nunca es igual a otro
+`NULL`, así que `ON CONFLICT (owner_id, task_id)` **nunca encuentra** una
+fila manual ya existente (task_id null) como "la misma". Postgres intentaba
+reinsertarla en cada sincronización, chocando contra la primary key
+(`renditions_pkey`) — y como un solo error en el batch frena el resto, esto
+bloqueaba el guardado de TODAS las rendiciones, no solo las manuales, en
+cada carga de la app.
+**Fix:** las rendiciones se suben en dos tandas separadas — las ligadas a
+tarea con `onConflict: "owner_id,task_id"`, las manuales con
+`onConflict: "id"` (su identidad real). **No unificar esto en un solo
+upsert de nuevo:** volvería a romper el guardado de rendiciones manuales.
+
+### 5. `id` viejo resucitado al recrear una rendición de una tarea
+Si se borraba una rendición pero la tarea seguía marcada "hecha",
+`updateTask()` podía generar más tarde una rendición nueva (id fresco) para
+esa misma tarea. Si en la nube ya existía una fila para
+`(owner_id, task_id)` con otro id, el upsert intentaba reemplazarle el id
+a esa fila, arriesgando otro choque de primary key.
+**Fix:** antes de borrar/subir rendiciones, `syncCloudState()` adopta el id
+que ya existe en la nube para cada tarea, así el upsert siempre actualiza
+la misma fila en vez de moverle el id.
+
+### 6. Salvaguarda anti-borrado-masivo en `deleteMissing()` — y sus dos excepciones necesarias
+Como red de seguridad ante cualquier futura repetición del punto 1 (un
+estado local vacío o incompleto por error), `deleteMissing()` frena y avisa
+si de una sola sincronización se intentaría borrar más de la mitad de las
+filas existentes de una tabla (con más de 10 filas). Esto **ya bloqueó dos
+usos legítimos** hasta que se corrigieron:
+- **"Borrar todos los datos" / "Importar copia" (Ajustes):** son borrados/
+  reemplazos totales intencionales. Antes de esos flujos, la app llama a
+  `approveMassDeletion()` (`cloud.js`), que deja una autorización con
+  vencimiento de 15 minutos que la salvaguarda respeta.
+- **Rendiciones:** borrar varias de una vez (limpiar las ya cobradas/
+  procesadas) es un uso normal y frecuente, no una excepción. La tabla
+  `renditions` está **exenta** de este límite (`MASS_DELETION_EXEMPT_TABLES`
+  en `cloud.js`); `clients` y `tasks` sí mantienen la protección estricta.
+**Si se agrega un flujo nuevo de borrado masivo intencional** (de clientes
+o tareas), tiene que llamar a `approveMassDeletion()` antes, o la
+sincronización se va a frenar con "no se pudo guardar en la nube" y, al
+reabrir la app, el borrado va a parecer que "no se aplicó" (en realidad
+nunca llegó a subirse).
+
+### 7. "Importar copia" podía corromper el estado con el archivo equivocado
+El backup diario que llega por mail tiene formato de base de datos
+(`clients` sin `.tasks` anidadas) — no es intercambiable con "Exportar
+copia JSON" de Ajustes, aunque ambos sean `.json`. Importar el backup
+diario por error corrompía el estado local y rompía la app hasta limpiar
+el navegador.
+**Fix:** `importBackup` valida que `clients[].tasks` sea un array antes de
+reemplazar el estado, y si detecta el formato del backup diario
+(`profiles`+`tasks` en la raíz), lo explica en vez de aceptarlo.
+
+### 8. Archivos fantasma sin usar, trackeados en git
+`app..js`, `index..html`, `styles..css` y `app.js.bak` eran copias viejas
+sin usar (el `index.html` real referencia `app.js` y `styles.css`, no las
+variantes con doble punto) que quedaron trackeadas en git y generaban ruido
+constante de "modificado" en `git status`. Se eliminaron del repo. **No
+volver a crear archivos con nombres similares** — si hace falta un backup
+de un archivo antes de una edición grande, usar `git` (branch o commit),
+no una copia manual en el mismo directorio.
+
+---
