@@ -1,0 +1,18 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  directory = "api"
+  node_bundler = "esbuild"
+
+# Mantiene las mismas rutas /api/... que ya usa el frontend (cloud.js), en
+# vez de las rutas propias de Netlify (/.netlify/functions/...). Así no hay
+# que tocar ningún fetch() del lado del cliente al migrar desde Vercel.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200

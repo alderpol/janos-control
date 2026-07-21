@@ -50,7 +50,7 @@ serve(async (req) => {
             <h2 style="color:#c9a84c">Janos Control</h2>
             <p>Hola ${name || ""}!</p>
             <p>Tu cuenta fue aprobada. Ya podes ingresar a la app:</p>
-            <a href="https://janos-control.vercel.app" 
+            <a href="https://janos-control.netlify.app" 
                style="display:inline-block;margin-top:16px;padding:12px 24px;background:#c9a84c;color:#0f0a18;border-radius:8px;text-decoration:none;font-weight:700">
               Ingresar a Janos Control
             </a>

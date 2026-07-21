@@ -5,10 +5,16 @@ import nodemailer from "nodemailer";
 // cliente. Se dispara a mano desde el boton "Enviar material" en la ficha
 // del cliente (app.js / cloud.js::sendDriveEmailNow) — no hay cron.
 //
-// Vive en Vercel (no en Supabase Edge Functions) porque Supabase le pone un
-// limite de 2s de CPU a sus funciones, y el handshake SMTP+TLS con Zoho
-// siempre lo supera (error 546), aunque el mail termine llegando. Vercel no
-// tiene esa restriccion.
+// Migrada de Vercel a Netlify Functions (julio 2026, tras perder el acceso
+// a la cuenta de Vercel). La logica es identica; solo cambia la forma de
+// leer el request y devolver la respuesta (event/context en vez de
+// req/res). netlify.toml redirige /api/* -> /.netlify/functions/*, asi que
+// las rutas que ya usa cloud.js no cambian.
+//
+// Vive en una funcion serverless "de verdad" (no Supabase Edge Functions)
+// porque Supabase le pone un limite de 2s de CPU a sus funciones, y el
+// handshake SMTP+TLS con Zoho siempre lo supera (error 546), aunque el mail
+// termine llegando.
 //
 // La cuenta de envio se elige asi: primero se fija si el usuario logueado
 // cargo su propia cuenta de Zoho PARA EL SALON DE ESTE CLIENTE, en su perfil
@@ -16,11 +22,17 @@ import nodemailer from "nodemailer";
 // un usuario puede tener una cuenta distinta por cada salon en el que
 // trabaja). Si no cargo nada para ese salon, se usa el mapa fijo ACCOUNTS
 // segun clients.salon (Quinta o Pilar Hotel), cuyas variables ZOHO_*_USER /
-// ZOHO_*_PASS se configuran en Vercel (Project Settings > Environment
-// Variables), no viven en el repo.
+// ZOHO_*_PASS se configuran en Netlify (Site configuration > Environment
+// variables), no viven en el repo.
 //
 // Usa el JWT del propio usuario (no service role), asi que el RLS de
 // Supabase ya limita la lectura/escritura del cliente a sus propias filas.
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 const ACCOUNTS = {
   Quinta: {
@@ -45,16 +57,17 @@ function formatDateEs(date) {
   return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "long", year: "numeric" }).format(date);
 }
 
-export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+function json(statusCode, body) {
+  return { statusCode, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify(body) };
+}
+
+export async function handler(event) {
+  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers: CORS, body: "" };
+  if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: "No autorizado" });
+    const authHeader = event.headers.authorization || event.headers.Authorization;
+    if (!authHeader) return json(401, { error: "No autorizado" });
 
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
@@ -63,10 +76,10 @@ export default async function handler(req, res) {
     );
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user) return res.status(401).json({ error: "No autorizado" });
+    if (userError || !userData?.user) return json(401, { error: "No autorizado" });
 
-    const { clientId } = req.body || {};
-    if (!clientId) return res.status(400).json({ error: "Falta clientId" });
+    const { clientId } = JSON.parse(event.body || "{}");
+    if (!clientId) return json(400, { error: "Falta clientId" });
 
     const { data: client, error: clientError } = await supabase
       .from("clients")
@@ -74,10 +87,10 @@ export default async function handler(req, res) {
       .eq("id", clientId)
       .maybeSingle();
 
-    if (clientError) return res.status(500).json({ error: clientError.message });
-    if (!client) return res.status(404).json({ error: "Cliente no encontrado" });
-    if (!client.client_email) return res.status(400).json({ error: "El cliente no tiene email cargado" });
-    if (!client.drive_url) return res.status(400).json({ error: "El cliente no tiene link de Drive cargado" });
+    if (clientError) return json(500, { error: clientError.message });
+    if (!client) return json(404, { error: "Cliente no encontrado" });
+    if (!client.client_email) return json(400, { error: "El cliente no tiene email cargado" });
+    if (!client.drive_url) return json(400, { error: "El cliente no tiene link de Drive cargado" });
 
     // Cada usuario (colega) puede cargar su propia cuenta de Zoho en su perfil
     // (Ajustes > "Mi cuenta de email"), una por cada salón en el que trabaja
@@ -86,14 +99,13 @@ export default async function handler(req, res) {
     //
     // Las 2 cuentas fijas (ZOHO_QUINTA_*/ZOHO_PILAR_*) son las cuentas
     // personales del administrador — SOLO el administrador puede usarlas
-    // como respaldo si no cargó una cuenta propia. Un colega sin cuenta
-    // propia cargada NO puede usarlas: tiene que cargar la suya.
+    // como respaldo si no cargó una cuenta propia.
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("display_name,role,status,zoho_accounts")
       .eq("id", userData.user.id)
       .maybeSingle();
-    if (profileError) return res.status(500).json({ error: profileError.message });
+    if (profileError) return json(500, { error: profileError.message });
 
     const isAdmin = profile?.role === "admin" && profile?.status === "active";
     const personalAccount = profile?.zoho_accounts?.[client.salon];
@@ -105,14 +117,14 @@ export default async function handler(req, res) {
         fromName: personalAccount.fromName || profile.display_name || "Janos Fotografía y Video",
       };
     } else if (!isAdmin) {
-      return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada para "${client.salon}". Cargala en Ajustes > Mi cuenta de email para poder enviar el material.` });
+      return json(400, { error: `No tenés una cuenta de Zoho propia cargada para "${client.salon}". Cargala en Ajustes > Mi cuenta de email para poder enviar el material.` });
     } else {
       account = ACCOUNTS[client.salon];
       if (!account) {
-        return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada para "${client.salon}" (Ajustes > Mi cuenta de email), y no hay una cuenta general para ese salón` });
+        return json(400, { error: `No tenés una cuenta de Zoho propia cargada para "${client.salon}" (Ajustes > Mi cuenta de email), y no hay una cuenta general para ese salón` });
       }
       if (!account.user || !account.pass) {
-        return res.status(500).json({ error: `Faltan las variables de Zoho para "${client.salon}" en Vercel` });
+        return json(500, { error: `Faltan las variables de Zoho para "${client.salon}" en Netlify` });
       }
     }
 
@@ -153,12 +165,9 @@ export default async function handler(req, res) {
         html,
       });
     } catch (sendError) {
-      // 535 / EAUTH = Zoho rechazó el usuario o la contraseña de aplicación.
-      // Es un dato mal cargado, no un error del servidor, asi que devolvemos
-      // un mensaje en español y accionable en vez del texto crudo de Zoho.
       if (sendError?.responseCode === 535 || sendError?.code === "EAUTH") {
         const who = personalAccount?.email && personalAccount?.password ? `tu cuenta personal de "${client.salon}" (Ajustes > Mi cuenta de email)` : `la cuenta configurada para "${client.salon}"`;
-        return res.status(400).json({ error: `Zoho rechazó el email o la contraseña de aplicación de ${who}. Revisalos y volvé a intentar.` });
+        return json(400, { error: `Zoho rechazó el email o la contraseña de aplicación de ${who}. Revisalos y volvé a intentar.` });
       }
       throw sendError;
     }
@@ -169,7 +178,7 @@ export default async function handler(req, res) {
       .eq("id", clientId);
 
     if (updateError) {
-      return res.status(200).json({
+      return json(200, {
         ok: true,
         warning: `El mail se envió, pero no se pudo guardar la fecha: ${updateError.message}`,
         sentAt: sentAt.toISOString(),
@@ -177,8 +186,8 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({ ok: true, sentAt: sentAt.toISOString(), availableUntil: addDays(sentAt, 180).toISOString() });
+    return json(200, { ok: true, sentAt: sentAt.toISOString(), availableUntil: addDays(sentAt, 180).toISOString() });
   } catch (err) {
-    return res.status(500).json({ error: String(err?.message || err) });
+    return json(500, { error: String(err?.message || err) });
   }
 }

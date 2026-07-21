@@ -5,20 +5,28 @@ import nodemailer from "nodemailer";
 // el usuario cargó en Ajustes > "Mi cuenta de email" son válidos, sin
 // mandar ningún mail (transporter.verify() solo hace el login SMTP).
 // Se llama automáticamente después de guardar esa cuenta (ver
-// app.js::saveZohoAccount), así el usuario se entera al toque si escribió
-// mal el usuario o la contraseña, en vez de descubrirlo recién cuando le
-// intenta mandar el material a un cliente real.
+// app.js::saveZohoAccount).
+//
+// Migrada de Vercel a Netlify Functions (julio 2026). Lógica idéntica,
+// solo cambia la forma de leer el request/devolver la respuesta.
 
-export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(statusCode, body) {
+  return { statusCode, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify(body) };
+}
+
+export async function handler(event) {
+  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers: CORS, body: "" };
+  if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: "No autorizado" });
+    const authHeader = event.headers.authorization || event.headers.Authorization;
+    if (!authHeader) return json(401, { error: "No autorizado" });
 
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
@@ -27,21 +35,21 @@ export default async function handler(req, res) {
     );
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user) return res.status(401).json({ error: "No autorizado" });
+    if (userError || !userData?.user) return json(401, { error: "No autorizado" });
 
-    const { salon } = req.body || {};
-    if (!salon) return res.status(400).json({ error: "Falta el salón" });
+    const { salon } = JSON.parse(event.body || "{}");
+    if (!salon) return json(400, { error: "Falta el salón" });
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("zoho_accounts")
       .eq("id", userData.user.id)
       .maybeSingle();
-    if (profileError) return res.status(500).json({ error: profileError.message });
+    if (profileError) return json(500, { error: profileError.message });
 
     const account = profile?.zoho_accounts?.[salon];
     if (!account?.email || !account?.password) {
-      return res.status(400).json({ error: `No tenés una cuenta de Zoho propia cargada para "${salon}"` });
+      return json(400, { error: `No tenés una cuenta de Zoho propia cargada para "${salon}"` });
     }
 
     const transporter = nodemailer.createTransport({
@@ -55,13 +63,13 @@ export default async function handler(req, res) {
       await transporter.verify();
     } catch (verifyError) {
       if (verifyError?.responseCode === 535 || verifyError?.code === "EAUTH") {
-        return res.status(400).json({ error: "Zoho rechazó el email o la contraseña de aplicación cargados.", invalid: true });
+        return json(400, { error: "Zoho rechazó el email o la contraseña de aplicación cargados.", invalid: true });
       }
-      return res.status(500).json({ error: `No se pudo conectar con Zoho: ${String(verifyError?.message || verifyError)}` });
+      return json(500, { error: `No se pudo conectar con Zoho: ${String(verifyError?.message || verifyError)}` });
     }
 
-    return res.status(200).json({ ok: true });
+    return json(200, { ok: true });
   } catch (err) {
-    return res.status(500).json({ error: String(err?.message || err) });
+    return json(500, { error: String(err?.message || err) });
   }
 }

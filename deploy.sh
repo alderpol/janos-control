@@ -13,5 +13,5 @@ git commit -m "$MSG"
 git push origin main
 
 echo ""
-echo "✅ Pusheado. Vercel está redesplegrando..."
-echo "🔗 https://janos-control.vercel.app"
+echo "✅ Pusheado. Netlify está redesplegando..."
+echo "🔗 https://janos-control.netlify.app"

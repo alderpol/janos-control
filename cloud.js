@@ -305,6 +305,29 @@ export async function sendDriveEmailNow(clientId) {
   return data;
 }
 
+// Crea (o reutiliza) la carpeta de Drive del cliente en la cuenta de Google
+// que corresponda a su salón, y guarda el link en drive_url. Se dispara a
+// mano desde el botón "Crear carpeta en Drive" en la ficha del cliente.
+//
+// Esto pega a /api/create-drive-folder (función de Vercel, no de Supabase),
+// mismo motivo que sendDriveEmailNow: evitar el límite de 2s de CPU de
+// Supabase ante varias llamadas seguidas a la API de Drive.
+export async function createDriveFolderNow(clientId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch("/api/create-drive-folder", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ clientId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo crear la carpeta en Drive.");
+  return data;
+}
+
 export async function getLatestUpdateAt() {
   if (!supabase) return null;
   const [clientsResult, tasksResult, renditionsResult] = await Promise.all([

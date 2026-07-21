@@ -60,7 +60,7 @@ serve(async (req) => {
             <h2 style="color:#c9a84c">Janos Control</h2>
             <p>Se registró un usuario nuevo y está esperando tu aprobación:</p>
             <p><strong>${name || "(sin nombre)"}</strong><br>${email}</p>
-            <a href="https://janos-control.vercel.app"
+            <a href="https://janos-control.netlify.app"
                style="display:inline-block;margin-top:16px;padding:12px 24px;background:#c9a84c;color:#0f0a18;border-radius:8px;text-decoration:none;font-weight:700">
               Ir a Janos Control → Usuarios
             </a>
