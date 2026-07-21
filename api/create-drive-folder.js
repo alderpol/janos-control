@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+import ws from "ws";
 
 // Crea (o reutiliza si ya existe) la carpeta de un cliente en Google Drive,
 // con la estructura: {AÑO}/{MES}/{AAAAMMDD}_{NOMBRE} #{codigo}/{FOTOS,VIDEOS}
@@ -122,7 +123,7 @@ export async function handler(event) {
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      { global: { headers: { Authorization: authHeader } } }
+      { global: { headers: { Authorization: authHeader } }, realtime: { transport: ws } }
     );
 
     const { data: userData, error: userError } = await supabase.auth.getUser();

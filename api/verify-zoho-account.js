@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
+import ws from "ws";
 
 // Prueba en el momento si el email + contraseña de aplicación de Zoho que
 // el usuario cargó en Ajustes > "Mi cuenta de email" son válidos, sin
@@ -31,7 +32,7 @@ export async function handler(event) {
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      { global: { headers: { Authorization: authHeader } } }
+      { global: { headers: { Authorization: authHeader } }, realtime: { transport: ws } }
     );
 
     const { data: userData, error: userError } = await supabase.auth.getUser();

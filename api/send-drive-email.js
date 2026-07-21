@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
+import ws from "ws";
 
 // Envia por mail (SMTP Zoho) el link de Drive con las fotos y videos de un
 // cliente. Se dispara a mano desde el boton "Enviar material" en la ficha
@@ -72,7 +73,7 @@ export async function handler(event) {
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      { global: { headers: { Authorization: authHeader } } }
+      { global: { headers: { Authorization: authHeader } }, realtime: { transport: ws } }
     );
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
