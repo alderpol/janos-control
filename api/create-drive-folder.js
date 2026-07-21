@@ -7,27 +7,28 @@ import ws from "ws";
 // Se dispara a mano desde el botón "Crear carpeta en Drive" en la ficha del
 // cliente (app.js / cloud.js::createDriveFolderNow).
 //
-// A diferencia de Zoho (una cuenta por salón pero configurable por
-// usuario), acá hay una única cuenta de Drive fija por salón — pero en vez
-// de autenticar como esa cuenta de Gmail (lo que requeriría un token OAuth
-// de usuario, que en modo "Testing" de Google expira cada 7 días y da
-// acceso a TODO el Drive de esa cuenta si se filtra), usamos una "cuenta de
-// servicio" de Google: una identidad de máquina sin Drive propio, a la que
-// se le comparte manualmente UNA carpeta puntual en cada cuenta (Quinta y
-// Pilar Hotel), igual que se comparte una carpeta con un colega. Así:
-//   - No expira nunca (no depende del modo Testing de la app OAuth).
-//   - Si el secreto se filtra, solo se puede tocar esa carpeta compartida,
-//     no el resto del Drive de esas cuentas.
+// Cada salón tiene su PROPIA cuenta de servicio (no una compartida entre
+// los dos), para que:
+//   - En el Drive de cada salón aparezca solo "su" cuenta técnica (Quinta /
+//     Pilar Hotel) como colaboradora, no una cuenta genérica ajena.
+//   - Si algún día se filtra la clave de un salón, el otro salón no queda
+//     expuesto (cada una solo tiene acceso a la carpeta compartida de su
+//     propio Drive).
+// En vez de autenticar como la cuenta de Gmail real del salón (lo que
+// requeriría un token OAuth de usuario, con más alcance y que en modo
+// "Testing" de Google expira cada 7 días), cada cuenta de servicio es una
+// identidad de máquina sin Drive propio, a la que se le comparte
+// manualmente la carpeta del año en el Drive de ese salón.
 //
 // Configuración necesaria en Netlify (Site configuration > Environment
 // variables):
-//   GOOGLE_SERVICE_ACCOUNT_JSON        -> contenido completo del JSON de la
-//                                          cuenta de servicio (Google Cloud
-//                                          > IAM > Cuentas de servicio > Claves)
-//   GOOGLE_DRIVE_ROOT_FOLDER_QUINTA    -> ID de la carpeta del año (ej. "2026")
+//   GOOGLE_SERVICE_ACCOUNT_JSON         -> JSON de la cuenta de servicio "Quinta"
+//   GOOGLE_SERVICE_ACCOUNT_JSON_PILAR   -> JSON de la cuenta de servicio "Pilar Hotel"
+//   GOOGLE_DRIVE_ROOT_FOLDER_QUINTA     -> ID de la carpeta del año (ej. "2026")
 //                                          compartida con la cuenta de servicio
-//                                          en el Drive de quinta.janosfyv@gmail.com
-//   GOOGLE_DRIVE_ROOT_FOLDER_PILAR     -> ídem, en pilarhoteljanos@gmail.com
+//                                          "Quinta", en quinta.janosfyv@gmail.com
+//   GOOGLE_DRIVE_ROOT_FOLDER_PILAR      -> ídem, con la cuenta de servicio
+//                                          "Pilar Hotel", en pilarhoteljanos@gmail.com
 //
 // Usa el JWT del propio usuario (no service role) para leer/escribir el
 // cliente, así el RLS de Supabase ya limita el resultado a sus propias filas.
@@ -41,6 +42,11 @@ const CORS = {
 const ROOT_FOLDER_ENV = {
   Quinta: "GOOGLE_DRIVE_ROOT_FOLDER_QUINTA",
   "Pilar Hotel": "GOOGLE_DRIVE_ROOT_FOLDER_PILAR",
+};
+
+const SERVICE_ACCOUNT_ENV = {
+  Quinta: "GOOGLE_SERVICE_ACCOUNT_JSON",
+  "Pilar Hotel": "GOOGLE_SERVICE_ACCOUNT_JSON_PILAR",
 };
 
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
@@ -88,7 +94,8 @@ function escapeForQuery(name) {
 }
 
 // Busca una subcarpeta por nombre dentro de parentId; si no existe, la crea.
-// Devuelve { id, webViewLink }.
+// Devuelve { id, webViewLink, created } — created=true solo si la acabamos
+// de crear en esta llamada.
 async function getOrCreateFolder(accessToken, name, parentId) {
   const q = `name='${escapeForQuery(name)}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
   const searchRes = await fetch(
@@ -97,7 +104,7 @@ async function getOrCreateFolder(accessToken, name, parentId) {
   );
   const searchData = await searchRes.json();
   if (!searchRes.ok) throw new Error(searchData.error?.message || "Error buscando carpeta en Drive");
-  if (searchData.files?.length) return searchData.files[0];
+  if (searchData.files?.length) return { ...searchData.files[0], created: false };
 
   const createRes = await fetch(
     `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({ fields: "id,webViewLink", supportsAllDrives: "true" })}`,
@@ -109,7 +116,23 @@ async function getOrCreateFolder(accessToken, name, parentId) {
   );
   const createData = await createRes.json();
   if (!createRes.ok) throw new Error(createData.error?.message || "Error creando carpeta en Drive");
-  return createData;
+  return { ...createData, created: true };
+}
+
+// Deja la carpeta como "cualquiera con el link puede ver y descargar, no
+// editar" (rol reader), sin depender de que la carpeta padre ("2026")
+// mantenga esa configuración para siempre. Es el link que se manda a los
+// clientes por mail.
+async function makeReaderForAnyone(accessToken, fileId) {
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "reader", type: "anyone" }),
+    });
+  } catch {
+    // No crítico.
+  }
 }
 
 export async function handler(event) {
@@ -146,12 +169,14 @@ export async function handler(event) {
     const rootFolderId = process.env[rootEnvVar];
     if (!rootFolderId) return json(500, { error: `Falta la variable ${rootEnvVar} en Netlify` });
 
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return json(500, { error: "Falta la variable GOOGLE_SERVICE_ACCOUNT_JSON en Netlify" });
+    const serviceAccountEnvVar = SERVICE_ACCOUNT_ENV[client.salon];
+    if (!serviceAccountEnvVar) return json(400, { error: `No hay una cuenta de servicio de Drive configurada para el salón "${client.salon}"` });
+    if (!process.env[serviceAccountEnvVar]) return json(500, { error: `Falta la variable ${serviceAccountEnvVar} en Netlify` });
     let serviceAccount;
     try {
-      serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      serviceAccount = JSON.parse(process.env[serviceAccountEnvVar]);
     } catch {
-      return json(500, { error: "GOOGLE_SERVICE_ACCOUNT_JSON en Netlify no es un JSON válido" });
+      return json(500, { error: `${serviceAccountEnvVar} en Netlify no es un JSON válido` });
     }
 
     const eventDate = String(client.event_date || "").slice(0, 10); // YYYY-MM-DD
@@ -164,15 +189,22 @@ export async function handler(event) {
     const accessToken = await getServiceAccountAccessToken(serviceAccount, "https://www.googleapis.com/auth/drive");
 
     // rootFolderId apunta directamente a la carpeta DEL AÑO (ej. "2026")
-    // compartida con la cuenta de servicio — no a "Mi unidad" (esa no se
-    // puede compartir como carpeta). OJO: esto significa que cada enero hay
-    // que compartir la carpeta del año nuevo con la cuenta de servicio y
-    // actualizar esta variable de entorno; si no, esta función va a fallar
-    // apenas empiece el año siguiente.
+    // compartida con la cuenta de servicio de ese salón — no a "Mi unidad"
+    // (esa no se puede compartir como carpeta). OJO: esto significa que cada
+    // enero hay que compartir la carpeta del año nuevo con la cuenta de
+    // servicio correspondiente y actualizar esta variable de entorno; si
+    // no, esta función va a fallar apenas empiece el año siguiente.
     const monthFolder = await getOrCreateFolder(accessToken, monthFolderName, rootFolderId);
     const clientFolder = await getOrCreateFolder(accessToken, clientFolderName, monthFolder.id);
     await getOrCreateFolder(accessToken, "FOTOS", clientFolder.id);
     await getOrCreateFolder(accessToken, "VIDEOS", clientFolder.id);
+
+    // La carpeta del cliente es la que se linkea por mail — la dejamos
+    // explícitamente en "cualquiera con el link puede ver y descargar"
+    // (los sub-permisos de FOTOS/VIDEOS se heredan de acá).
+    if (clientFolder.created) {
+      await makeReaderForAnyone(accessToken, clientFolder.id);
+    }
 
     const driveUrl = clientFolder.webViewLink || `https://drive.google.com/drive/folders/${clientFolder.id}`;
 
