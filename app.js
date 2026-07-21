@@ -303,55 +303,70 @@ function renderDashboard() {
   const pendingR = state.renditions.filter(r => r.status === "pending" && !r.archivedAt);
   const nextEvents = activeClients.sort((a,b) => parseDate(a.eventDate) - parseDate(b.eventDate)).slice(0, 7);
   const waiting = state.clients.flatMap(c => c.tasks).filter(t => t.status === "waiting").length;
-  const contactWatch = contactWatchItems();
+  const contactList = contactWatchClients();
+  const attn = attentionItemsBuckets();
   document.getElementById("dashboardView").innerHTML = `
-    <div class="kpi-grid">
-      ${kpi("Clientes activos", activeClients.length, "eventos próximos")}
-      ${kpi("Tareas pendientes", pendingTasks, waiting ? `${waiting} esperando al cliente` : "sin bloqueos registrados")}
-      ${kpi("Para rendir", pendingR.length, money(pendingR.reduce((s,r)=>s+r.amount,0)))}
-      ${kpi("Próximos 30 días", state.clients.filter(c => { const d=daysUntil(c.eventDate); return d>=0&&d<=30; }).length, "eventos por preparar")}
+    <div class="kpi-strip">
+      ${kpiMini("Clientes activos", activeClients.length, "Eventos próximos")}
+      ${kpiMini("Tareas pendientes", pendingTasks, waiting ? `${waiting} esperando al cliente` : "Sin bloqueos registrados")}
+      ${kpiMini("Para rendir", pendingR.length, money(pendingR.reduce((s,r)=>s+r.amount,0)))}
+      ${kpiMini("Próx. 30 días", state.clients.filter(c => { const d=daysUntil(c.eventDate); return d>=0&&d<=30; }).length, "Eventos por preparar")}
     </div>
-    <div class="content-grid">
-      <div class="panel"><div class="panel-head"><h2>Próximos eventos</h2><button class="ghost-btn" data-go="clients">Ver todos</button></div>
-        ${nextEvents.length ? `<div>${nextEvents.map(eventRow).join("")}</div>` : empty("No hay eventos próximos", "Los eventos que ya pasaron están en Clientes → Realizados.")}
-      </div>
-      <div class="panel"><div class="panel-head"><h2>Atención requerida</h2></div><div class="panel-body stack">
-        ${attentionItems() || `<div class="empty"><strong>Todo en orden</strong>No hay alertas urgentes.</div>`}
+    ${contactList.length ? `<div class="panel contact-panel"><div class="panel-head"><h2>Clientes sin contactar</h2><span class="tag contact-count-tag">${contactList.length}</span></div><div class="panel-body contact-grid">${contactWatchItemsHtml(contactList)}</div></div>` : ""}
+    <div class="content-grid attention-grid">
+      <div class="panel"><div class="panel-head"><h2>Ya realizados · requieren atención</h2>${attn.realizedCount ? `<span class="muted">${attn.realizedCount}</span>` : ""}</div><div class="panel-body stack">
+        ${attn.realizedHtml || `<div class="empty"><strong>Todo al día</strong>No hay coberturas pendientes de confirmar.</div>`}
+      </div></div>
+      <div class="panel"><div class="panel-head"><h2>Por venir · requieren atención</h2>${attn.upcomingCount ? `<span class="muted">${attn.upcomingCount}</span>` : ""}</div><div class="panel-body stack">
+        ${attn.upcomingHtml || `<div class="empty"><strong>Todo en orden</strong>No hay alertas urgentes.</div>`}
       </div></div>
     </div>
-    ${contactWatch ? `<div class="contact-watch"><span class="contact-watch-label">Sin contactar</span>${contactWatch}</div>` : ""}`;
+    <div class="panel"><div class="panel-head"><h2>Próximos eventos</h2><button class="ghost-btn" data-go="clients">Ver todos</button></div>
+      ${nextEvents.length ? `<div>${nextEvents.map(eventRow).join("")}</div>` : empty("No hay eventos próximos", "Los eventos que ya pasaron están en Clientes → Realizados.")}
+    </div>`;
 }
-function kpi(label, value, note) { return `<article class="kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`; }
+function kpiMini(label, value, note) { return `<div class="kpi-mini"${note ? ` title="${escapeHtml(note)}"` : ""}><strong>${value}</strong><span>${escapeHtml(label)}</span></div>`; }
 function eventRow(c) { const d=parseDate(c.eventDate), pct=progress(c); return `<div class="event-row"><div class="date-box"><strong>${String(d.getDate()).padStart(2,"0")}</strong><span>${monthText(c.eventDate)}</span></div><div class="event-name"><strong>${escapeHtml(c.honoree)}</strong><span>#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</span></div><span class="tag">${packLabel(c.pack)}</span><span class="muted">${pct}% completo</span><button class="secondary-btn" data-open-client="${c.id}">Abrir</button></div>`; }
 function attentionUrgency(days) {
   if (days <= 7) return "urgency-red";
   if (days <= 20) return "urgency-yellow";
   return "urgency-green";
 }
-function attentionItems() {
-  const items=[];
+function attentionItemsBuckets() {
+  const realized=[], upcoming=[];
   state.clients.forEach(c => {
     const days=daysUntil(c.eventDate), incomplete=c.tasks.filter(t=>!["done","na"].includes(t.status)),hasPrintedBook=(c.addons||[]).includes("libro"),bookDue=hasPrintedBook&&days>=0&&days<=30;
     const prepPending=c.tasks.filter(t=>t.phase==="Preparación"&&!["done","na"].includes(t.status)),prepDue=prepPending.length&&days>=0&&days<=30;
     const sortDays = days < 0 ? 0 : days;
-    if(bookDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
-    else if(prepDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
-    else if(days>=0&&days<=14&&incomplete.length) items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Tareas pendientes</span><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
-    if(!c.isExternal&&days<0&&c.tasks.some(t=>["coveragePhoto","coveragePhotoEdit","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status))) items.push({days:0,html:`<button class="attention-alert urgency-red" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Cobertura sin confirmar</span><small>Evento ya realizado</small></button>`});
+    if(bookDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;upcoming.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Libro Combo / material impreso</span><small>${when} · Confirmar selección de fotos, diseño y envío a impresión.</small></button>`});}
+    else if(prepDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;upcoming.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Faltan confirmar datos del evento</span><small>${when} · ${prepPending.map(t=>t.title).join(" · ")}</small></button>`});}
+    else if(days>=0&&days<=14&&incomplete.length) upcoming.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)}" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Tareas pendientes</span><small>Faltan ${days} días · ${incomplete.length} tareas abiertas</small></button>`});
+    if(!c.isExternal&&days<0){
+      const pendingCoverage=c.tasks.filter(t=>["coveragePhoto","coveragePhotoEdit","coverageVideoCapture","coverageVideoEdit"].includes(t.key)&&!["done","na"].includes(t.status));
+      if(pendingCoverage.length) realized.push({days:0,html:`<div class="attention-alert urgency-red attention-realized"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Cobertura sin confirmar</span><small>Evento ya realizado · tildá lo que ya está listo</small><div class="attention-check-list">${pendingCoverage.map(t=>`<label class="attention-check-item"><input type="checkbox" data-task-check="${c.id}|${t.id}">${escapeHtml(t.title)}</label>`).join("")}</div><button type="button" class="ghost-btn attention-open-link" data-open-client="${c.id}">Ver ficha completa</button></div>`});
+    }
     const hasPhotoSession = canScheduleSession(c);
-    if(!c.isExternal&&hasPrintedBook&&!hasPhotoSession&&!c.dismissedConflicts?.libroCombo) items.push({days:-1,html:`<div class="attention-alert attention-conflict"><button data-open-client="${c.id}" class="attention-alert-main"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Conflicto de venta: Libro Combo sin sesión</span><small>El Libro Combo requiere una sesión de fotos. Agregá Mini Flex/Flex con "Sesión extra - fotografía", o Sans Souci, para habilitarla.</small></button><button type="button" class="ghost-btn attention-dismiss" data-dismiss-conflict="${c.id}" data-conflict-key="libroCombo" title="Ya lo resolví con el cliente">Marcar resuelto</button></div>`});
+    if(!c.isExternal&&hasPrintedBook&&!hasPhotoSession&&!c.dismissedConflicts?.libroCombo) upcoming.push({days:-1,html:`<div class="attention-alert attention-conflict"><button data-open-client="${c.id}" class="attention-alert-main"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Conflicto de venta: Libro Combo sin sesión</span><small>El Libro Combo requiere una sesión de fotos. Agregá Mini Flex/Flex con "Sesión extra - fotografía", o Sans Souci, para habilitarla.</small></button><button type="button" class="ghost-btn attention-dismiss" data-dismiss-conflict="${c.id}" data-conflict-key="libroCombo" title="Ya lo resolví con el cliente">Marcar resuelto</button></div>`});
     const sessionTask=c.tasks.find(t=>t.key==="coordinateSession"), sessionDue=sessionTask&&!["done","na"].includes(sessionTask.status)&&days>=0&&days<=30;
-    if(!c.isExternal&&sessionDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Sesión de fotos sin agendar</span><small>${when} · Coordinar y reservar la sesión de fotos.</small></button>`});}
+    if(!c.isExternal&&sessionDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;upcoming.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Sesión de fotos sin agendar</span><small>${when} · Coordinar y reservar la sesión de fotos.</small></button>`});}
     const extraServiceKeys=["flexLive","flexPhotoExtra","flexVideoExtra","pixelLive","pixelPhotoExtra","pixelVideoExtra"];
     const extraServicesPending=c.tasks.filter(t=>extraServiceKeys.includes(t.key)&&!["done","na"].includes(t.status));
-    if(!c.isExternal&&extraServicesPending.length&&days>=0&&days<=20){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;items.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Servicios extra sin confirmar</span><small>${when} · ${extraServicesPending.map(t=>t.title).join(" · ")}</small></button>`});}
-  }); return items.sort((a,b)=>a.days-b.days).slice(0,6).map(item=>item.html).join("");
+    if(!c.isExternal&&extraServicesPending.length&&days>=0&&days<=20){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;upcoming.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag">${escapeHtml(c.salon||"")}</span></div><span>Servicios extra sin confirmar</span><small>${when} · ${extraServicesPending.map(t=>t.title).join(" · ")}</small></button>`});}
+  });
+  return {
+    realizedHtml: realized.sort((a,b)=>a.days-b.days).slice(0,8).map(item=>item.html).join(""),
+    realizedCount: realized.length,
+    upcomingHtml: upcoming.sort((a,b)=>a.days-b.days).slice(0,8).map(item=>item.html).join(""),
+    upcomingCount: upcoming.length,
+  };
 }
-function contactWatchItems() {
+function contactWatchClients() {
   return state.clients
     .filter(c => !c.isExternal && !c.contactedAt && daysUntil(c.eventDate) <= 90)
-    .sort((a,b) => daysUntil(a.eventDate) - daysUntil(b.eventDate))
-    .map(c => {
+    .sort((a,b) => daysUntil(a.eventDate) - daysUntil(b.eventDate));
+}
+function contactWatchItemsHtml(list) {
+  return list.map(c => {
       const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
       const when = days < 0 ? `venció hace ${Math.abs(days)} d` : days === 0 ? "es hoy" : `faltan ${days} d`;
       return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span>${escapeHtml(c.honoree)} · ${when}</button>`;
