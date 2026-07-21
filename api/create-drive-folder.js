@@ -14,24 +14,33 @@ import ws from "ws";
 //   - Si algún día se filtra la clave de un salón, el otro salón no queda
 //     expuesto (cada una solo tiene acceso a la carpeta compartida de su
 //     propio Drive).
-// En vez de autenticar como la cuenta de Gmail real del salón (lo que
-// requeriría un token OAuth de usuario, con más alcance y que en modo
-// "Testing" de Google expira cada 7 días), cada cuenta de servicio es una
-// identidad de máquina sin Drive propio, a la que se le comparte
-// manualmente la carpeta del año en el Drive de ese salón.
+//
+// Las dos claves privadas NO viven como variable de entorno de Netlify:
+// juntas superan el límite de 4KB por función que impone AWS Lambda (la
+// base sobre la que corren las Netlify Functions clásicas). En vez de eso,
+// se guardan en la tabla `google_service_accounts` de Supabase y esta
+// función las busca ahí en el momento, autenticándose con la
+// SUPABASE_SERVICE_ROLE_KEY (que sí es chica y no tiene problema de
+// tamaño). Esa tabla tiene RLS activado sin ninguna política, así que solo
+// la service role (nunca el usuario final) puede leerla.
 //
 // Configuración necesaria en Netlify (Site configuration > Environment
 // variables):
-//   GOOGLE_SERVICE_ACCOUNT_JSON         -> JSON de la cuenta de servicio "Quinta"
-//   GOOGLE_SERVICE_ACCOUNT_JSON_PILAR   -> JSON de la cuenta de servicio "Pilar Hotel"
+//   SUPABASE_SERVICE_ROLE_KEY           -> clave "service_role" del proyecto
+//                                          (Supabase > Project Settings > API)
 //   GOOGLE_DRIVE_ROOT_FOLDER_QUINTA     -> ID de la carpeta del año (ej. "2026")
 //                                          compartida con la cuenta de servicio
 //                                          "Quinta", en quinta.janosfyv@gmail.com
 //   GOOGLE_DRIVE_ROOT_FOLDER_PILAR      -> ídem, con la cuenta de servicio
 //                                          "Pilar Hotel", en pilarhoteljanos@gmail.com
 //
-// Usa el JWT del propio usuario (no service role) para leer/escribir el
-// cliente, así el RLS de Supabase ya limita el resultado a sus propias filas.
+// Configuración necesaria en Supabase (tabla `google_service_accounts`):
+//   salon="Quinta"      -> credentials = { client_email, private_key } de esa cuenta
+//   salon="Pilar Hotel" -> ídem, de la cuenta de Pilar Hotel
+//
+// Para leer/escribir el cliente se sigue usando el JWT del propio usuario
+// (no service role), así el RLS de Supabase limita ese resultado a sus
+// propias filas. La service role solo se usa para la tabla de credenciales.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -42,11 +51,6 @@ const CORS = {
 const ROOT_FOLDER_ENV = {
   Quinta: "GOOGLE_DRIVE_ROOT_FOLDER_QUINTA",
   "Pilar Hotel": "GOOGLE_DRIVE_ROOT_FOLDER_PILAR",
-};
-
-const SERVICE_ACCOUNT_ENV = {
-  Quinta: "GOOGLE_SERVICE_ACCOUNT_JSON",
-  "Pilar Hotel": "GOOGLE_SERVICE_ACCOUNT_JSON_PILAR",
 };
 
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
@@ -169,15 +173,23 @@ export async function handler(event) {
     const rootFolderId = process.env[rootEnvVar];
     if (!rootFolderId) return json(500, { error: `Falta la variable ${rootEnvVar} en Netlify` });
 
-    const serviceAccountEnvVar = SERVICE_ACCOUNT_ENV[client.salon];
-    if (!serviceAccountEnvVar) return json(400, { error: `No hay una cuenta de servicio de Drive configurada para el salón "${client.salon}"` });
-    if (!process.env[serviceAccountEnvVar]) return json(500, { error: `Falta la variable ${serviceAccountEnvVar} en Netlify` });
-    let serviceAccount;
-    try {
-      serviceAccount = JSON.parse(process.env[serviceAccountEnvVar]);
-    } catch {
-      return json(500, { error: `${serviceAccountEnvVar} en Netlify no es un JSON válido` });
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return json(500, { error: "Falta la variable SUPABASE_SERVICE_ROLE_KEY en Netlify" });
+
+    // Cliente aparte con la service role, solo para leer la clave de Drive
+    // de este salón desde `google_service_accounts` (tabla con RLS sin
+    // políticas: nadie más puede leerla).
+    const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const { data: credRow, error: credError } = await supabaseAdmin
+      .from("google_service_accounts")
+      .select("credentials")
+      .eq("salon", client.salon)
+      .maybeSingle();
+
+    if (credError) return json(500, { error: `Error leyendo credenciales de Drive: ${credError.message}` });
+    if (!credRow?.credentials?.client_email || !credRow?.credentials?.private_key) {
+      return json(500, { error: `No hay una cuenta de servicio de Drive guardada para el salón "${client.salon}" en Supabase (tabla google_service_accounts)` });
     }
+    const serviceAccount = credRow.credentials;
 
     const eventDate = String(client.event_date || "").slice(0, 10); // YYYY-MM-DD
     const [year, month] = eventDate.split("-");
