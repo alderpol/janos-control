@@ -92,7 +92,7 @@ export async function handler(event) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error?.message || "Error consultando la carpeta en Drive");
 
-    return json(200, { checked: true, exists: !data.trashed, _debugFolderId: folderId, _debugDriveResponse: data, _debugStatus: res.status });
+    return json(200, { checked: true, exists: !data.trashed });
   } catch (err) {
     return json(500, { error: String(err?.message || err) });
   }
