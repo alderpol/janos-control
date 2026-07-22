@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import ws from "ws";
+import { decryptSecret } from "./_crypto.js";
 
 // Prueba en el momento si el email + contraseña de aplicación de Zoho que
 // el usuario cargó en Ajustes > "Mi cuenta de email" son válidos, sin
@@ -57,7 +58,7 @@ export async function handler(event) {
       host: "smtp.zoho.com",
       port: 465,
       secure: true,
-      auth: { user: account.email, pass: account.password },
+      auth: { user: account.email, pass: await decryptSecret(account.password) },
     });
 
     try {

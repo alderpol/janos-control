@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import ws from "ws";
+import { decryptSecret } from "./_crypto.js";
 
 // Envia por mail (SMTP Zoho) el link de Drive con las fotos y videos de un
 // cliente. Se dispara a mano desde el boton "Enviar material" en la ficha
@@ -123,7 +124,7 @@ export async function handler(event) {
     if (personalAccount?.email && personalAccount?.password) {
       account = {
         user: personalAccount.email,
-        pass: personalAccount.password,
+        pass: await decryptSecret(personalAccount.password),
         fromName: personalAccount.fromName || profile.display_name || "Janos Fotografía y Video",
       };
     } else if (!isAdmin) {

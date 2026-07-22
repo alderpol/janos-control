@@ -151,23 +151,19 @@ export async function getAccessProfile() {
 export async function saveMyZohoAccount({ salon, email, password, fromName }) {
   if (!supabase) throw new Error("Supabase no está configurado.");
   if (!salon) throw new Error("Falta el salón.");
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("No hay sesión activa.");
-  const { data: current, error: readError } = await supabase.from("profiles").select("zoho_accounts").eq("id", user.id).maybeSingle();
-  if (readError) throw readError;
-  const accounts = { ...(current?.zoho_accounts || {}) };
-  const existing = accounts[salon] || {};
-  // Los 3 campos se comportan igual: si se dejan vacíos, se conserva lo que
-  // ya estaba guardado (no se borra por error al guardar sin completarlos).
-  const trimmedEmail = String(email || "").trim();
-  const trimmedFromName = String(fromName || "").trim();
-  accounts[salon] = {
-    email: trimmedEmail || existing.email || "",
-    fromName: trimmedFromName || existing.fromName || "",
-    password: password || existing.password || "",
-  };
-  const { error } = await supabase.from("profiles").update({ zoho_accounts: accounts }).eq("id", user.id);
-  if (error) throw error;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  // El guardado pasa por una función serverless que cifra la contraseña de
+  // aplicación antes de escribirla en la base (la clave de cifrado no puede
+  // vivir en el navegador). La lógica de merge -conservar campos vacíos- se
+  // resuelve del lado del servidor.
+  const res = await fetch("/api/save-zoho-account", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ salon, email, password, fromName }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo guardar la cuenta de Zoho.");
 }
 
 // Borra la cuenta de Zoho de un salon puntual (a diferencia de guardar, acá

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encryptSecret } from "../_shared/crypto.ts";
 
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
 
     const { error: dbError } = await supabase
       .from("profiles")
-      .update({ google_refresh_token: tokens.refresh_token })
+      .update({ google_refresh_token: await encryptSecret(tokens.refresh_token) })
       .eq("id", userId);
 
     if (dbError) {

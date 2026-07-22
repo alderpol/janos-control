@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decryptSecret } from "../_shared/crypto.ts";
 
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
@@ -54,7 +55,7 @@ serve(async (req) => {
       });
     }
 
-    const accessToken = await getAccessToken(profile.google_refresh_token);
+    const accessToken = await getAccessToken(await decryptSecret(profile.google_refresh_token));
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "token_expired" }), {
         status: 200,
