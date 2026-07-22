@@ -165,15 +165,20 @@ async function makeReaderForAnyone(accessToken, fileId) {
 // carpeta sigue funcionando igual, solo cambia quién figura como
 // "Propietario".
 async function requestOwnershipTransfer(accessToken, fileId, emailAddress) {
-  if (!emailAddress) return;
+  if (!emailAddress) return { skipped: true };
   try {
-    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true&sendNotificationEmail=false`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ role: "writer", type: "user", emailAddress, pendingOwner: true }),
-    });
-  } catch {
-    // No crítico.
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true&sendNotificationEmail=false&fields=id,role,pendingOwner`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "writer", type: "user", emailAddress, pendingOwner: true }),
+      }
+    );
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
   }
 }
 
@@ -261,10 +266,12 @@ export async function handler(event) {
     // transferencia a la cuenta real del salón; hay que aceptarla a
     // mano desde esa cuenta cuando se pueda.
     const ownerEmail = SALON_OWNER_EMAIL[client.salon];
+    let ownershipDebug;
     if (ownerEmail) {
-      if (clientFolder.created) await requestOwnershipTransfer(accessToken, clientFolder.id, ownerEmail);
-      if (fotosFolder.created) await requestOwnershipTransfer(accessToken, fotosFolder.id, ownerEmail);
-      if (videosFolder.created) await requestOwnershipTransfer(accessToken, videosFolder.id, ownerEmail);
+      ownershipDebug = {};
+      if (clientFolder.created) ownershipDebug.clientFolder = await requestOwnershipTransfer(accessToken, clientFolder.id, ownerEmail);
+      if (fotosFolder.created) ownershipDebug.fotosFolder = await requestOwnershipTransfer(accessToken, fotosFolder.id, ownerEmail);
+      if (videosFolder.created) ownershipDebug.videosFolder = await requestOwnershipTransfer(accessToken, videosFolder.id, ownerEmail);
     }
 
     const driveUrl = clientFolder.webViewLink || `https://drive.google.com/drive/folders/${clientFolder.id}`;
@@ -275,10 +282,10 @@ export async function handler(event) {
       .eq("id", clientId);
 
     if (updateError) {
-      return json(200, { ok: true, driveUrl, warning: `La carpeta se creó, pero no se pudo guardar el link: ${updateError.message}` });
+      return json(200, { ok: true, driveUrl, warning: `La carpeta se creó, pero no se pudo guardar el link: ${updateError.message}`, ownershipDebug });
     }
 
-    return json(200, { ok: true, driveUrl });
+    return json(200, { ok: true, driveUrl, ownershipDebug });
   } catch (err) {
     return json(500, { error: String(err?.message || err) });
   }
