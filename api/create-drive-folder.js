@@ -49,7 +49,7 @@ import { getAccessToken } from "./_drive-auth.js";
 // propias filas. La service role solo se usa para la tabla de credenciales.
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -204,6 +204,7 @@ export async function handler(event) {
 
     return json(200, { ok: true, driveUrl });
   } catch (err) {
-    return json(500, { error: String(err?.message || err) });
+    console.error("create-drive-folder error:", err);
+    return json(500, { error: String(err?.message || "Error interno del servidor") });
   }
 }

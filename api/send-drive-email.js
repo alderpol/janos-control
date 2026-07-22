@@ -30,7 +30,7 @@ import ws from "ws";
 // Supabase ya limita la lectura/escritura del cliente a sus propias filas.
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -60,6 +60,14 @@ function formatDateEs(date) {
 
 function json(statusCode, body) {
   return { statusCode, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify(body) };
+}
+
+function isHttpUrl(value) {
+  try { const u = new URL(String(value || "").trim()); return u.protocol === "http:" || u.protocol === "https:"; } catch { return false; }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c]));
 }
 
 export async function handler(event) {
@@ -92,6 +100,7 @@ export async function handler(event) {
     if (!client) return json(404, { error: "Cliente no encontrado" });
     if (!client.client_email) return json(400, { error: "El cliente no tiene email cargado" });
     if (!client.drive_url) return json(400, { error: "El cliente no tiene link de Drive cargado" });
+    if (!isHttpUrl(client.drive_url)) return json(400, { error: "El link de Drive del cliente no es válido (debe empezar con https://)" });
 
     // Cada usuario (colega) puede cargar su propia cuenta de Zoho en su perfil
     // (Ajustes > "Mi cuenta de email"), una por cada salón en el que trabaja
@@ -136,10 +145,10 @@ export async function handler(event) {
     const html = `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px;color:#222">
         <h2 style="color:#c9a84c;margin-bottom:4px">Janos Fotografía y Video</h2>
-        <p>Hola${displayName ? " " + displayName : ""},</p>
-        <p>¡Ya está listo el material de fotos y videos de <strong>${client.honoree}</strong>! Podés acceder desde este link:</p>
+        <p>Hola${displayName ? " " + escapeHtml(displayName) : ""},</p>
+        <p>¡Ya está listo el material de fotos y videos de <strong>${escapeHtml(client.honoree)}</strong>! Podés acceder desde este link:</p>
         <p style="margin:20px 0">
-          <a href="${client.drive_url}"
+          <a href="${escapeHtml(client.drive_url)}"
              style="display:inline-block;padding:12px 24px;background:#c9a84c;color:#0f0a18;border-radius:8px;text-decoration:none;font-weight:700">
             Ver mis fotos y videos
           </a>
@@ -147,7 +156,7 @@ export async function handler(event) {
         <p>Vas a poder descargarlo desde este link hasta el <strong>${availableUntil}</strong> (180 días desde este mail). Te recomendamos guardarlo en tu computadora o en tu propia nube antes de esa fecha, para tenerlo siempre a mano.</p>
         <p>¡Gracias por haber elegido a Janos para acompañarte en un día tan especial! Fue un placer para todo el equipo.</p>
         <p>Un abrazo,<br>El equipo de Janos Fotografía y Video</p>
-        <p style="margin-top:24px;color:#888;font-size:12px">Janos Fotografía · ${client.salon}</p>
+        <p style="margin-top:24px;color:#888;font-size:12px">Janos Fotografía · ${escapeHtml(client.salon)}</p>
       </div>
     `;
 
@@ -189,6 +198,7 @@ export async function handler(event) {
 
     return json(200, { ok: true, sentAt: sentAt.toISOString(), availableUntil: addDays(sentAt, 180).toISOString() });
   } catch (err) {
-    return json(500, { error: String(err?.message || err) });
+    console.error("send-drive-email error:", err);
+    return json(500, { error: String(err?.message || "Error interno del servidor") });
   }
 }

@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -49,8 +49,12 @@ serve(async (req) => {
       return new Response("Unauthorized", { status: 401, headers: corsHeaders });
     }
 
+    // No incluir secretos (zoho_accounts / google_refresh_token) en el
+    // archivo descargable, aunque sean del propio usuario: no hay motivo para
+    // volcar contraseñas de aplicación en un JSON que queda dando vueltas.
+    const PROFILE_EXPORT_COLUMNS = "id,display_name,email,whatsapp,role,status,created_at,last_seen_at,salons,settings";
     const [profile, clients, tasks, renditions, rates] = await Promise.all([
-      userClient.from("profiles").select("*").eq("id", userData.user.id).maybeSingle(),
+      userClient.from("profiles").select(PROFILE_EXPORT_COLUMNS).eq("id", userData.user.id).maybeSingle(),
       fetchAll(() => userClient.from("clients").select("*")),
       fetchAll(() => userClient.from("tasks").select("*")),
       fetchAll(() => userClient.from("renditions").select("*")),
@@ -76,6 +80,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (err) {
-    return new Response(String(err), { status: 500, headers: corsHeaders });
+    console.error("export-user error:", err);
+    return new Response("Error interno del servidor", { status: 500, headers: corsHeaders });
   }
 });

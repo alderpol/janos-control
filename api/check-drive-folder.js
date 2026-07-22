@@ -13,7 +13,7 @@ import { getAccessToken } from "./_drive-auth.js";
 // background para el resto de los clientes.
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -94,6 +94,7 @@ export async function handler(event) {
 
     return json(200, { checked: true, exists: !data.trashed });
   } catch (err) {
-    return json(500, { error: String(err?.message || err) });
+    console.error("check-drive-folder error:", err);
+    return json(500, { error: String(err?.message || "Error interno del servidor") });
   }
 }

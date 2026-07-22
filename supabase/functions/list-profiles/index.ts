@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -56,6 +56,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (err) {
-    return new Response(String(err), { status: 500, headers: corsHeaders });
+    console.error("list-profiles error:", err);
+    return new Response("Error interno del servidor", { status: 500, headers: corsHeaders });
   }
 });

@@ -249,6 +249,9 @@ function saveState() { localStorage.setItem(storageKey, JSON.stringify(state)); 
 function storageKeyForUser(user) { return `${STORAGE_KEY}:${user.id}`; }
 function uid() { return crypto.randomUUID(); }
 function escapeHtml(value = "") { return String(value).replace(/[&<>'"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[c])); }
+// Solo abrir links http(s): evita que un valor pegado con esquema
+// "javascript:" u otro se ejecute al hacer window.open().
+function isHttpUrl(value){try{const u=new URL(String(value||"").trim());return u.protocol==="http:"||u.protocol==="https:";}catch{return false;}}
 function parseDate(value) { return value ? new Date(`${value}T12:00:00`) : new Date(); }
 function dateText(value) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parseDate(value)); }
 function monthText(value) { return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(parseDate(value)).replace(".", ""); }
@@ -556,11 +559,12 @@ function saveWhatsappSenders(){
 }
 function whatsappUrl(client){const phone=whatsappNumber(client.clientPhone);return phone?`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage(client))}`:"";}
 function contactClient(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=whatsappUrl(client);if(!url){openClientForm(client);toast("Agregá el WhatsApp del cliente para contactarlo");return;}window.open(url,"_blank","noopener,noreferrer");client.contactedAt=new Date().toISOString();client.history=client.history||[];client.history.push({date:client.contactedAt,text:"Contacto inicial por WhatsApp registrado",type:"whatsapp_contact"});saveState();refreshTaskViews(id);toast("Contacto registrado");}
-function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
+function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}if(!isHttpUrl(url)){openClientForm(client);toast("El link del grupo debe empezar con https://");return;}window.open(url,"_blank","noopener,noreferrer");}
 async function openDriveFolder(id){
   const client=state.clients.find(item=>item.id===id);if(!client)return;
   const url=(client.driveUrl||"").trim();
   if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}
+  if(!isHttpUrl(url)){openClientForm(client);toast("El link de Drive debe empezar con https://");return;}
   if(DRIVE_AUTO_SALONS.includes(client.salon)){
     try{
       const {checked,exists}=await checkDriveFolderExists(id);

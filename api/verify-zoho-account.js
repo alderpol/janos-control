@@ -12,7 +12,7 @@ import ws from "ws";
 // solo cambia la forma de leer el request/devolver la respuesta.
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -71,6 +71,7 @@ export async function handler(event) {
 
     return json(200, { ok: true });
   } catch (err) {
-    return json(500, { error: String(err?.message || err) });
+    console.error("verify-zoho-account error:", err);
+    return json(500, { error: String(err?.message || "Error interno del servidor") });
   }
 }

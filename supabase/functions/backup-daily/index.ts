@@ -48,8 +48,13 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // NO incluir secretos en el backup: zoho_accounts (contraseñas de
+    // aplicación de Zoho) y google_refresh_token quedan fuera a propósito,
+    // para no mandarlos en texto plano por email. Si se agregan columnas
+    // nuevas no sensibles a profiles, sumalas acá a mano.
+    const PROFILE_BACKUP_COLUMNS = "id,display_name,email,whatsapp,role,status,created_at,last_seen_at,salons,settings";
     const [profiles, clients, tasks, renditions, rates] = await Promise.all([
-      fetchAll(() => supabase.from("profiles").select("*")),
+      fetchAll(() => supabase.from("profiles").select(PROFILE_BACKUP_COLUMNS)),
       fetchAll(() => supabase.from("clients").select("*")),
       fetchAll(() => supabase.from("tasks").select("*")),
       fetchAll(() => supabase.from("renditions").select("*")),
@@ -108,6 +113,7 @@ serve(async (req) => {
       status: res.ok ? 200 : 400,
     });
   } catch (err) {
-    return new Response(String(err), { status: 500 });
+    console.error("backup-daily error:", err);
+    return new Response("Error interno del servidor", { status: 500 });
   }
 });

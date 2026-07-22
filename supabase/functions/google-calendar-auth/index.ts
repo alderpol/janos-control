@@ -8,7 +8,7 @@ const APP_URL = "https://janos-control.netlify.app";
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutos de validez para el "state"
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };

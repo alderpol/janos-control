@@ -2,9 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function escapeHtml(value: string): string {
+  return String(value ?? "").replace(/[&<>'"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c] as string)
+  );
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -48,7 +54,7 @@ serve(async (req) => {
         html: `
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
             <h2 style="color:#c9a84c">Janos Control</h2>
-            <p>Hola ${name || ""}!</p>
+            <p>Hola ${escapeHtml(name || "")}!</p>
             <p>Tu cuenta fue aprobada. Ya podes ingresar a la app:</p>
             <a href="https://janos-control.netlify.app" 
                style="display:inline-block;margin-top:16px;padding:12px 24px;background:#c9a84c;color:#0f0a18;border-radius:8px;text-decoration:none;font-weight:700">
@@ -66,6 +72,7 @@ serve(async (req) => {
       status: res.ok ? 200 : 400,
     });
   } catch (err) {
-    return new Response(String(err), { status: 500, headers: corsHeaders });
+    console.error("notify-user-approved error:", err);
+    return new Response("Error interno del servidor", { status: 500, headers: corsHeaders });
   }
 });
