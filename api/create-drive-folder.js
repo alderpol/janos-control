@@ -7,48 +7,46 @@ import ws from "ws";
 // Se dispara a mano desde el botón "Crear carpeta en Drive" en la ficha del
 // cliente (app.js / cloud.js::createDriveFolderNow).
 //
-// Cada salón tiene su PROPIA cuenta de servicio (no una compartida entre
-// los dos), para que:
-//   - En el Drive de cada salón aparezca solo "su" cuenta técnica (Quinta /
-//     Pilar Hotel) como colaboradora, no una cuenta genérica ajena.
-//   - Si algún día se filtra la clave de un salón, el otro salón no queda
-//     expuesto (cada una solo tiene acceso a la carpeta compartida de su
-//     propio Drive).
+// Cada salón se autentica con su PROPIA cuenta real de Google (OAuth,
+// quinta.janosfyv@gmail.com / pilarhoteljanos@gmail.com), no con una cuenta
+// de servicio. Así las carpetas quedan a nombre del salón desde el momento
+// en que se crean — no hace falta ningún paso de transferencia de
+// propiedad después (Google no permite forzar eso por API entre cuentas
+// personales, así que la única forma real de que el dueño sea el salón es
+// que la cuenta real sea la que crea el archivo).
 //
-// Las dos claves privadas NO viven como variable de entorno de Netlify:
-// juntas superan el límite de 4KB por función que impone AWS Lambda (la
-// base sobre la que corren las Netlify Functions clásicas). En vez de eso,
-// se guardan en la tabla `google_service_accounts` de Supabase y esta
-// función las busca ahí en el momento, autenticándose con la
-// SUPABASE_SERVICE_ROLE_KEY (que sí es chica y no tiene problema de
-// tamaño). Esa tabla tiene RLS activado sin ninguna política, así que solo
-// la service role (nunca el usuario final) puede leerla.
+// Cada salón autorizó el acceso una sola vez (ver api/oauth-drive-start.js
+// y api/oauth-drive-callback.js) y esa autorización quedó guardada como un
+// refresh_token en la tabla `google_service_accounts` de Supabase. Esta
+// función lo usa para pedir un access_token nuevo en cada llamada.
+//
+// Las credenciales NO viven como variable de entorno de Netlify: además de
+// no ser necesario, juntar credenciales de dos salones ahí puede superar el
+// límite de 4KB por función que impone AWS Lambda. En vez de eso, se
+// guardan en Supabase y esta función las busca en el momento,
+// autenticándose con la SUPABASE_SERVICE_ROLE_KEY (que sí es chica). Esa
+// tabla tiene RLS activado sin ninguna política, así que solo la service
+// role (nunca el usuario final) puede leerla.
 //
 // Configuración necesaria en Netlify (Site configuration > Environment
 // variables):
 //   SUPABASE_SERVICE_ROLE_KEY           -> clave "service_role" del proyecto
 //                                          (Supabase > Project Settings > API)
+//   GOOGLE_OAUTH_CLIENT_ID              -> del cliente OAuth "Janos Drive
+//   GOOGLE_OAUTH_CLIENT_SECRET             Ownership" en Google Cloud Console
 //   GOOGLE_DRIVE_ROOT_FOLDER_QUINTA     -> ID de la carpeta del año (ej. "2026")
-//                                          compartida con la cuenta de servicio
-//                                          "Quinta", en quinta.janosfyv@gmail.com
-//   GOOGLE_DRIVE_ROOT_FOLDER_PILAR      -> ídem, con la cuenta de servicio
-//                                          "Pilar Hotel", en pilarhoteljanos@gmail.com
+//                                          en el Drive de quinta.janosfyv@gmail.com
+//   GOOGLE_DRIVE_ROOT_FOLDER_PILAR      -> ídem, en pilarhoteljanos@gmail.com
 //
 // Configuración necesaria en Supabase (tabla `google_service_accounts`):
-//   salon="Quinta"      -> credentials = { client_email, private_key } de esa cuenta
+//   salon="Quinta"      -> credentials = { refresh_token } de esa cuenta
 //   salon="Pilar Hotel" -> ídem, de la cuenta de Pilar Hotel
+//   (formato viejo, todavía soportado como respaldo: { client_email, private_key }
+//   de una cuenta de servicio, firmado con JWT en vez de refresh_token)
 //
 // Para leer/escribir el cliente se sigue usando el JWT del propio usuario
 // (no service role), así el RLS de Supabase limita ese resultado a sus
 // propias filas. La service role solo se usa para la tabla de credenciales.
-//
-// Propietario en Drive: como el creador de una carpeta es su dueño por
-// defecto, las carpetas nuevas quedan a nombre de la cuenta de servicio
-// (no de la cuenta real del salón). Para disimular esto, cada carpeta
-// nueva (cliente, FOTOS, VIDEOS) queda con una transferencia de
-// propiedad PENDIENTE hacia SALON_OWNER_EMAIL — Google no deja forzarla
-// entre cuentas personales, así que alguien tiene que entrar de vez en
-// cuando a esa cuenta y aceptar las solicitudes acumuladas en Drive.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -61,18 +59,6 @@ const ROOT_FOLDER_ENV = {
   "Pilar Hotel": "GOOGLE_DRIVE_ROOT_FOLDER_PILAR",
 };
 
-// Cuenta personal (Gmail, no Workspace) de cada salón, dueña del Drive
-// donde vive la carpeta del año. Google no permite forzar por API la
-// transferencia de propiedad entre cuentas personales: lo único que se
-// puede hacer es dejar una solicitud pendiente (pendingOwner) que el
-// dueño de esta cuenta tiene que aceptar a mano desde Drive (aparece
-// como notificación / en "Compartidos conmigo"). Por eso conviene
-// entrar de vez en cuando y aceptar las que se hayan acumulado.
-const SALON_OWNER_EMAIL = {
-  Quinta: "quinta.janosfyv@gmail.com",
-  "Pilar Hotel": "pilarhoteljanos@gmail.com",
-};
-
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
 
 function json(statusCode, body) {
@@ -83,9 +69,33 @@ function base64url(input) {
   return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-// Arma y firma un JWT con la clave privada de la cuenta de servicio, y lo
-// cambia por un access_token de Google (flujo "JWT Bearer" para cuentas de
-// servicio: https://developers.google.com/identity/protocols/oauth2/service-account).
+// Cambia el refresh_token de la cuenta real del salón (obtenido una vez vía
+// OAuth, ver api/oauth-drive-callback.js) por un access_token nuevo.
+async function getOAuthAccessToken(refreshToken) {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error("Falta GOOGLE_OAUTH_CLIENT_ID/GOOGLE_OAUTH_CLIENT_SECRET en Netlify");
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.error || "No se pudo renovar el acceso a la cuenta de Google del salón");
+  return data.access_token;
+}
+
+// Respaldo: firma un JWT con la clave privada de una cuenta de servicio y
+// lo cambia por un access_token (flujo "JWT Bearer" para cuentas de
+// servicio). Solo se usa si en Supabase todavía queda guardada una
+// credencial en formato viejo (client_email + private_key) para algún
+// salón que no haya migrado a OAuth.
 async function getServiceAccountAccessToken(serviceAccount, scope) {
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
@@ -111,6 +121,16 @@ async function getServiceAccountAccessToken(serviceAccount, scope) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error_description || data.error || "No se pudo autenticar la cuenta de servicio con Google");
   return data.access_token;
+}
+
+// Decide qué flujo de autenticación usar según la forma de las credenciales
+// guardadas en Supabase para ese salón.
+async function getAccessToken(credentials) {
+  if (credentials.refresh_token) return getOAuthAccessToken(credentials.refresh_token);
+  if (credentials.client_email && credentials.private_key) {
+    return getServiceAccountAccessToken(credentials, "https://www.googleapis.com/auth/drive");
+  }
+  throw new Error("Credenciales de Drive con formato desconocido (ni refresh_token ni client_email/private_key)");
 }
 
 function escapeForQuery(name) {
@@ -159,29 +179,6 @@ async function makeReaderForAnyone(accessToken, fileId) {
   }
 }
 
-// Deja pedida la transferencia de propiedad a la cuenta real del salón.
-// No la fuerza (Google no lo permite entre cuentas personales): el
-// dueño tiene que entrar a Drive y aceptarla a mano. Mientras tanto la
-// carpeta sigue funcionando igual, solo cambia quién figura como
-// "Propietario".
-async function requestOwnershipTransfer(accessToken, fileId, emailAddress) {
-  if (!emailAddress) return { skipped: true };
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true&sendNotificationEmail=false&fields=id,role,pendingOwner`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "writer", type: "user", emailAddress, pendingOwner: true }),
-      }
-    );
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
-  } catch (err) {
-    return { ok: false, error: String(err?.message || err) };
-  }
-}
-
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers: CORS, body: "" };
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
@@ -218,9 +215,9 @@ export async function handler(event) {
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return json(500, { error: "Falta la variable SUPABASE_SERVICE_ROLE_KEY en Netlify" });
 
-    // Cliente aparte con la service role, solo para leer la clave de Drive
-    // de este salón desde `google_service_accounts` (tabla con RLS sin
-    // políticas: nadie más puede leerla).
+    // Cliente aparte con la service role, solo para leer las credenciales
+    // de Drive de este salón desde `google_service_accounts` (tabla con
+    // RLS sin políticas: nadie más puede leerla).
     const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     const { data: credRow, error: credError } = await supabaseAdmin
       .from("google_service_accounts")
@@ -229,10 +226,11 @@ export async function handler(event) {
       .maybeSingle();
 
     if (credError) return json(500, { error: `Error leyendo credenciales de Drive: ${credError.message}` });
-    if (!credRow?.credentials?.client_email || !credRow?.credentials?.private_key) {
-      return json(500, { error: `No hay una cuenta de servicio de Drive guardada para el salón "${client.salon}" en Supabase (tabla google_service_accounts)` });
+    if (!credRow?.credentials) {
+      return json(500, {
+        error: `No hay credenciales de Drive guardadas para el salón "${client.salon}". Conectala primero desde /api/oauth-drive-start?salon=${encodeURIComponent(client.salon)}`,
+      });
     }
-    const serviceAccount = credRow.credentials;
 
     const eventDate = String(client.event_date || "").slice(0, 10); // YYYY-MM-DD
     const [year, month] = eventDate.split("-");
@@ -241,37 +239,24 @@ export async function handler(event) {
     const monthFolderName = `${month}-${MESES[Number(month) - 1]}`;
     const clientFolderName = `${eventDate.replaceAll("-", "")}_${String(client.honoree || "").toUpperCase()} #${client.code}`;
 
-    const accessToken = await getServiceAccountAccessToken(serviceAccount, "https://www.googleapis.com/auth/drive");
+    const accessToken = await getAccessToken(credRow.credentials);
 
     // rootFolderId apunta directamente a la carpeta DEL AÑO (ej. "2026")
-    // compartida con la cuenta de servicio de ese salón — no a "Mi unidad"
-    // (esa no se puede compartir como carpeta). OJO: esto significa que cada
-    // enero hay que compartir la carpeta del año nuevo con la cuenta de
-    // servicio correspondiente y actualizar esta variable de entorno; si
-    // no, esta función va a fallar apenas empiece el año siguiente.
+    // dentro del Drive del salón — no a "Mi unidad" (esa no se puede
+    // compartir/referenciar como carpeta). OJO: esto significa que cada
+    // enero hay que crear/ubicar la carpeta del año nuevo y actualizar esta
+    // variable de entorno; si no, esta función va a fallar apenas empiece
+    // el año siguiente.
     const monthFolder = await getOrCreateFolder(accessToken, monthFolderName, rootFolderId);
     const clientFolder = await getOrCreateFolder(accessToken, clientFolderName, monthFolder.id);
-    const fotosFolder = await getOrCreateFolder(accessToken, "FOTOS", clientFolder.id);
-    const videosFolder = await getOrCreateFolder(accessToken, "VIDEOS", clientFolder.id);
+    await getOrCreateFolder(accessToken, "FOTOS", clientFolder.id);
+    await getOrCreateFolder(accessToken, "VIDEOS", clientFolder.id);
 
     // La carpeta del cliente es la que se linkea por mail — la dejamos
     // explícitamente en "cualquiera con el link puede ver y descargar"
     // (los sub-permisos de FOTOS/VIDEOS se heredan de acá).
     if (clientFolder.created) {
       await makeReaderForAnyone(accessToken, clientFolder.id);
-    }
-
-    // Cada carpeta nueva queda a nombre de la cuenta de servicio (así
-    // funciona Drive: el creador es el dueño). Dejamos pedida la
-    // transferencia a la cuenta real del salón; hay que aceptarla a
-    // mano desde esa cuenta cuando se pueda.
-    const ownerEmail = SALON_OWNER_EMAIL[client.salon];
-    let ownershipDebug;
-    if (ownerEmail) {
-      ownershipDebug = {};
-      if (clientFolder.created) ownershipDebug.clientFolder = await requestOwnershipTransfer(accessToken, clientFolder.id, ownerEmail);
-      if (fotosFolder.created) ownershipDebug.fotosFolder = await requestOwnershipTransfer(accessToken, fotosFolder.id, ownerEmail);
-      if (videosFolder.created) ownershipDebug.videosFolder = await requestOwnershipTransfer(accessToken, videosFolder.id, ownerEmail);
     }
 
     const driveUrl = clientFolder.webViewLink || `https://drive.google.com/drive/folders/${clientFolder.id}`;
@@ -282,10 +267,10 @@ export async function handler(event) {
       .eq("id", clientId);
 
     if (updateError) {
-      return json(200, { ok: true, driveUrl, warning: `La carpeta se creó, pero no se pudo guardar el link: ${updateError.message}`, ownershipDebug });
+      return json(200, { ok: true, driveUrl, warning: `La carpeta se creó, pero no se pudo guardar el link: ${updateError.message}` });
     }
 
-    return json(200, { ok: true, driveUrl, ownershipDebug });
+    return json(200, { ok: true, driveUrl });
   } catch (err) {
     return json(500, { error: String(err?.message || err) });
   }
