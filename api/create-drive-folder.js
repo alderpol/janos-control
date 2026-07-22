@@ -41,6 +41,14 @@ import ws from "ws";
 // Para leer/escribir el cliente se sigue usando el JWT del propio usuario
 // (no service role), así el RLS de Supabase limita ese resultado a sus
 // propias filas. La service role solo se usa para la tabla de credenciales.
+//
+// Propietario en Drive: como el creador de una carpeta es su dueño por
+// defecto, las carpetas nuevas quedan a nombre de la cuenta de servicio
+// (no de la cuenta real del salón). Para disimular esto, cada carpeta
+// nueva (cliente, FOTOS, VIDEOS) queda con una transferencia de
+// propiedad PENDIENTE hacia SALON_OWNER_EMAIL — Google no deja forzarla
+// entre cuentas personales, así que alguien tiene que entrar de vez en
+// cuando a esa cuenta y aceptar las solicitudes acumuladas en Drive.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -51,6 +59,18 @@ const CORS = {
 const ROOT_FOLDER_ENV = {
   Quinta: "GOOGLE_DRIVE_ROOT_FOLDER_QUINTA",
   "Pilar Hotel": "GOOGLE_DRIVE_ROOT_FOLDER_PILAR",
+};
+
+// Cuenta personal (Gmail, no Workspace) de cada salón, dueña del Drive
+// donde vive la carpeta del año. Google no permite forzar por API la
+// transferencia de propiedad entre cuentas personales: lo único que se
+// puede hacer es dejar una solicitud pendiente (pendingOwner) que el
+// dueño de esta cuenta tiene que aceptar a mano desde Drive (aparece
+// como notificación / en "Compartidos conmigo"). Por eso conviene
+// entrar de vez en cuando y aceptar las que se hayan acumulado.
+const SALON_OWNER_EMAIL = {
+  Quinta: "quinta.janosfyv@gmail.com",
+  "Pilar Hotel": "pilarhoteljanos@gmail.com",
 };
 
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
@@ -139,6 +159,24 @@ async function makeReaderForAnyone(accessToken, fileId) {
   }
 }
 
+// Deja pedida la transferencia de propiedad a la cuenta real del salón.
+// No la fuerza (Google no lo permite entre cuentas personales): el
+// dueño tiene que entrar a Drive y aceptarla a mano. Mientras tanto la
+// carpeta sigue funcionando igual, solo cambia quién figura como
+// "Propietario".
+async function requestOwnershipTransfer(accessToken, fileId, emailAddress) {
+  if (!emailAddress) return;
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true&sendNotificationEmail=false`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "writer", type: "user", emailAddress, pendingOwner: true }),
+    });
+  } catch {
+    // No crítico.
+  }
+}
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers: CORS, body: "" };
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
@@ -208,14 +246,25 @@ export async function handler(event) {
     // no, esta función va a fallar apenas empiece el año siguiente.
     const monthFolder = await getOrCreateFolder(accessToken, monthFolderName, rootFolderId);
     const clientFolder = await getOrCreateFolder(accessToken, clientFolderName, monthFolder.id);
-    await getOrCreateFolder(accessToken, "FOTOS", clientFolder.id);
-    await getOrCreateFolder(accessToken, "VIDEOS", clientFolder.id);
+    const fotosFolder = await getOrCreateFolder(accessToken, "FOTOS", clientFolder.id);
+    const videosFolder = await getOrCreateFolder(accessToken, "VIDEOS", clientFolder.id);
 
     // La carpeta del cliente es la que se linkea por mail — la dejamos
     // explícitamente en "cualquiera con el link puede ver y descargar"
     // (los sub-permisos de FOTOS/VIDEOS se heredan de acá).
     if (clientFolder.created) {
       await makeReaderForAnyone(accessToken, clientFolder.id);
+    }
+
+    // Cada carpeta nueva queda a nombre de la cuenta de servicio (así
+    // funciona Drive: el creador es el dueño). Dejamos pedida la
+    // transferencia a la cuenta real del salón; hay que aceptarla a
+    // mano desde esa cuenta cuando se pueda.
+    const ownerEmail = SALON_OWNER_EMAIL[client.salon];
+    if (ownerEmail) {
+      if (clientFolder.created) await requestOwnershipTransfer(accessToken, clientFolder.id, ownerEmail);
+      if (fotosFolder.created) await requestOwnershipTransfer(accessToken, fotosFolder.id, ownerEmail);
+      if (videosFolder.created) await requestOwnershipTransfer(accessToken, videosFolder.id, ownerEmail);
     }
 
     const driveUrl = clientFolder.webViewLink || `https://drive.google.com/drive/folders/${clientFolder.id}`;
