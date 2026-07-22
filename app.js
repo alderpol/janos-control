@@ -1,4 +1,4 @@
-import { approveMassDeletion, clearMyZohoAccount, cloudEnabled, supabase, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
+import { approveMassDeletion, checkDriveFolderExists, clearMyZohoAccount, cloudEnabled, supabase, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.netlify.app";
 if(window.location.hostname.endsWith(".netlify.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -557,7 +557,25 @@ function saveWhatsappSenders(){
 function whatsappUrl(client){const phone=whatsappNumber(client.clientPhone);return phone?`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage(client))}`:"";}
 function contactClient(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=whatsappUrl(client);if(!url){openClientForm(client);toast("Agregá el WhatsApp del cliente para contactarlo");return;}window.open(url,"_blank","noopener,noreferrer");client.contactedAt=new Date().toISOString();client.history=client.history||[];client.history.push({date:client.contactedAt,text:"Contacto inicial por WhatsApp registrado",type:"whatsapp_contact"});saveState();refreshTaskViews(id);toast("Contacto registrado");}
 function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
-function openDriveFolder(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.driveUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
+async function openDriveFolder(id){
+  const client=state.clients.find(item=>item.id===id);if(!client)return;
+  const url=(client.driveUrl||"").trim();
+  if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}
+  if(DRIVE_AUTO_SALONS.includes(client.salon)){
+    try{
+      const {checked,exists}=await checkDriveFolderExists(id);
+      if(checked&&!exists){
+        if(confirm("La carpeta de Drive fue borrada. ¿Querés que se vuelva a crear?")){
+          await createDriveFolder(id);
+        }
+        return;
+      }
+    }catch(err){
+      // Si no se pudo verificar (ej. sin conexión), no bloqueamos: abrimos el link como antes.
+    }
+  }
+  window.open(url,"_blank","noopener,noreferrer");
+}
 function addDaysIso(value,days){const d=parseDate(value);d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
 function salonSlug(salon){return String(salon||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");}
 async function saveZohoAccount(salon){

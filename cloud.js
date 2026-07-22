@@ -328,6 +328,26 @@ export async function createDriveFolderNow(clientId) {
   return data;
 }
 
+// Chequea si la carpeta guardada en drive_url para el cliente todavía
+// existe en Drive (no fue borrada a mano). Se llama justo antes de abrir
+// "Ver Drive". `checked:false` significa que no había nada para verificar
+// (salón manual o link pegado a mano) y se debe asumir que existe.
+export async function checkDriveFolderExists(clientId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch("/api/check-drive-folder", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ clientId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo verificar la carpeta en Drive.");
+  return data;
+}
+
 export async function getLatestUpdateAt() {
   if (!supabase) return null;
   const [clientsResult, tasksResult, renditionsResult] = await Promise.all([
