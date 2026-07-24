@@ -1,4 +1,4 @@
-import { approveMassDeletion, checkDriveFolderExists, clearMyZohoAccount, cloudEnabled, supabase, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
+import { approveMassDeletion, checkDriveFolderExists, clearDriveAccount, clearMyZohoAccount, cloudEnabled, supabase, connectDriveAccount, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveDriveRootFolder, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -565,7 +565,7 @@ async function openDriveFolder(id){
   const url=(client.driveUrl||"").trim();
   if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}
   if(!isHttpUrl(url)){openClientForm(client);toast("El link de Drive debe empezar con https://");return;}
-  if(DRIVE_AUTO_SALONS.includes(client.salon)){
+  if(driveAutoAvailable(client.salon)){
     try{
       const {checked,exists}=await checkDriveFolderExists(id);
       if(checked&&!exists){
@@ -633,6 +633,57 @@ async function clearZohoAccount(salon){
     if(btn)btn.disabled=false;
   }
 }
+async function connectDrive(salon){
+  const btn=document.querySelector(`[data-connect-drive="${CSS.escape(salon)}"]`);if(btn)btn.disabled=true;
+  try{
+    await connectDriveAccount(salon);
+    toast(`Se abrió una pestaña de Google para conectar el Drive de ${salon}. Cuando termines ahí, volvé y tocá "Actualizar estado".`);
+  }catch(err){
+    toast(err.message||"No se pudo iniciar la conexión con Drive");
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+async function saveDriveRoot(salon){
+  const slug=salonSlug(salon);
+  const rootFolder=document.getElementById(`driveRootFolder-${slug}`)?.value.trim()||"";
+  if(!rootFolder){toast("Pegá el link de la carpeta raíz de Drive.");return;}
+  const btn=document.querySelector(`[data-save-drive-root="${CSS.escape(salon)}"]`);if(btn)btn.disabled=true;
+  try{
+    const {rootFolderId}=await saveDriveRootFolder(salon,rootFolder);
+    accessProfile.driveAccounts=accessProfile.driveAccounts||{};
+    accessProfile.driveAccounts[salon]={connected:true,rootFolderId};
+    renderSettings();
+    toast(`Carpeta raíz de ${salon} guardada`);
+  }catch(err){
+    toast(err.message||"No se pudo guardar la carpeta raíz de Drive");
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+async function clearDrive(salon){
+  if(!confirm(`¿Desconectar la cuenta de Drive de ${salon}? Vas a tener que volver a conectarla y guardar la carpeta raíz para poder crear carpetas automáticamente.`))return;
+  const btn=document.querySelector(`[data-clear-drive="${CSS.escape(salon)}"]`);if(btn)btn.disabled=true;
+  try{
+    await clearDriveAccount(salon);
+    if(accessProfile.driveAccounts)delete accessProfile.driveAccounts[salon];
+    renderSettings();
+    toast(`Cuenta de Drive de ${salon} desconectada`);
+  }catch(err){
+    toast(err.message||"No se pudo desconectar la cuenta de Drive");
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+async function refreshDriveAccounts(){
+  try{
+    accessProfile.driveAccounts=await getMyDriveAccounts();
+    renderSettings();
+    toast("Estado de Drive actualizado");
+  }catch(err){
+    toast(err.message||"No se pudo actualizar el estado de Drive");
+  }
+}
 async function sendDriveEmail(id){
   const client=state.clients.find(item=>item.id===id);if(!client)return;
   const url=(client.driveUrl||"").trim(), email=(client.clientEmail||"").trim();
@@ -653,7 +704,10 @@ async function sendDriveEmail(id){
     btns.forEach(b=>b.disabled=false);
   }
 }
-const DRIVE_AUTO_SALONS = ["Quinta", "Pilar Hotel"];
+function driveAutoAvailable(salon){
+  const acc=accessProfile.driveAccounts?.[salon];
+  return Boolean(acc?.connected&&acc?.rootFolderId);
+}
 async function createDriveFolder(id){
   const client=state.clients.find(item=>item.id===id);if(!client)return;
   if(!client.eventDate){toast("Cargá la fecha del evento antes de crear la carpeta.");return;}
@@ -832,6 +886,27 @@ function zohoAccountsPanelBody(){
     return `<div class="zoho-account-block"><h4>${escapeHtml(salon)}</h4><label>Email de Zoho<input id="zohoEmail-${slug}" type="email" placeholder="tuemail@janoseventos.com" value="${escapeHtml(acc.email||"")}"></label><label>Contraseña de aplicación<div class="password-field"><input id="zohoAppPassword-${slug}" type="password" placeholder="${acc.hasPassword?"Ya cargada · dejalo vacío para no cambiarla":"Contraseña de aplicación de Zoho"}" autocomplete="new-password"><button type="button" class="icon-btn toggle-password" data-toggle-password="zohoAppPassword-${slug}" aria-label="Mostrar contraseña">👁</button></div></label><label>Nombre que va a ver el cliente<input id="zohoFromName-${slug}" type="text" placeholder="Ej: Juan Pérez Fotografía" value="${escapeHtml(acc.fromName||"")}"></label><div class="modal-actions"><button class="primary-btn" data-save-zoho="${escapeHtml(salon)}">Guardar cuenta de ${escapeHtml(salon)}</button>${acc.email||acc.hasPassword?`<button class="danger-btn" data-clear-zoho="${escapeHtml(salon)}">Borrar cuenta de ${escapeHtml(salon)}</button>`:""}</div></div>`;
   }).join("")}`;
 }
+function driveAccountsPanelBody(){
+  const mySalons=(accessProfile.salons&&accessProfile.salons.length)?accessProfile.salons:salonsInUse();
+  if(!mySalons.length)return `<p class="muted">Todavía no hay salones para configurar. Cuando tengas clientes cargados o salones asignados a tu cuenta, vas a poder conectar acá tu cuenta de Drive para cada uno.</p>`;
+  const accounts=accessProfile.driveAccounts||{};
+  const driveHelp=`<details class="zoho-help"><summary>Cómo conectar tu Drive para crear carpetas automáticamente</summary>
+    <p>Conectando tu cuenta de Google Drive acá, Janos Control puede crear la carpeta de cada cliente automáticamente dentro de tu Drive.</p>
+    <h5>Pasos a seguir</h5>
+    <ol>
+      <li>Apretá "Conectar cuenta de Drive" en el bloque de tu salón. Se abre una pestaña nueva de Google.</li>
+      <li>Iniciá sesión con la cuenta de Google que corresponde a ese salón y aceptá los permisos que pide la app.</li>
+      <li>Cuando la pestaña te confirme "Cuenta conectada", cerrala y volvé acá.</li>
+      <li>En Drive, entrá a esa cuenta y ubicá (o creá) la carpeta que va a ser la raíz donde se guardan las carpetas de los clientes (por ejemplo, la carpeta del año en curso). Copiá el link para compartir de esa carpeta.</li>
+      <li>Pegalo en el campo "Carpeta raíz en Drive" de acá abajo y apretá "Guardar carpeta".</li>
+    </ol>
+    <p>Listo: a partir de ahí, "Crear carpeta en Drive" en la ficha de cada cliente de ese salón va a crear la carpeta sola, dentro de esa cuenta.</p>
+  </details>`;
+  return `<p class="muted">Conectá tu cuenta de Google Drive para que la app cree sola la carpeta de cada cliente de tu salón. Si no la conectás, podés seguir pegando el link de Drive a mano en cada cliente.</p><div class="modal-actions"><button class="secondary-btn" type="button" id="refreshDriveAccounts">↻ Actualizar estado</button></div>${driveHelp}${mySalons.map(salon=>{
+    const slug=salonSlug(salon),acc=accounts[salon]||{};
+    return `<div class="zoho-account-block"><h4>${escapeHtml(salon)}</h4><p class="muted">${acc.connected?"Cuenta de Drive conectada ✓":"Todavía no conectaste una cuenta de Drive para este salón."}</p><label>Carpeta raíz en Drive<input id="driveRootFolder-${slug}" type="text" placeholder="Pegá acá el link de la carpeta raíz de Drive" value="${escapeHtml(acc.rootFolderId||"")}"></label><div class="modal-actions"><button class="primary-btn" data-connect-drive="${escapeHtml(salon)}">${acc.connected?"Reconectar cuenta de Drive":"Conectar cuenta de Drive"}</button><button class="secondary-btn" data-save-drive-root="${escapeHtml(salon)}">Guardar carpeta</button>${acc.connected?`<button class="danger-btn" data-clear-drive="${escapeHtml(salon)}">Desconectar Drive</button>`:""}</div></div>`;
+  }).join("")}`;
+}
 function whatsappSendersPanelBody(){
   const senders=whatsappSenders();
   const activeId=localStorage.getItem("janosActiveSender")||senders[0]?.id;
@@ -839,7 +914,7 @@ function whatsappSendersPanelBody(){
   return `<p class="muted">¿Quién sos en este dispositivo? Marcá tu nombre en la lista de abajo. Esta elección se guarda solo en este celular/computadora — cada persona la elige una vez, en el suyo. Solo define con qué nombre se firma (variable {remitente}): el texto del mensaje es el mismo para todos, y se elige según el tipo de evento.</p><div class="whatsapp-name-list">${senders.map(s=>`<div class="whatsapp-sender-row"><label class="whatsapp-sender-pick" title="Elegir como quién sos en este dispositivo"><input type="radio" name="whatsappActiveSenderPick" value="${s.id}" ${s.id===activeId?"checked":""}></label><input type="text" data-sender-name="${s.id}" value="${escapeHtml(s.name)}" placeholder="Ej: Melani">${senders.length>1?`<button class="danger-btn" type="button" data-delete-sender="${s.id}">Eliminar</button>`:""}</div>`).join("")}</div><div class="modal-actions"><button class="secondary-btn" type="button" id="addWhatsappSender">+ Agregar remitente</button></div><h3 class="whatsapp-types-title">Mensajes según el tipo de evento</h3><p class="muted">Cada cliente tiene un "Tipo de evento" cargado en su ficha (Boda, 15, Cumpleaños, Corporativo, Egresados u Otro). El mensaje inicial se elige automáticamente según ese tipo; "Otros eventos" se usa para Corporativo, Egresados y Otro.</p>${WHATSAPP_TYPE_TEMPLATES.map(t=>`<div class="whatsapp-type-block"><h4>${escapeHtml(t.label)}</h4><textarea rows="7" data-type-template="${t.key}">${escapeHtml(typeMap[t.key]||t.default||typeMap.general||DEFAULT_WHATSAPP_TEMPLATE)}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-type="${t.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensajes</button></div>`;
 }
 function renderSettings() {
-  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details></div>`;
+  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Cuentas de Drive</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${driveAccountsPanelBody()}</div></details></div>`;
 }
 function accessDate(value){return value?new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value)):"Nunca";}
 function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
@@ -1326,7 +1401,7 @@ endlocal`;
 
 function openClientDetail(id) {
   const c=state.clients.find(x=>x.id===id); if(!c)return; const phases=[...new Set(c.tasks.map(t=>t.phase))];
-  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button>${!c.driveUrl&&DRIVE_AUTO_SALONS.includes(c.salon)?`<button class="drive-btn missing" type="button" data-create-drive-folder="${c.id}">Crear carpeta en Drive</button>`:`<button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button>`}<button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Reenviar material</span><small>Material enviado ${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
+  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button>${!c.driveUrl&&driveAutoAvailable(c.salon)?`<button class="drive-btn missing" type="button" data-create-drive-folder="${c.id}">Crear carpeta en Drive</button>`:`<button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button>`}<button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Reenviar material</span><small>Material enviado ${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
   const dialog=document.getElementById("detailDialog"); if(!dialog.open)dialog.showModal();
 }
 function taskRow(c,t){
@@ -1469,6 +1544,10 @@ document.addEventListener("click", e => {
   const resetType=e.target.closest("[data-reset-type]");if(resetType){const key=resetType.dataset.resetType;const def=WHATSAPP_TYPE_TEMPLATES.find(t=>t.key===key)?.default||DEFAULT_WHATSAPP_TEMPLATE;const field=document.querySelector(`[data-type-template="${CSS.escape(key)}"]`);if(field)field.value=def;}
   const saveZoho=e.target.closest("[data-save-zoho]");if(saveZoho)saveZohoAccount(saveZoho.dataset.saveZoho);
   const clearZoho=e.target.closest("[data-clear-zoho]");if(clearZoho)clearZohoAccount(clearZoho.dataset.clearZoho);
+  const connectDrive_=e.target.closest("[data-connect-drive]");if(connectDrive_)connectDrive(connectDrive_.dataset.connectDrive);
+  const saveDriveRoot_=e.target.closest("[data-save-drive-root]");if(saveDriveRoot_)saveDriveRoot(saveDriveRoot_.dataset.saveDriveRoot);
+  const clearDrive_=e.target.closest("[data-clear-drive]");if(clearDrive_)clearDrive(clearDrive_.dataset.clearDrive);
+  const refreshDrive_=e.target.closest("#refreshDriveAccounts");if(refreshDrive_)refreshDriveAccounts();
   const togglePwd=e.target.closest("[data-toggle-password]");if(togglePwd){const input=document.getElementById(togglePwd.dataset.togglePassword);if(input){const show=input.type==="password";input.type=show?"text":"password";togglePwd.textContent=show?"🙈":"👁";togglePwd.setAttribute("aria-label",show?"Ocultar contraseña":"Mostrar contraseña");}}
   if(e.target.id==="downloadClientTemplate")downloadClientTemplate();
   if(e.target.id==="exportRenditionsCsv")exportRenditionsCsv();
