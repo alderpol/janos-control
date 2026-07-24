@@ -1,7 +1,7 @@
 import { approveMassDeletion, checkDriveFolderExists, clearMyZohoAccount, cloudEnabled, supabase, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
 
-const PRODUCTION_HOST = "janos-control.netlify.app";
-if(window.location.hostname.endsWith(".netlify.app")&&window.location.hostname!==PRODUCTION_HOST){
+const PRODUCTION_HOST = "janos-control.vercel.app";
+if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
   window.location.replace(`https://${PRODUCTION_HOST}${window.location.pathname}${window.location.search}${window.location.hash}`);
 }
 
