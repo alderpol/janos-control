@@ -72,3 +72,36 @@ export async function getAccessToken(credentials) {
   }
   throw new Error("Credenciales de Drive con formato desconocido (ni refresh_token ni client_email/private_key)");
 }
+
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutos de validez para el "state" de OAuth
+
+// Firma un "state" que junta el usuario logueado y el salon que esta
+// conectando, para que api/oauth-drive-callback.js pueda confiar en esos
+// datos sin que nadie los falsifique armando la URL de Google a mano y
+// pisando la cuenta de otro usuario (mismo mecanismo que usa
+// supabase/functions/google-calendar-auth para Calendar).
+export function signState(userId, salon) {
+    const payload = `${userId}:${encodeURIComponent(salon)}:${Date.now()}`;
+    return `${payload}:${hmacHex(payload)}`;
+}
+
+export function verifyState(state) {
+    const parts = String(state || "").split(":");
+    if (parts.length !== 4) return null;
+    const [userId, salonEnc, ts, sig] = parts;
+    const payload = `${userId}:${salonEnc}:${ts}`;
+    if (!timingSafeEqualHex(sig, hmacHex(payload))) return null;
+    if (Date.now() - Number(ts) > STATE_TTL_MS) return null;
+    return { userId, salon: decodeURIComponent(salonEnc) };
+}
+
+function hmacHex(message) {
+    return crypto.createHmac("sha256", process.env.GOOGLE_OAUTH_STATE_SECRET).update(message).digest("hex");
+}
+
+function timingSafeEqualHex(a, b) {
+    const bufA = Buffer.from(a, "hex");
+    const bufB = Buffer.from(b, "hex");
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+}
