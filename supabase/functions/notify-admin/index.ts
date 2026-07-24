@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
+    "Access-Control-Allow-Origin": "https://janos-control.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -84,7 +84,7 @@ serve(async (req) => {
             <h2 style="color:#c9a84c">Janos Control</h2>
             <p>Se registró un usuario nuevo y está esperando tu aprobación:</p>
             <p><strong>${escapeHtml(name || "(sin nombre)")}</strong><br>${escapeHtml(email)}</p>
-            <a href="https://janos-control.netlify.app"
+                        <a href="https://janos-control.vercel.app"
                style="display:inline-block;margin-top:16px;padding:12px 24px;background:#c9a84c;color:#0f0a18;border-radius:8px;text-decoration:none;font-weight:700">
               Ir a Janos Control → Usuarios
             </a>
