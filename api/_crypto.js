@@ -1,8 +1,8 @@
 import { webcrypto } from "node:crypto";
 
 // Cifrado de secretos en reposo (contraseñas de Zoho) para las funciones de
-// Netlify. Usa AES-256-GCM con una clave maestra que vive SOLO como variable
-// de entorno (SECRETS_ENCRYPTION_KEY en Netlify), nunca en la base.
+// Vercel. Usa AES-256-GCM con una clave maestra que vive SOLO como variable
+// de entorno (SECRETS_ENCRYPTION_KEY en Vercel), nunca en la base.
 //
 // Formato del valor guardado:  "v1:<iv_base64>:<ciphertext_base64>"
 // El prefijo "v1:" permite distinguir un valor cifrado de uno viejo en texto
@@ -10,7 +10,7 @@ import { webcrypto } from "node:crypto";
 // así los datos que ya estaban guardados siguen funcionando hasta que se
 // vuelvan a escribir (momento en que quedan cifrados).
 //
-// La misma clave (mismo valor base64) tiene que estar cargada en Netlify y en
+// La misma clave (mismo valor base64) tiene que estar cargada en Vercel y en
 // las Edge Functions de Supabase (ver supabase/functions/_shared/crypto.ts),
 // porque el refresh_token de Google se cifra/descifra del lado de Supabase.
 
@@ -18,7 +18,7 @@ const ENC_PREFIX = "v1:";
 
 function getKeyBytes() {
   const b64 = process.env.SECRETS_ENCRYPTION_KEY;
-  if (!b64) throw new Error("Falta SECRETS_ENCRYPTION_KEY en Netlify");
+  if (!b64) throw new Error("Falta SECRETS_ENCRYPTION_KEY en Vercel");
   const raw = Buffer.from(b64, "base64");
   if (raw.length !== 32) throw new Error("SECRETS_ENCRYPTION_KEY debe ser 32 bytes codificados en base64");
   return raw;
