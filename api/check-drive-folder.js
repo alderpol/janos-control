@@ -13,88 +13,104 @@ import { getAccessToken } from "./_drive-auth.js";
 // background para el resto de los clientes.
 
 const CORS = {
-  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Origin": "https://janos-control.vercel.app",
+    "Access-Control-Allow-Headers": "authorization, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const ROOT_FOLDER_ENV = {
-  Quinta: "GOOGLE_DRIVE_ROOT_FOLDER_QUINTA",
-  "Pilar Hotel": "GOOGLE_DRIVE_ROOT_FOLDER_PILAR",
+    Quinta: "GOOGLE_DRIVE_ROOT_FOLDER_QUINTA",
+    "Pilar Hotel": "GOOGLE_DRIVE_ROOT_FOLDER_PILAR",
 };
 
 function json(statusCode, body) {
-  return { statusCode, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify(body) };
+    return { statusCode, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify(body) };
 }
 
 function extractFolderId(url) {
-  const m = String(url || "").match(/folders\/([a-zA-Z0-9_-]+)/);
-  return m ? m[1] : null;
+    const m = String(url || "").match(/folders\/([a-zA-Z0-9_-]+)/);
+    return m ? m[1] : null;
 }
 
 export async function handler(event) {
-  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers: CORS, body: "" };
-  if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
+    if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers: CORS, body: "" };
+    if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
-    const authHeader = event.headers.authorization || event.headers.Authorization;
-    if (!authHeader) return json(401, { error: "No autorizado" });
+        const authHeader = event.headers.authorization || event.headers.Authorization;
+        if (!authHeader) return json(401, { error: "No autorizado" });
 
-    const supabase = createClient(
-      process.env.VITE_SUPABASE_URL,
-      process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      { global: { headers: { Authorization: authHeader } }, realtime: { transport: ws } }
-    );
+      const supabase = createClient(
+              process.env.VITE_SUPABASE_URL,
+              process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        { global: { headers: { Authorization: authHeader } }, realtime: { transport: ws } }
+            );
 
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user) return json(401, { error: "No autorizado" });
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData?.user) return json(401, { error: "No autorizado" });
 
-    const { clientId } = JSON.parse(event.body || "{}");
-    if (!clientId) return json(400, { error: "Falta clientId" });
+      const { clientId } = JSON.parse(event.body || "{}");
+        if (!clientId) return json(400, { error: "Falta clientId" });
 
-    const { data: client, error: clientError } = await supabase
-      .from("clients")
-      .select("id,salon,drive_url")
-      .eq("id", clientId)
-      .maybeSingle();
+      const { data: client, error: clientError } = await supabase
+          .from("clients")
+          .select("id,salon,drive_url")
+          .eq("id", clientId)
+          .maybeSingle();
 
-    if (clientError) return json(500, { error: clientError.message });
-    if (!client) return json(404, { error: "Cliente no encontrado" });
+      if (clientError) return json(500, { error: clientError.message });
+        if (!client) return json(404, { error: "Cliente no encontrado" });
 
-    // Si el salón no es uno de los que manejamos con cuenta propia (Quinta /
-    // Pilar Hotel), o el link no tiene forma de carpeta de Drive (por ej. fue
-    // pegado a mano), no hay nada que verificar por API: asumimos que existe.
-    const folderId = extractFolderId(client.drive_url);
-    if (!ROOT_FOLDER_ENV[client.salon] || !folderId) {
-      return json(200, { checked: false, exists: true });
-    }
+      // Si el salón no es uno de los que manejamos con cuenta propia (Quinta /
+      // Pilar Hotel), o el link no tiene forma de carpeta de Drive (por ej. fue
+      // pegado a mano), no hay nada que verificar por API: asumimos que existe.
+      const folderId = extractFolderId(client.drive_url);
+        if (!ROOT_FOLDER_ENV[client.salon] || !folderId) {
+                return json(200, { checked: false, exists: true });
+        }
 
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return json(500, { error: "Falta la variable SUPABASE_SERVICE_ROLE_KEY en Netlify" });
+      if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return json(500, { error: "Falta la variable SUPABASE_SERVICE_ROLE_KEY en Vercel" });
 
-    const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const { data: credRow, error: credError } = await supabaseAdmin
-      .from("google_service_accounts")
-      .select("credentials")
-      .eq("salon", client.salon)
-      .maybeSingle();
+      const supabaseAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+        const { data: credRow, error: credError } = await supabaseAdmin
+          .from("google_service_accounts")
+          .select("credentials")
+          .eq("salon", client.salon)
+          .maybeSingle();
 
-    if (credError) return json(500, { error: `Error leyendo credenciales de Drive: ${credError.message}` });
-    if (!credRow?.credentials) return json(200, { checked: false, exists: true });
+      if (credError) return json(500, { error: `Error leyendo credenciales de Drive: ${credError.message}` });
+        if (!credRow?.credentials) return json(200, { checked: false, exists: true });
 
-    const accessToken = await getAccessToken(credRow.credentials);
+      const accessToken = await getAccessToken(credRow.credentials);
 
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${folderId}?${new URLSearchParams({ fields: "id,trashed", supportsAllDrives: "true" })}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+      const res = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${folderId}?${new URLSearchParams({ fields: "id,trashed", supportsAllDrives: "true" })}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
 
-    if (res.status === 404) return json(200, { checked: true, exists: false });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error?.message || "Error consultando la carpeta en Drive");
+      if (res.status === 404) return json(200, { checked: true, exists: false });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error?.message || "Error consultando la carpeta en Drive");
 
-    return json(200, { checked: true, exists: !data.trashed });
+      return json(200, { checked: true, exists: !data.trashed });
   } catch (err) {
-    console.error("check-drive-folder error:", err);
-    return json(500, { error: String(err?.message || "Error interno del servidor") });
+        console.error("check-drive-folder error:", err);
+        return json(500, { error: String(err?.message || "Error interno del servidor") });
   }
+}
+
+// Adaptador para Vercel: las funciones serverless de Vercel usan un export
+// default (req, res) (estilo Express), a diferencia del export nombrado
+// `handler(event)` de Netlify Functions que se usa arriba. Este adaptador
+// traduce uno al otro para no tener que reescribir la lógica de arriba.
+export default async function (req, res) {
+    const event = {
+          httpMethod: req.method,
+          headers: req.headers,
+          body: typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {}),
+    };
+    const result = await handler(event);
+    res.status(result.statusCode);
+    for (const [key, value] of Object.entries(result.headers || {})) res.setHeader(key, value);
+    res.send(result.body);
 }
