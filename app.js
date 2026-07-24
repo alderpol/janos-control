@@ -1058,10 +1058,17 @@ function saveManualRendition() {
   renderRenditions();
 }
 
+function populateClientSalonSelect(currentSalon){
+  const select=document.querySelector('#clientForm [name="salon"]'); if(!select)return;
+  const mySalons=(accessProfile.salons&&accessProfile.salons.length)?[...accessProfile.salons]:["Quinta","Pilar Hotel"];
+  if(currentSalon&&!mySalons.includes(currentSalon))mySalons.push(currentSalon);
+  select.innerHTML='<option value="">Seleccionar</option>'+mySalons.map(s=>`<option>${escapeHtml(s)}</option>`).join("")+'<option>Otro</option>';
+}
 function openClientForm(client=null) {
   const form=document.getElementById("clientForm"); form.reset(); form.elements.id.value=client?.id||"";
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
+  populateClientSalonSelect(client?.salon);
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","clientEmail","whatsappGroupUrl","driveUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField(); updatePixelField();
 }
