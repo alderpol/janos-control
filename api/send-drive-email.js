@@ -200,7 +200,7 @@ export async function handler(event) {
 
 // Adaptador para Vercel: las funciones serverless de Vercel usan un export
 // default (req, res) (estilo Express), a diferencia del export nombrado
-// `handler(event)` de Netlify Functions que se usa arriba. Este adaptador
+// `handler(event)` que se usa arriba. Este adaptador
 // traduce uno al otro para no tener que reescribir la lógica de arriba.
 export default async function (req, res) {
     const event = {
