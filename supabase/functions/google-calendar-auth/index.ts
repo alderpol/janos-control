@@ -5,11 +5,11 @@ const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 const GOOGLE_OAUTH_STATE_SECRET = Deno.env.get("GOOGLE_OAUTH_STATE_SECRET")!;
 const REDIRECT_URI = "https://mybeysibpwoaudohxomr.supabase.co/functions/v1/google-calendar-auth";
-const APP_URL = "https://janos-control.netlify.app";
+const APP_URL = "https://janos-control.vercel.app";
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutos de validez para el "state"
 
 const CORS = {
-  "Access-Control-Allow-Origin": "https://janos-control.netlify.app",
+    "Access-Control-Allow-Origin": "https://janos-control.vercel.app",
   "Access-Control-Allow-Headers": "authorization, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };

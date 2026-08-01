@@ -6,9 +6,9 @@
 // "v1:" se considera texto plano viejo y se devuelve tal cual (compatibilidad
 // hacia atrás; queda cifrado la próxima vez que se escribe).
 //
-// La clave (mismo valor base64) tiene que coincidir con la de Netlify
+// La clave (mismo valor base64) tiene que coincidir con la de Vercel
 // (ver api/_crypto.js), porque las contraseñas de Zoho se cifran/descifran
-// del lado de Netlify.
+// del lado de Vercel.
 
 const ENC_PREFIX = "v1:";
 

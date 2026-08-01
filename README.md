@@ -3,9 +3,9 @@
 ## Stack
 - **Frontend:** Vanilla JavaScript (sin frameworks), bundleado con Vite
 - **Backend:** Supabase (proyecto: `mybeysibpwoaudohxomr`)
-- **Deploy:** Netlify (auto-deploy desde GitHub) — migrado desde Vercel el 21/07/2026 tras perder el acceso a esa cuenta sin recuperación posible
+- **Deploy:** Vercel (auto-deploy desde GitHub)
 - **Repo:** github.com/alderpol/janos-control
-- **URL producción:** janos-control.netlify.app
+- **URL producción:** janos-control.vercel.app
 
 ---
 

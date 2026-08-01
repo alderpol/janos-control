@@ -140,7 +140,15 @@ export async function getAccessProfile() {
   for (const [salon, acc] of Object.entries(zoho_accounts || {})) {
     zohoAccounts[salon] = { email: acc?.email || "", fromName: acc?.fromName || "", hasPassword: Boolean(acc?.password) };
   }
-  return { ...rest, zohoAccounts };
+  // Best-effort: si falla (ej. sin conexión), no bloqueamos el login por
+  // esto, el panel de Drive en Ajustes simplemente arranca vacío.
+  let driveAccounts = {};
+  try {
+    driveAccounts = await getMyDriveAccounts();
+  } catch (driveError) {
+    console.error(driveError);
+  }
+  return { ...rest, zohoAccounts, driveAccounts };
 }
 
 // Cuenta de Zoho Mail propia del usuario logueado, una por cada salon en el
@@ -200,6 +208,78 @@ export async function verifyMyZohoAccount(salon) {
     throw err;
   }
   return data;
+}
+
+// Cuenta de Google Drive propia del usuario logueado, una por cada salón
+// en el que trabaja (igual que la cuenta de Zoho). A diferencia de Zoho,
+// conectarla es un flujo de OAuth (no usuario/contraseña): esta función
+// arranca ese flujo y abre la pantalla de consentimiento de Google en una
+// pestaña nueva. api/oauth-drive-callback.js guarda el refresh_token
+// cuando el usuario termina de autorizar.
+export async function connectDriveAccount(salon) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  if (!salon) throw new Error("Falta el salón.");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch("/api/oauth-drive-start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ salon }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo iniciar la conexión con Drive.");
+  window.open(data.authUrl, "_blank", "noopener,noreferrer");
+}
+
+// Estado de las cuentas de Drive del usuario logueado (una entrada por
+// salón conectado), para pintar el panel de Ajustes. No trae credenciales,
+// solo si está conectada y qué carpeta raíz tiene guardada.
+export async function getMyDriveAccounts() {
+  if (!supabase) return {};
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return {};
+  const res = await fetch("/api/get-drive-accounts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudieron cargar las cuentas de Drive.");
+  return data.accounts || {};
+}
+
+// Guarda la carpeta raíz de Drive (la del año) para un salón que ya tiene
+// la cuenta de Drive conectada. Acepta tanto un link completo como el ID
+// pegado directo.
+export async function saveDriveRootFolder(salon, rootFolder) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  if (!salon) throw new Error("Falta el salón.");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch("/api/save-drive-root-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ salon, rootFolder }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo guardar la carpeta raíz de Drive.");
+  return data;
+}
+
+// Desconecta la cuenta de Drive de un salón (borra credenciales y carpeta
+// raíz guardadas). Después de esto ese salón vuelve al modo manual
+// ("Agregar Drive") hasta que se conecte una cuenta de nuevo.
+export async function clearDriveAccount(salon) {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  if (!salon) throw new Error("Falta el salón.");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No hay sesión activa.");
+  const res = await fetch("/api/clear-drive-account", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ salon }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo desconectar la cuenta de Drive.");
 }
 
 export async function listUserProfiles() {

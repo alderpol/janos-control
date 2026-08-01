@@ -1,7 +1,7 @@
-import { approveMassDeletion, checkDriveFolderExists, clearMyZohoAccount, cloudEnabled, supabase, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
+import { approveMassDeletion, clearMyZohoAccount, cloudEnabled, supabase, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
 
-const PRODUCTION_HOST = "janos-control.netlify.app";
-if(window.location.hostname.endsWith(".netlify.app")&&window.location.hostname!==PRODUCTION_HOST){
+const PRODUCTION_HOST = "janos-control.vercel.app";
+if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
   window.location.replace(`https://${PRODUCTION_HOST}${window.location.pathname}${window.location.search}${window.location.hash}`);
 }
 
@@ -54,7 +54,7 @@ const ADDONS = [
   ["pant", "Pantalla"], ["pixel", "Pixel"], ["miniflex", "Mini Flex"], ["flex", "Flex"],
   ["sansSouci", "Sans Souci"], ["libro", "Libro Combo"], ["maqui", "Maquillaje"], ["maquiplus", "Maquillaje Plus"], ["maquix2plus", "Maquillaje x2 Plus"], ["moda", "Producción de Moda"],
   ["drone", "Drone"], ["vipExtras", "Extras VIP"], ["glamCam", "Glam Cam"], ["alfombraRoja", "Alfombra Roja"],
-  ["invitacion", "Invitación Interactiva"], ["fotoIman", "Foto Imán"], ["vipUpgrade", "Upgrade VIP"]
+  ["invitacion", "Invitación Interactiva"], ["fotoIman", "Foto Imán"], ["vipUpgrade", "Upgrade VIP"], ["cere", "Ceremonia"]
 ];
 
 const FLEX_SERVICES = [
@@ -249,9 +249,6 @@ function saveState() { localStorage.setItem(storageKey, JSON.stringify(state)); 
 function storageKeyForUser(user) { return `${STORAGE_KEY}:${user.id}`; }
 function uid() { return crypto.randomUUID(); }
 function escapeHtml(value = "") { return String(value).replace(/[&<>'"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[c])); }
-// Solo abrir links http(s): evita que un valor pegado con esquema
-// "javascript:" u otro se ejecute al hacer window.open().
-function isHttpUrl(value){try{const u=new URL(String(value||"").trim());return u.protocol==="http:"||u.protocol==="https:";}catch{return false;}}
 function parseDate(value) { return value ? new Date(`${value}T12:00:00`) : new Date(); }
 function dateText(value) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parseDate(value)); }
 function monthText(value) { return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(parseDate(value)).replace(".", ""); }
@@ -279,6 +276,14 @@ function createTasks(client) {
     task("partyBookSelection", "Pedirle al cliente que envíe la selección de fotos del libro de fiesta", "Post-evento"),
     task("partyBook", "Diseñar y enviar libro de fiesta al laboratorio", "Entrega", true, "COMPLEMENTOS", "Libro Fiesta (Fotografia Digital)", "partyBookDesign")
   );
+  if (client.addons.includes("cere")) {
+    const ceremonyPhoto = task("ceremonyPhoto", "Realizar cobertura fotográfica de la ceremonia", "Evento", true, "PERSONAL FOTOGRAFIA", "Adicional ceremonia en salon", "ceremony");
+    const photoIdx = definitions.findIndex(d => d.key === "coveragePhoto");
+    if (photoIdx !== -1) definitions.splice(photoIdx + 1, 0, ceremonyPhoto); else definitions.push(ceremonyPhoto);
+    const ceremonyVideo = task("ceremonyVideo", "Realizar cobertura de video de la ceremonia", "Evento", true, "PERSONAL VIDEO", "Adicional ceremonia en salon", "ceremony");
+    const videoIdx = definitions.findIndex(d => d.key === "coverageVideoCapture");
+    if (videoIdx !== -1) definitions.splice(videoIdx + 1, 0, ceremonyVideo); else definitions.push(ceremonyVideo);
+  }
   normalizeFlexServices(client.flexServices).forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
   normalizeFlexServices(client.pixelServices).forEach(code => { if (client.addons.includes("pixel") && PIXEL_TASKS[code]) definitions.push(PIXEL_TASKS[code]); });
   const hasSession = definitions.some(item => ["bookCoveragePhoto", "flexSessionPhoto"].includes(item.key));
@@ -378,7 +383,7 @@ function contactWatchItemsHtml(list) {
   return list.map(c => {
       const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
       const when = days < 0 ? `venció hace ${Math.abs(days)} d` : days === 0 ? "es hoy" : `faltan ${days} d`;
-      return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span>${escapeHtml(c.honoree)} · ${when}</button>`;
+      return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span>${escapeHtml(c.honoree)} · ${when}</button>`;
     }).join("");
 }
 
@@ -559,27 +564,8 @@ function saveWhatsappSenders(){
 }
 function whatsappUrl(client){const phone=whatsappNumber(client.clientPhone);return phone?`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage(client))}`:"";}
 function contactClient(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=whatsappUrl(client);if(!url){openClientForm(client);toast("Agregá el WhatsApp del cliente para contactarlo");return;}window.open(url,"_blank","noopener,noreferrer");client.contactedAt=new Date().toISOString();client.history=client.history||[];client.history.push({date:client.contactedAt,text:"Contacto inicial por WhatsApp registrado",type:"whatsapp_contact"});saveState();refreshTaskViews(id);toast("Contacto registrado");}
-function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}if(!isHttpUrl(url)){openClientForm(client);toast("El link del grupo debe empezar con https://");return;}window.open(url,"_blank","noopener,noreferrer");}
-async function openDriveFolder(id){
-  const client=state.clients.find(item=>item.id===id);if(!client)return;
-  const url=(client.driveUrl||"").trim();
-  if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}
-  if(!isHttpUrl(url)){openClientForm(client);toast("El link de Drive debe empezar con https://");return;}
-  if(DRIVE_AUTO_SALONS.includes(client.salon)){
-    try{
-      const {checked,exists}=await checkDriveFolderExists(id);
-      if(checked&&!exists){
-        if(confirm("La carpeta de Drive fue borrada. ¿Querés que se vuelva a crear?")){
-          await createDriveFolder(id);
-        }
-        return;
-      }
-    }catch(err){
-      // Si no se pudo verificar (ej. sin conexión), no bloqueamos: abrimos el link como antes.
-    }
-  }
-  window.open(url,"_blank","noopener,noreferrer");
-}
+function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
+function openDriveFolder(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.driveUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link de Drive para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
 function addDaysIso(value,days){const d=parseDate(value);d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
 function salonSlug(salon){return String(salon||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");}
 async function saveZohoAccount(salon){
@@ -649,25 +635,6 @@ async function sendDriveEmail(id){
     toast(`Mail enviado. Disponible hasta el ${dateText(addDaysIso(isoDate(client.linkSentAt),180))}`);
   }catch(err){
     toast(err.message||"No se pudo enviar el mail");
-  }finally{
-    btns.forEach(b=>b.disabled=false);
-  }
-}
-const DRIVE_AUTO_SALONS = ["Quinta", "Pilar Hotel"];
-async function createDriveFolder(id){
-  const client=state.clients.find(item=>item.id===id);if(!client)return;
-  if(!client.eventDate){toast("Cargá la fecha del evento antes de crear la carpeta.");return;}
-  const btns=[...document.querySelectorAll(`[data-create-drive-folder="${id}"]`)];btns.forEach(b=>b.disabled=true);
-  try{
-    const { driveUrl, warning } = await createDriveFolderNow(id);
-    client.driveUrl=driveUrl;
-    client.history=client.history||[];
-    client.history.push({date:new Date().toISOString(),text:"Carpeta de Drive creada automáticamente",type:"drive_folder_created"});
-    saveState();
-    const detail=document.getElementById("detailDialog");if(detail?.open)openClientDetail(id);
-    toast(warning||"Carpeta creada en Drive");
-  }catch(err){
-    toast(err.message||"No se pudo crear la carpeta en Drive");
   }finally{
     btns.forEach(b=>b.disabled=false);
   }
@@ -1137,7 +1104,7 @@ function normalizeHeader(value){return String(value||"").normalize("NFD").replac
 function firstValue(row,keys){for(const key of keys){if(row[key]!==undefined&&String(row[key]).trim()!=="")return String(row[key]).trim();}return "";}
 function normalizeDate(value){const text=String(value||"").trim();if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(text)){const[y,m,d]=text.split("-");return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;}const match=text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);if(!match)return "";const year=match[3].length===2?`20${match[3]}`:match[3];return `${year}-${match[2].padStart(2,"0")}-${match[1].padStart(2,"0")}`;}
 function parsePack(raw){const text=String(raw||"").toUpperCase();if(text.includes("VIP"))return "vip";if(text.includes("INFORMAL"))return "informal";if(text.includes("GOLD")||text.includes("ALL INCLUSIVE")||text.includes("GOLDEN"))return "gold";return "silver";}
-function parseAddons(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["pant",/PANT/],["pixel",/PIXEL/],["miniflex",/UP\.?MFLEX|MINI\s*FLEX/],["flex",/UP\.FLEX|\bFLEX\b/],["libro",/LIBRO/],["maquix2plus",/MAQUI\s*X\s*2\s*PLUS/],["maquiplus",/MAQUI\s*PLUS/],["maqui",/MAQUI/],["moda",/\bMODA\b/],["drone",/DRONE/],["sansSouci",/SANS\s*SOUCI/],["glamCam",/G\.?\s*CAM/],["alfombraRoja",/A\.?\s*ROJA/],["invitacion",/INVITACION/],["fotoIman",/FOTO\.?\s*IMAN/],["vipUpgrade",/UP\.?\s*VIP/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});let result=[...new Set(items)];if(result.includes("miniflex"))result=result.filter(x=>x!=="flex");if(result.includes("maquix2plus"))result=result.filter(x=>x!=="maqui"&&x!=="maquiplus");else if(result.includes("maquiplus"))result=result.filter(x=>x!=="maqui");return result;}
+function parseAddons(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["pant",/PANT/],["pixel",/PIXEL/],["miniflex",/UP\.?MFLEX|MINI\s*FLEX/],["flex",/UP\.FLEX|\bFLEX\b/],["libro",/LIBRO/],["maquix2plus",/MAQUI\s*X\s*2\s*PLUS/],["maquiplus",/MAQUI\s*PLUS/],["maqui",/MAQUI/],["moda",/\bMODA\b/],["drone",/DRONE/],["sansSouci",/SANS\s*SOUCI/],["glamCam",/G\.?\s*CAM/],["alfombraRoja",/A\.?\s*ROJA/],["invitacion",/INVITACION/],["fotoIman",/FOTO\.?\s*IMAN/],["vipUpgrade",/UP\.?\s*VIP/],["cere",/\bCERE\b/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});let result=[...new Set(items)];if(result.includes("miniflex"))result=result.filter(x=>x!=="flex");if(result.includes("maquix2plus"))result=result.filter(x=>x!=="maqui"&&x!=="maquiplus");else if(result.includes("maquiplus"))result=result.filter(x=>x!=="maqui");return result;}
 function parseFlexServices(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["church",/IGLESIA|TEMPLO/],["civilPhoto",/CIVIL/],["droneEvent",/DRONE.*(EVENTO|RECEPC)/],["droneBook",/DRONE.*(BOOK|SESION)/],["photoExtra",/FOTOGRAFO EXTRA/],["videoExtra",/VIDEOGRAFO EXTRA/],["signatureBook",/LIBRO.*FIRMA/],["partyBook",/LIBRO.*FIESTA/],["liveEditor",/EDITOR.*VIVO|EDICION EN VIVO/],["friendsVideo",/VIDEO.*AMIG/],["extraSession",/SESION EXTRA/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});return items;}
 function askCsvConflict(client, diffs, remaining) {
   return new Promise(resolve => {
@@ -1326,7 +1293,7 @@ endlocal`;
 
 function openClientDetail(id) {
   const c=state.clients.find(x=>x.id===id); if(!c)return; const phases=[...new Set(c.tasks.map(t=>t.phase))];
-  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button>${!c.driveUrl&&DRIVE_AUTO_SALONS.includes(c.salon)?`<button class="drive-btn missing" type="button" data-create-drive-folder="${c.id}">Crear carpeta en Drive</button>`:`<button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button>`}<button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Reenviar material</span><small>Material enviado ${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
+  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button><button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button><button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Reenviar material</span><small>Material enviado ${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
   const dialog=document.getElementById("detailDialog"); if(!dialog.open)dialog.showModal();
 }
 function taskRow(c,t){
@@ -1434,7 +1401,6 @@ document.addEventListener("click", e => {
   const contact=e.target.closest("[data-contact-client]");if(contact)contactClient(contact.dataset.contactClient);
   const whatsappGroup=e.target.closest("[data-whatsapp-group]");if(whatsappGroup)openWhatsappGroup(whatsappGroup.dataset.whatsappGroup);
   const driveFolder=e.target.closest("[data-drive-folder]");if(driveFolder)openDriveFolder(driveFolder.dataset.driveFolder);
-  const createDrive=e.target.closest("[data-create-drive-folder]");if(createDrive)createDriveFolder(createDrive.dataset.createDriveFolder);
   const sendEmail=e.target.closest("[data-send-email]");if(sendEmail)sendDriveEmail(sendEmail.dataset.sendEmail);
   const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
   const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;const _ct=c.tasks.find(t=>t.key==="coordinateSession");if(_ct&&_ct.status==="done"){_ct.status="pending";_ct.completedAt="";}c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
