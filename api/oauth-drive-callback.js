@@ -16,16 +16,27 @@ import { verifyState } from "./_drive-auth.js";
 
 const REDIRECT_URI = "https://janos-control.vercel.app/api/oauth-drive-callback";
 
+// Los textos que llegan acá pueden incluir cosas controladas por quien arma
+// la URL (el query param "error" de Google, por ejemplo, viene tal cual del
+// navegador y cualquiera puede fabricarlo). Como esta respuesta corre en el
+// mismo origen que la app (donde vive la sesión de Supabase en localStorage),
+// si no se escapa esto queda abierta una XSS reflejada que podría robar esa
+// sesión. Por eso siempre se escapa antes de insertar en el HTML.
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[c]));
+}
 function paginaHtml(titulo, mensaje, ok) {
+      const tituloSeguro = escapeHtml(titulo);
+      const mensajeSeguro = escapeHtml(mensaje);
       return {
               statusCode: ok ? 200 : 400,
               headers: { "Content-Type": "text/html; charset=utf-8" },
-              body: `<!doctype html><html><head><meta charset="utf-8"><title>${titulo}</title>
+              body: `<!doctype html><html><head><meta charset="utf-8"><title>${tituloSeguro}</title>
                     <style>body{font-family:sans-serif;background:#111;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
                             .card{max-width:420px;text-align:center;padding:2rem}
                                     h1{font-size:1.3rem}
                                           </style></head>
-                                                <body><div class="card"><h1>${titulo}</h1><p>${mensaje}</p></div></body></html>`,
+                                                <body><div class="card"><h1>${tituloSeguro}</h1><p>${mensajeSeguro}</p></div></body></html>`,
       };
 }
 

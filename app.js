@@ -1,4 +1,4 @@
-import { approveMassDeletion, checkDriveFolderExists, clearMyZohoAccount, cloudEnabled, supabase, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
+import { approveMassDeletion, checkDriveFolderExists, clearMyZohoAccount, cloudEnabled, supabase, supabaseUrl, createDriveFolderNow, deleteUser, getAccessProfile, getLatestUpdateAt, getSession, listUserProfiles, loadCloudState, notifyAdmin, notifyUserApproved, requestEmailCode, requestPasswordReset, saveMyZohoAccount, sendDriveEmailNow, setUserStatus, signIn, signOut, signUp, syncCloudState, updatePassword, verifyEmailCode, verifyMyZohoAccount } from "./cloud.js";
 
 const PRODUCTION_HOST = "janos-control.vercel.app";
 if(window.location.hostname.endsWith(".vercel.app")&&window.location.hostname!==PRODUCTION_HOST){
@@ -249,6 +249,7 @@ function saveState() { localStorage.setItem(storageKey, JSON.stringify(state)); 
 function storageKeyForUser(user) { return `${STORAGE_KEY}:${user.id}`; }
 function uid() { return crypto.randomUUID(); }
 function escapeHtml(value = "") { return String(value).replace(/[&<>'"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[c])); }
+function isHttpUrl(value) { return /^https?:\/\//i.test(String(value||"").trim()); }
 function parseDate(value) { return value ? new Date(`${value}T12:00:00`) : new Date(); }
 function dateText(value) { return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parseDate(value)); }
 function monthText(value) { return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(parseDate(value)).replace(".", ""); }
@@ -418,7 +419,7 @@ async function fetchGcalEvents(month) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     const res = await fetch(
-      `https://mybeysibpwoaudohxomr.supabase.co/functions/v1/google-calendar-events?month=${month}`,
+      `${supabaseUrl}/functions/v1/google-calendar-events?month=${month}`,
       { headers: { Authorization: `Bearer ${session.access_token}` } }
     );
     const data = await res.json();
@@ -436,7 +437,7 @@ async function connectGoogleCalendar() {
   // en el perfil de esa otra persona.
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch("https://mybeysibpwoaudohxomr.supabase.co/functions/v1/google-calendar-auth", {
+    const res = await fetch(`${supabaseUrl}/functions/v1/google-calendar-auth`, {
       method: "POST",
       headers: { Authorization: `Bearer ${session?.access_token}` },
     });
@@ -564,6 +565,7 @@ function saveWhatsappSenders(){
 }
 function whatsappUrl(client){const phone=whatsappNumber(client.clientPhone);return phone?`https://wa.me/${phone}?text=${encodeURIComponent(whatsappMessage(client))}`:"";}
 function contactClient(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=whatsappUrl(client);if(!url){openClientForm(client);toast("Agregá el WhatsApp del cliente para contactarlo");return;}window.open(url,"_blank","noopener,noreferrer");client.contactedAt=new Date().toISOString();client.history=client.history||[];client.history.push({date:client.contactedAt,text:"Contacto inicial por WhatsApp registrado",type:"whatsapp_contact"});saveState();refreshTaskViews(id);toast("Contacto registrado");}
+function resetClientContact(id){const client=state.clients.find(item=>item.id===id);if(!client)return;client.contactedAt="";client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:"Se deshizo la marca de contacto inicial",type:"whatsapp_contact_reset"});saveState();refreshTaskViews(id);document.getElementById("resetContactBtn").classList.add("hidden");toast("Contacto deshecho");}
 function openWhatsappGroup(id){const client=state.clients.find(item=>item.id===id);if(!client)return;const url=(client.whatsappGroupUrl||"").trim();if(!url){openClientForm(client);toast("Pegá el link del grupo de WhatsApp para poder abrirlo");return;}window.open(url,"_blank","noopener,noreferrer");}
 async function openDriveFolder(id){
   const client=state.clients.find(item=>item.id===id);if(!client)return;
@@ -988,10 +990,17 @@ function saveManualRendition() {
   renderRenditions();
 }
 
+function populateSalonSelect(select, current) {
+  const options=[...MANAGED_SALONS];
+  if(current&&!options.includes(current)&&current!=="Otro")options.push(current);
+  select.innerHTML=`<option value="">Seleccionar</option>${options.map(s=>`<option${s===current?" selected":""}>${escapeHtml(s)}</option>`).join("")}<option${current==="Otro"?" selected":""}>Otro</option>`;
+}
 function openClientForm(client=null) {
   const form=document.getElementById("clientForm"); form.reset(); form.elements.id.value=client?.id||"";
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
+  document.getElementById("resetContactBtn").classList.toggle("hidden",!client?.contactedAt);
+  populateSalonSelect(form.elements.salon, client?.salon||"");
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","clientEmail","whatsappGroupUrl","driveUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField(); updatePixelField();
 }
@@ -1467,6 +1476,7 @@ document.addEventListener("click", e => {
   const restore=e.target.closest("[data-restore-rendition]");if(restore)restoreRendition(restore.dataset.restoreRendition);
   const deleteWork=e.target.closest("[data-delete-rendition]");if(deleteWork&&confirm("¿Eliminar definitivamente esta rendición? La tarea del cliente se conservará."))deleteRendition(deleteWork.dataset.deleteRendition);
   if(e.target.id==="deleteClientFromForm"){const id=document.getElementById("clientForm").elements.id.value;if(id&&confirm("¿Eliminar este cliente, sus tareas y todas sus rendiciones?"))deleteClient(id);}
+  if(e.target.id==="resetContactBtn"){const id=document.getElementById("clientForm").elements.id.value;if(id&&confirm("¿Deshacer la marca de contacto inicial de este cliente?"))resetClientContact(id);}
   if(e.target.id==="saveRates"){document.querySelectorAll("[data-rate]").forEach(i=>state.rates[i.dataset.rate]=Number(i.value||0));saveState();toast("Tarifas actualizadas");}
   if(e.target.id==="saveWhatsappTemplate")saveWhatsappSenders();
   if(e.target.id==="addWhatsappSender")addWhatsappSender();

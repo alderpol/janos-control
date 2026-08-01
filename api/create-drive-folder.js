@@ -54,7 +54,7 @@ function escapeForQuery(name) {
 // Devuelve { id, webViewLink, created } - created=true solo si la acabamos
 // de crear en esta llamada.
 async function getOrCreateFolder(accessToken, name, parentId) {
-      const q = `name='${escapeForQuery(name)}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+      const q = `name='${escapeForQuery(name)}' and mimeType='application/vnd.google-apps.folder' and '${escapeForQuery(parentId)}' in parents and trashed=false`;
       const searchRes = await fetch(
               `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({ q, fields: "files(id,webViewLink)", spaces: "drive", supportsAllDrives: "true", includeItemsFromAllDrives: "true" })}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
