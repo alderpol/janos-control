@@ -1015,7 +1015,7 @@ function saveClient(form) {
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   data.driveUrl=String(data.driveUrl||"").trim();
   data.clientEmail=String(data.clientEmail||"").trim();
-  if(data.clientPhone&&whatsappNumber(data.clientPhone).length<12){toast("Ingresá el WhatsApp con código de área, por ejemplo +54 9 11 1234 5678.");form.elements.clientPhone.focus();return false;}
+  if(data.clientPhone){const phoneDigits=whatsappNumber(data.clientPhone).length;if(phoneDigits<10||phoneDigits>15){toast("Ingresá el WhatsApp con código de país, por ejemplo +54 9 11 1234 5678 o +34 697 94 15 66.");form.elements.clientPhone.focus();return false;}}
   const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&countFlexSlots(flexServices)>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
   const duplicate=state.clients.find(c=>c.code===data.code&&c.id!==data.id); if(duplicate){toast("Ya existe un cliente con ese código."); return false;}
   if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,pixelServices,guests:Number(data.guests||0)}); syncTasks(c);}
