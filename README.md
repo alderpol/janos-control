@@ -127,8 +127,7 @@ openssl rand -hex 32
 
 - No usar JWT hooks (requiere plan Team/Enterprise)
 - No usar `localStorage` en artifacts de Claude
-- Patrón deploy: GitHub web o WSL → Vercel auto-deploy
-- Pablo recibe archivos completos modificados para subir a GitHub
+- Patrón deploy: editar con Claude (Read/Edit directo sobre el repo) → Pablo corre `git add/commit/push` desde su terminal → Vercel auto-deploy. **Nunca** "Add file → Upload files" en la web de GitHub para tocar código versionado (ver incidente #9 más abajo) — esa regla vieja de "Pablo recibe archivos completos para subir a GitHub" quedó descartada por eso mismo.
 - Para reemplazos complejos en `app.js`: usar Python3 inline via `bash_tool` en lugar de `sed`
 - El prefijo `SUPABASE_` no se puede usar para secretos custom, pero `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` están disponibles nativamente en Edge Functions
 - Todo Edge Function que dispare un email o modifique datos debe verificar quién la llama (JWT + rol, o un secreto compartido si la llama un cron) — no confiar en que la anon key ya es suficiente autorización
@@ -148,6 +147,7 @@ Dark/cinematic · Acentos dorados (`#c9a84c`) · Tipografía Inter
 3. Nunca trabajar desde `/mnt/project/` si hay un output más actualizado en la sesión actual.
 4. Después de cada sesión: subir los outputs a la carpeta local → GitHub → y al proyecto de Claude.
 5. **Nunca deployar una Edge Function sin commitear su código al repo primero** (o inmediatamente después). Esto ya causó que `export-user` y toda la integración de Google Calendar quedaran huérfanas — funcionando en producción pero invisibles en git.
+6. **Nunca usar "Add file → Upload files" en la web de GitHub para modificar `app.js`, `cloud.js` u otro archivo de código versionado.** Esa función sube el archivo tal cual está en la compu de Pablo en ese momento y pisa lo que haya en el repo sin fusionar ni avisar de conflicto — si es una copia vieja, borra en silencio trabajo más nuevo. El flujo correcto es: Claude edita el archivo directo en el repo (Read/Edit) → Pablo corre `git add/commit/push` desde su terminal. Esto ya pasó dos veces (ver incidente #9).
 
 ---
 
@@ -284,5 +284,28 @@ constante de "modificado" en `git status`. Se eliminaron del repo. **No
 volver a crear archivos con nombres similares** — si hace falta un backup
 de un archivo antes de una edición grande, usar `git` (branch o commit),
 no una copia manual en el mismo directorio.
+
+### 9. "Add file → Upload files" de GitHub pisó `app.js` y borró dos features enteras (01/08/2026)
+El commit `d4a4383` ("Add files via upload") subió una copia vieja de
+`app.js` a mano desde la web de GitHub, sobrescribiendo el archivo entero en
+vez de fusionar cambios. Eso borró silenciosamente dos features que ya
+estaban terminadas y funcionando (commits `7a47f8c` y `08b5949`, del mismo
+día): el panel "Cuentas de Drive" en Ajustes (conectar/reconectar cuenta de
+Google Drive por salón vía OAuth, guardar carpeta raíz, desconectar) y el
+selector de salón de la ficha de cliente poblado según `accessProfile.salons`
+del usuario (antes de eso, volvió a estar hardcodeado a
+Quinta/Pilar Hotel/Otro). El backend de ambas features (`cloud.js`,
+`api/get-drive-accounts.js`, `api/save-drive-root-folder.js`,
+`api/clear-drive-account.js`) no se vio afectado — sólo `app.js`, porque
+aparentemente solo ese archivo se subió a mano. Nadie lo notó hasta que un
+cliente con WhatsApp +34 no pudo guardarse (bug no relacionado que llevó a
+revisar `app.js` a fondo) y, por separado, hasta que faltó el botón
+"Crear carpeta en Drive" para un salón nuevo.
+**Fix:** se recuperó el código exacto de ambos commits (`git show
+7a47f8c -- app.js`, `git show 08b5949 -- app.js`) y se reintegró a mano en
+`app.js`, ya que un simple `git revert`/`cherry-pick` de `d4a4383` no
+aplicaba limpio contra los commits hechos después. **Regla:** ver punto 6
+de "Reglas de trabajo con Claude" — nunca más subir `app.js` (ni ningún
+archivo de código) a mano por la web de GitHub.
 
 ---
