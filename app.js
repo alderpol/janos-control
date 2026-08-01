@@ -383,7 +383,7 @@ function contactWatchItemsHtml(list) {
   return list.map(c => {
       const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
       const when = days < 0 ? `venció hace ${Math.abs(days)} d` : days === 0 ? "es hoy" : `faltan ${days} d`;
-      return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span>${escapeHtml(c.honoree)} · ${when}</button>`;
+      return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span>${escapeHtml(c.honoree)} · ${when}</button>`;
     }).join("");
 }
 
