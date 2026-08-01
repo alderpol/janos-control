@@ -352,6 +352,8 @@ legend { padding: 0 6px; }
 .check-grid.compact { grid-template-columns: repeat(2, 1fr); }
 .full-label { display: block; margin-top: 15px; }
 .full-label textarea { resize: vertical; }
+.checkbox-label { display: flex !important; align-items: center; gap: 8px; cursor: pointer; }
+.checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .modal-actions > .danger-btn:first-child { margin-right: auto; }
 .hidden { display: none !important; }

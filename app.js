@@ -1002,6 +1002,7 @@ function openClientForm(client=null) {
   document.getElementById("resetContactBtn").classList.toggle("hidden",!client?.contactedAt);
   populateSalonSelect(form.elements.salon, client?.salon||"");
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","clientEmail","whatsappGroupUrl","driveUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
+  form.elements.isExternal.checked=Boolean(client?.isExternal);
   renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField(); updatePixelField();
 }
 function renderFormChecks(client) {
@@ -1026,6 +1027,7 @@ function updatePixelField() {
 }
 function saveClient(form) {
   const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value); const pixelServices=[...form.querySelectorAll('[name="pixelServices"]:checked')].map(x=>x.value);
+  data.isExternal=form.elements.isExternal.checked;
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   data.driveUrl=String(data.driveUrl||"").trim();
   data.clientEmail=String(data.clientEmail||"").trim();
