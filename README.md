@@ -61,6 +61,25 @@ el nombre (fecha) quede *después* de esa dependencia, o un `supabase db
 reset` desde cero se rompe a mitad de camino. (Esto ya pasó una vez con
 `is_app_admin()` — ver `20260623_fix_profiles_rls.sql`.)
 
+### Pendiente: 11 migraciones aplicadas a mano sin archivo en git (01/08/2026)
+Al reconciliar el historial de migraciones (`supabase db push`/`db pull`) se
+detectaron 11 versiones ya aplicadas en producción entre el 14/07, 15/07 y
+24/07/2026 (timestamps `20260714220004`, `20260714220536`, `20260714231333`,
+`20260715022843`, `20260715024505`, `20260715032759`, `20260715032937`,
+`20260715033204`, `20260715034523`, `20260715043044`, `20260724064855`) que
+no tienen archivo `.sql` correspondiente en `supabase/migrations/` — se
+aplicaron directo por el SQL Editor de Supabase o desde otra máquina, nunca
+se commitearon. Se marcaron como `reverted` en la tabla de control de
+Supabase (`supabase migration repair --status reverted ...`) solo para que
+la CLI deje de bloquear `db push`/`db pull` por el desfasaje — **eso no
+deshace sus cambios, siguen aplicados y funcionando en la base real**, sólo
+quedan sin documentar en git.
+**Para terminar de reconciliarlo:** correr `supabase db pull` con Docker
+Desktop instalado y corriendo (lo usa para armar una base "sombra" temporal
+y calcular el diff exacto), revisar el/los archivo(s) de migración que
+genere antes de commitear, y confirmar con Pablo que el contenido tiene
+sentido antes de subirlo.
+
 ---
 
 ## Autenticación
