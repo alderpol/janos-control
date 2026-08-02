@@ -1604,9 +1604,19 @@ document.getElementById("manualRenditionBtn").addEventListener("click",()=>openM
 
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
 document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
-document.getElementById("clientDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
-document.getElementById("detailDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
-document.getElementById("photoSessionDialog").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close();});
+// Cerrar el diálogo al clickear el fondo (fuera del contenido), pero solo si
+// el click "empezó y terminó" en el fondo. Antes se chequeaba únicamente el
+// target del click, así que arrastrar el mouse para seleccionar texto adentro
+// del diálogo y soltar sobre el fondo (o afuera de la ventana) disparaba un
+// click con target=diálogo y lo cerraba solo, perdiendo la selección.
+function closeDialogOnBackdropClick(dialog){
+  let downOnBackdrop=false;
+  dialog.addEventListener("mousedown",e=>{downOnBackdrop=(e.target===dialog);});
+  dialog.addEventListener("click",e=>{if(downOnBackdrop&&e.target===dialog)dialog.close();downOnBackdrop=false;});
+}
+closeDialogOnBackdropClick(document.getElementById("clientDialog"));
+closeDialogOnBackdropClick(document.getElementById("detailDialog"));
+closeDialogOnBackdropClick(document.getElementById("photoSessionDialog"));
 document.getElementById("photoSessionForm").addEventListener("submit",e=>{e.preventDefault();if(savePhotoSession(e.currentTarget))document.getElementById("photoSessionDialog").close();});
 function authErrorMessage(error, fallback = "No pudimos completar la operación.") {
   const message = String(error?.message || "").toLowerCase();
