@@ -89,7 +89,9 @@ El lugar de la sesión debe estar dentro de un rango de 40 kilómetros del saló
 
 Cuéntenme qué días tienen disponibles de lunes a jueves así coordinamos fecha y reservamos el lugar. Cualquier duda, me escriben por acá. ¡Un abrazo!`;
 
-const SESSION_CONFIRMED_TEMPLATE = `¡Listo chicos! Agendado y reservado para el {diaFechaSesion} a las {horaSesion} en Janos {salonSesion}!`;
+const SESSION_CONFIRMED_TEMPLATE = `¡Listo chicos! Agendado y reservado para el {diaFechaSesion} a las {horaSesion} en Janos {salonSesion}!
+
+📍 Ubicación: {mapaSesion}`;
 
 // Cada speech define "condition(c)": el botón solo aparece si se cumple
 // (así cada uno filtra por lo que corresponda: siempre, si tiene sesión
@@ -613,7 +615,7 @@ function whatsappTemplateForType(type){
 }
 // Valores de variables compartidos por todos los mensajes (presentación
 // privada y speeches de grupo), para no duplicar esta lista en cada uno.
-function messagePlaceholderValues(client){const metadata=currentUser?.user_metadata||{};const sender=activeWhatsappSender();const session=client.photoSession;return {nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:sender?.name||metadata.first_name||metadata.full_name||"el equipo",salonesSesion:joinSpanishList(SESSION_SALONS),diaFechaSesion:sessionSpeechDateText(session),horaSesion:sessionSpeechTimeText(session?.time),salonSesion:session?.location||""};}
+function messagePlaceholderValues(client){const metadata=currentUser?.user_metadata||{};const sender=activeWhatsappSender();const session=client.photoSession;return {nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:sender?.name||metadata.first_name||metadata.full_name||"el equipo",salonesSesion:joinSpanishList(SESSION_SALONS),diaFechaSesion:sessionSpeechDateText(session),horaSesion:sessionSpeechTimeText(session?.time),salonSesion:session?.location||"",mapaSesion:sessionMapsUrl(session)};}
 function fillTemplate(template,values){return Object.entries(values).reduce((message,[key,value])=>message.split(`{${key}}`).join(String(value||"")),template);}
 function whatsappMessage(client){const template=whatsappTemplateForType(client.type);return fillTemplate(template,messagePlaceholderValues(client));}
 // Mensajes de grupo (speeches): plantillas fijas, no por tipo de evento,
@@ -872,6 +874,17 @@ function sessionSpeechTimeText(time){
   const [h,m]=time.split(":");
   return (m&&m!=="00") ? `${Number(h)}:${m} hs` : `${Number(h)} hs`;
 }
+// Link de búsqueda de Google Maps para la ubicación de la sesión. No hace
+// falta guardar direcciones a mano: si es uno de los salones de Jano's,
+// Google ya lo tiene indexado como lugar con el prefijo "Jano's" (mismo
+// truco que usa la calculadora de viáticos en public/viaticos.html); si es
+// una ubicación cargada a mano (modo "Otro lugar" del picker de sesión), se
+// busca tal cual la escribiste.
+function sessionMapsUrl(session){
+  if(!session?.location) return "";
+  const query=SESSION_SALONS.includes(session.location) ? `Jano's ${session.location}, Argentina` : session.location;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
 function photoSessionSummary(client){const session=client.photoSession;if(!session?.date)return "Sin sesión agendada";return `${sessionDateTimeText(session)} · ${session.location||client.salon}`;}
 // Silver no incluye sesión de fotos salvo que contrate "Sesión extra" (Mini Flex/Flex/Pixel), Sans Souci, o sea Gold/VIP.
 function canScheduleSession(c) { return ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || normalizeFlexServices(c.flexServices).includes("extraSession") || normalizeFlexServices(c.pixelServices).includes("extraSession"); }
@@ -1068,7 +1081,7 @@ function whatsappSendersPanelBody(){
 }
 function speechTemplatesPanelBody(){
   const map=speechTemplates();
-  return `<p class="muted">Estos mensajes son fijos (no cambian según el tipo de evento) y se copian para pegar en el grupo de WhatsApp del cliente (ver el link de grupo en la ficha).</p>${SPEECH_TYPES.map(s=>`<div class="whatsapp-type-block"><h4>${escapeHtml(s.label)}</h4><textarea rows="10" data-speech-template="${s.key}">${escapeHtml(map[s.key]||s.default||"")}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-speech="${s.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code> <code>{salonesSesion}</code> <code>{diaFechaSesion}</code> <code>{horaSesion}</code> <code>{salonSesion}</code> — estas 3 últimas solo se completan si la sesión ya está agendada.</p><div class="modal-actions"><button class="primary-btn" id="saveSpeechTemplates">Guardar mensajes de grupo</button></div>`;
+  return `<p class="muted">Estos mensajes son fijos (no cambian según el tipo de evento) y se copian para pegar en el grupo de WhatsApp del cliente (ver el link de grupo en la ficha).</p>${SPEECH_TYPES.map(s=>`<div class="whatsapp-type-block"><h4>${escapeHtml(s.label)}</h4><textarea rows="10" data-speech-template="${s.key}">${escapeHtml(map[s.key]||s.default||"")}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-speech="${s.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code> <code>{salonesSesion}</code> <code>{diaFechaSesion}</code> <code>{horaSesion}</code> <code>{salonSesion}</code> <code>{mapaSesion}</code> — estas 4 últimas solo se completan si la sesión ya está agendada.</p><div class="modal-actions"><button class="primary-btn" id="saveSpeechTemplates">Guardar mensajes de grupo</button></div>`;
 }
 function renderSettings() {
   document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensajes para el grupo (speeches)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${speechTemplatesPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Cuentas de Drive</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${driveAccountsPanelBody()}</div></details></div>`;
