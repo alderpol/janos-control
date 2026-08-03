@@ -618,21 +618,25 @@ function speechTemplates(){const map=state.settings?.speechTemplates;return (map
 function speechTemplateFor(key){const def=SPEECH_TYPES.find(s=>s.key===key)?.default||"";return speechTemplates()[key]||def;}
 function speechMessage(client,key){return fillTemplate(speechTemplateFor(key),messagePlaceholderValues(client));}
 function saveSpeechTemplates(){const updated={};SPEECH_TYPES.forEach(s=>{const value=document.querySelector(`[data-speech-template="${CSS.escape(s.key)}"]`)?.value.trim()||"";updated[s.key]=value||s.default;});state.settings={...(state.settings||{}),speechTemplates:updated};saveState();renderSettings();toast("Mensajes de grupo guardados");}
-// Abre WhatsApp con el mensaje ya cargado, igual que contactClient(), pero
-// sin número de destino: wa.me/?text=... (sin teléfono) abre el selector de
-// chats de WhatsApp con el texto precargado, y ahí elegís el grupo del
-// cliente — así no hace falta pegar nada, solo elegir el chat y tocar
-// enviar. Es la forma en que WhatsApp permite prellenar texto hacia un
-// grupo ya existente (wa.me con un número fijo solo abre chats 1 a 1).
-function sendSpeech(clientId,key){
+// Copia el speech al portapapeles y abre el grupo de WhatsApp guardado en
+// la ficha del cliente (client.whatsappGroupUrl), para pegarlo ahí. WhatsApp
+// no permite prellenar texto en el link de invitación de un grupo ya
+// existente (a diferencia de wa.me con un número, que sí abre un chat 1 a 1
+// con el texto cargado) — por eso acá se copia y el único paso manual es
+// Ctrl+V y Enter, en el grupo correcto de una.
+async function sendSpeech(clientId,key){
   const client=state.clients.find(c=>c.id===clientId); if(!client)return;
   const speechDef=SPEECH_TYPES.find(s=>s.key===key);
+  const groupUrl=(client.whatsappGroupUrl||"").trim();
+  if(!groupUrl){ openClientForm(client); toast("Pegá primero el link del grupo de WhatsApp en la ficha para poder enviar speeches."); return; }
   const message=speechMessage(client,key);
-  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`,"_blank","noopener,noreferrer");
+  try{ await navigator.clipboard.writeText(message); }
+  catch(err){ console.error(err); toast("No se pudo copiar el mensaje. Revisá los permisos del navegador."); return; }
+  window.open(groupUrl,"_blank","noopener,noreferrer");
   client.history=client.history||[];
-  client.history.push({date:new Date().toISOString(),text:`Speech "${speechDef?.label||key}" enviado`,type:"speech_sent",speechKey:key});
+  client.history.push({date:new Date().toISOString(),text:`Speech "${speechDef?.label||key}" copiado para el grupo`,type:"speech_sent",speechKey:key});
   saveState();
-  toast("WhatsApp abierto con el mensaje listo · elegí el grupo y enviá");
+  toast("Mensaje copiado · pegalo (Ctrl+V) en el grupo que se abrió");
 }
 function addWhatsappSender(){
   const senders=whatsappSenders();
