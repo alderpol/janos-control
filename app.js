@@ -89,11 +89,16 @@ El lugar de la sesión debe estar dentro de un rango de 40 kilómetros del saló
 
 Cuéntenme qué días tienen disponibles de lunes a jueves así coordinamos fecha y reservamos el lugar. Cualquier duda, me escriben por acá. ¡Un abrazo!`;
 
-// "showAlways: false" limita el botón a clientes con sesión de fotos
-// habilitada (mismo criterio que usa toda la app: ver canScheduleSession).
+const SESSION_CONFIRMED_TEMPLATE = `¡Listo chicos! Agendado y reservado para el {diaFechaSesion} a las {horaSesion} en Janos {salonSesion}!`;
+
+// Cada speech define "condition(c)": el botón solo aparece si se cumple
+// (así cada uno filtra por lo que corresponda: siempre, si tiene sesión
+// habilitada, o si ya está agendada). Se evalúa contra el cliente al
+// armar el panel de la ficha (ver speechPanelHtml).
 const SPEECH_TYPES = [
-  { key: "groupPresentation", label: "Presentación en el grupo", default: GROUP_PRESENTATION_TEMPLATE, showAlways: true },
-  { key: "sessionCoordination", label: "Coordinación del book", default: SESSION_COORDINATION_TEMPLATE, showAlways: false },
+  { key: "groupPresentation", label: "Presentación en el grupo", default: GROUP_PRESENTATION_TEMPLATE, condition: () => true },
+  { key: "sessionCoordination", label: "Coordinación del book", default: SESSION_COORDINATION_TEMPLATE, condition: c => canScheduleSession(c) },
+  { key: "sessionConfirmed", label: "Sesión agendada (confirmación)", default: SESSION_CONFIRMED_TEMPLATE, condition: c => Boolean(c.photoSession?.date) },
 ];
 
 const ADDONS = [
@@ -608,7 +613,7 @@ function whatsappTemplateForType(type){
 }
 // Valores de variables compartidos por todos los mensajes (presentación
 // privada y speeches de grupo), para no duplicar esta lista en cada uno.
-function messagePlaceholderValues(client){const metadata=currentUser?.user_metadata||{};const sender=activeWhatsappSender();return {nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:sender?.name||metadata.first_name||metadata.full_name||"el equipo",salonesSesion:joinSpanishList(SESSION_SALONS)};}
+function messagePlaceholderValues(client){const metadata=currentUser?.user_metadata||{};const sender=activeWhatsappSender();const session=client.photoSession;return {nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:sender?.name||metadata.first_name||metadata.full_name||"el equipo",salonesSesion:joinSpanishList(SESSION_SALONS),diaFechaSesion:sessionSpeechDateText(session),horaSesion:sessionSpeechTimeText(session?.time),salonSesion:session?.location||""};}
 function fillTemplate(template,values){return Object.entries(values).reduce((message,[key,value])=>message.split(`{${key}}`).join(String(value||"")),template);}
 function whatsappMessage(client){const template=whatsappTemplateForType(client.type);return fillTemplate(template,messagePlaceholderValues(client));}
 // Mensajes de grupo (speeches): plantillas fijas, no por tipo de evento,
@@ -853,6 +858,20 @@ async function createDriveFolder(id){
   }
 }
 function sessionDateTimeText(session){if(!session?.date||!session?.time)return "Sin agendar";return `${dateText(session.date)} · ${session.time}`;}
+// Formato casual para el speech de confirmación ("miércoles 5/08"), distinto
+// del formato formal dd/mm/aaaa que se usa en el resto de la app.
+function sessionSpeechDateText(session){
+  if(!session?.date) return "";
+  const d=parseDate(session.date);
+  const weekday=new Intl.DateTimeFormat("es-AR",{weekday:"long"}).format(d);
+  return `${weekday} ${d.getDate()}/${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+// "15:00" → "15 hs" · "15:30" → "15:30 hs"
+function sessionSpeechTimeText(time){
+  if(!time) return "";
+  const [h,m]=time.split(":");
+  return (m&&m!=="00") ? `${Number(h)}:${m} hs` : `${Number(h)} hs`;
+}
 function photoSessionSummary(client){const session=client.photoSession;if(!session?.date)return "Sin sesión agendada";return `${sessionDateTimeText(session)} · ${session.location||client.salon}`;}
 // Silver no incluye sesión de fotos salvo que contrate "Sesión extra" (Mini Flex/Flex/Pixel), Sans Souci, o sea Gold/VIP.
 function canScheduleSession(c) { return ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || normalizeFlexServices(c.flexServices).includes("extraSession") || normalizeFlexServices(c.pixelServices).includes("extraSession"); }
@@ -862,7 +881,7 @@ function photoSessionButtonHtml(c) { if (c.pack === "silver" && !canScheduleSess
 // del book" solo aparece si tiene sesión de fotos habilitada; el resto
 // (por ahora solo "Presentación en el grupo") se muestra siempre.
 function speechPanelHtml(c) {
-  const applicable = SPEECH_TYPES.filter(s => s.showAlways || canScheduleSession(c));
+  const applicable = SPEECH_TYPES.filter(s => s.condition(c));
   if (!applicable.length) return "";
   return `<div class="speech-panel"><div class="speech-panel-head"><h3>Mensajes para el grupo</h3><span class="muted">Copia el texto y abre el grupo de WhatsApp</span></div><div class="speech-buttons">${applicable.map(s => `<button class="secondary-btn" type="button" data-send-speech="${c.id}|${s.key}">${escapeHtml(s.label)}</button>`).join("")}</div></div>`;
 }
@@ -1049,7 +1068,7 @@ function whatsappSendersPanelBody(){
 }
 function speechTemplatesPanelBody(){
   const map=speechTemplates();
-  return `<p class="muted">Estos mensajes son fijos (no cambian según el tipo de evento) y se envían al grupo de WhatsApp del cliente: al tocar el botón en la ficha, WhatsApp se abre con el texto ya cargado y elegís el grupo para enviarlo.</p>${SPEECH_TYPES.map(s=>`<div class="whatsapp-type-block"><h4>${escapeHtml(s.label)}</h4><textarea rows="10" data-speech-template="${s.key}">${escapeHtml(map[s.key]||s.default||"")}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-speech="${s.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code> <code>{salonesSesion}</code></p><div class="modal-actions"><button class="primary-btn" id="saveSpeechTemplates">Guardar mensajes de grupo</button></div>`;
+  return `<p class="muted">Estos mensajes son fijos (no cambian según el tipo de evento) y se copian para pegar en el grupo de WhatsApp del cliente (ver el link de grupo en la ficha).</p>${SPEECH_TYPES.map(s=>`<div class="whatsapp-type-block"><h4>${escapeHtml(s.label)}</h4><textarea rows="10" data-speech-template="${s.key}">${escapeHtml(map[s.key]||s.default||"")}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-speech="${s.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code> <code>{salonesSesion}</code> <code>{diaFechaSesion}</code> <code>{horaSesion}</code> <code>{salonSesion}</code> — estas 3 últimas solo se completan si la sesión ya está agendada.</p><div class="modal-actions"><button class="primary-btn" id="saveSpeechTemplates">Guardar mensajes de grupo</button></div>`;
 }
 function renderSettings() {
   document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensajes para el grupo (speeches)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${speechTemplatesPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Cuentas de Drive</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${driveAccountsPanelBody()}</div></details></div>`;
