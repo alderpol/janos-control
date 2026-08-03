@@ -389,27 +389,15 @@ function contactWatchItemsHtml(list) {
       return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span>${escapeHtml(c.honoree)} · ${when}</button>`;
     }).join("");
 }
-// Tareas que representan "hacer la sesión de fotos" en sí (no solo agendarla):
-// una por variante según de dónde salga la sesión (pack base, Sans Souci,
-// Flex o Pixel con "Sesión extra"). Se tilda como "done" cuando la sesión ya
-// se realizó y editó, con el mismo checkbox que usás en la ficha del cliente.
-const PHOTO_SESSION_TASK_KEYS = ["bookCoveragePhoto", "sansSouciCoverage", "flexSessionPhoto", "pixelSessionPhoto"];
-
 // Clientes cuyo evento tiene una sesión de fotos previa habilitada (pack
-// gold/vip, Sans Souci, o "Sesión extra" en Flex/Pixel) y cuya tarea de
-// sesión todavía NO está tildada como hecha (ni "done" ni "na") — sin
-// importar si ya la agendaron en el calendario o no —, con el evento entre
-// 30 y 90 días. Antes de los 30 días ya aparece la alerta roja "Sesión de
-// fotos sin agendar" en el panel "Por venir · requieren atención" (esa sí
-// mira solo si está agendada); este listado es el aviso temprano, en la
-// misma línea que "Clientes sin contactar".
+// gold/vip, Sans Souci, o "Sesión extra" en Flex/Pixel) pero todavía no la
+// agendaron (photoSession.date vacío), con el evento entre 30 y 90 días.
+// Antes de los 30 días ya aparece la alerta roja "Sesión de fotos sin
+// agendar" en el panel "Por venir · requieren atención"; este listado es el
+// aviso temprano, en la misma línea que "Clientes sin contactar".
 function pendingSessionClients() {
   return state.clients
-    .filter(c => !c.isExternal && canScheduleSession(c))
-    .filter(c => {
-      const sessionTask = c.tasks.find(t => PHOTO_SESSION_TASK_KEYS.includes(t.key));
-      return sessionTask && !["done", "na"].includes(sessionTask.status);
-    })
+    .filter(c => !c.isExternal && canScheduleSession(c) && !c.photoSession?.date)
     .filter(c => { const d = daysUntil(c.eventDate); return d >= 30 && d <= 90; })
     .sort((a,b) => daysUntil(a.eventDate) - daysUntil(b.eventDate));
 }
@@ -417,8 +405,7 @@ function pendingSessionItemsHtml(list) {
   return list.map(c => {
       const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
       const when = `faltan ${days} d`;
-      const status = c.photoSession?.date ? `agendada para ${dateText(c.photoSession.date)}, falta marcarla como realizada` : "sin agendar todavía";
-      return `<button class="session-watch-item ${level}" data-open-client="${c.id}" title="Sesión de fotos ${status} · evento ${dateText(c.eventDate)}"><span class="session-watch-dot"></span><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span>${escapeHtml(c.honoree)} · ${when}</button>`;
+      return `<button class="session-watch-item ${level}" data-open-client="${c.id}" title="Sesión de fotos sin agendar · evento ${dateText(c.eventDate)}"><span class="session-watch-dot"></span><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span>${escapeHtml(c.honoree)} · ${when}</button>`;
     }).join("");
 }
 
