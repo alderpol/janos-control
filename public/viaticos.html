@@ -5,18 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#5b2a86">
   <title>Calculadora de viáticos · Janos Control</title>
-  <link rel="stylesheet" href="styles.css">
   <style>
-    body { display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; }
+    :root {
+      --gold: #c9a84c;
+      --gold-2: #e8c97a;
+      --gold-soft: rgba(201,168,76,.12);
+      --gold-border: rgba(201,168,76,.25);
+      --ink: #f0eaf8;
+      --ink-2: #c4b8d8;
+      --muted: #7c6f94;
+      --line-2: rgba(255,255,255,.12);
+      --surface: #1a1325;
+      --surface-2: #221932;
+      --bg: #0f0a18;
+      --input-bg: #1e1530;
+      --input-border: rgba(255,255,255,.1);
+      --shadow: 0 8px 32px rgba(0,0,0,.4);
+      --radius: 12px;
+      --radius-lg: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body {
+      margin: 0; min-height: 100vh; color: var(--ink); background: var(--bg);
+      display:flex; align-items:flex-start; justify-content:center; padding:40px 16px;
+    }
     .viaticos-wrap { width:100%; max-width:560px; }
     .viaticos-back { display:inline-flex; align-items:center; gap:6px; color:var(--ink-2); text-decoration:none; font-size:13px; margin-bottom:18px; }
     .viaticos-back:hover { color:var(--ink); }
     .viaticos-card { background:var(--surface); border:1px solid var(--line-2); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:28px; }
     .viaticos-head { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+    .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; background: linear-gradient(135deg, var(--gold), #a87830); border-radius: 11px; font-family: Georgia, serif; font-size: 22px; color: #1a1000; font-weight: 900; box-shadow: 0 4px 14px rgba(201,168,76,.3); flex-shrink:0; }
     .viaticos-eyebrow { color:var(--muted); font-size:12px; margin:0 0 2px; text-transform:uppercase; letter-spacing:.04em; }
     .viaticos-title { margin:0; font-size:20px; color:var(--ink); }
     input[type="range"] { accent-color: var(--gold); }
-    input[type="number"] { background:var(--input-bg); border:1px solid var(--input-border); border-radius:8px; color:var(--ink); padding:6px 8px; }
+    input[type="number"] { font: inherit; background:var(--input-bg); border:1px solid var(--input-border); border-radius:8px; color:var(--ink); padding:6px 8px; }
+    .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+    details summary::-webkit-details-marker { color: var(--ink-2); }
   </style>
 </head>
 <body>
