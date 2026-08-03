@@ -384,6 +384,10 @@ legend { padding: 0 6px; }
 .tag.external { background: rgba(100,100,200,0.15); color: #9999ee; border: 1px solid rgba(100,100,200,0.3); }
 .photo-session-panel span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .photo-session-panel strong { margin-top: 4px; font-size: 13px; color: var(--ink); }
+.speech-panel { border: 1px solid var(--line-2); border-radius: var(--radius); margin: 0 0 18px; padding: 12px 14px; background: var(--surface-2); }
+.speech-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.speech-panel-head h3 { margin: 0; font-size: 13px; }
+.speech-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .photo-selection-panel { border: 1px solid var(--line-2); border-radius: var(--radius); margin: 18px 0 0; background: var(--surface-2); overflow: hidden; }
 .photo-selection-panel[open] .collapse-icon { transform: rotate(180deg); }
 .photo-selection-summary { list-style: none; cursor: pointer; min-height: 48px; padding: 12px 18px; display: flex; align-items: center; gap: 0; justify-content: space-between; }

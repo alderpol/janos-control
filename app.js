@@ -50,6 +50,52 @@ const WHATSAPP_TYPE_TEMPLATES = [
   { key: "general", label: "Otros eventos (Corporativo, Egresados, Otro)", default: DEFAULT_WHATSAPP_TEMPLATE },
 ];
 
+// Speeches para el grupo de WhatsApp del cliente: a diferencia del mensaje
+// de presentación privado (arriba), estos no varían por tipo de evento — son
+// pasos fijos del flujo de trabajo. WhatsApp no permite prellenar texto en
+// el link de invitación a un grupo ya existente (wa.me con texto solo
+// funciona para chats 1 a 1), así que estos mensajes se copian al
+// portapapeles y se abre el grupo para pegarlos (ver sendSpeech()).
+const GROUP_PRESENTATION_TEMPLATE = `Hola chicos, ¿cómo están?
+
+Soy {remitente}, ¡es un gusto por fin poder comenzar a trabajar con ustedes! Tendré el honor de ser parte del equipo que realice la cobertura fotográfica y de video de su evento.
+
+A través de este grupo estaremos en contacto permanente para que puedan evacuar cualquier duda respecto a lo que tenga que ver con fotografía y video. A continuación les voy a compartir información importante para que la lean con calma, y después charlamos cualquier duda y arrancamos a trabajar juntos.
+
+¡Estamos a su entera disposición! ¡Gracias!`;
+
+const SESSION_COORDINATION_TEMPLATE = `Para comenzar: debemos coordinar una fecha y lugar para la realización del book de fotos, ese sería el primer paso.
+
+El servicio que contrataron incluye varios pasos previos a la fiesta. Acá les cuento el detalle de cada uno para que vayamos coordinando.
+
+Book de fotos
+Vestuario: pueden ser 2 o 3 cambios de ropa. Recomendamos 2 cambios informales y 1 formal.
+Accesorios: pueden llevar cualquier accesorio que quieran para complementar los cambios. Se suelen usar bengalas de humo de colores (4 como mínimo, para usar en los distintos cambios — no se olviden del encendedor).
+Maquillaje: si necesitan, les puedo recomendar a alguien que trabaja muy bien.
+
+Video cronológico
+Ideal 60 fotos como máximo, enumeradas de 001 a 060, con una canción de al menos 3 minutos y medio, o dos canciones. Van a tener que elegir la musicalización.
+Suban las fotos a una carpeta de Drive y pásennos el link con acceso de "lector" para que podamos entrar y descargarlas.
+
+Video backstage (filmación del book)
+Dylan elige la música porque por experiencia sabe cuál se ajusta mejor al video, pero si quieren algo puntual, pueden consultarle por acá — está en el grupo.
+
+Fechas y locaciones para el book y el video backstage
+Sugerimos usar las instalaciones de alguno de los salones de Jano's, por seguridad y comodidad al momento de cambiarse: {salonesSesion}. Quedan sujetos a disponibilidad (y a cancelaciones si surge un evento ese día), así que tenemos que coordinar una fecha en la que coincidamos nosotros, ustedes, y que el lugar esté libre.
+
+Fuera de Jano's hay lugares dedicados para hacer fotos, como Equiland o Lagos del Rocío, que tienen un costo aparte (no incluido en el servicio) y que tendrían que contratar ustedes directamente.
+
+El lugar de la sesión debe estar dentro de un rango de 40 kilómetros del salón donde va a ser la fiesta ({salon}). Si eligen un lugar más alejado, va a tener un costo extra de logística (combustible).
+
+Cuéntenme qué días tienen disponibles de lunes a jueves así coordinamos fecha y reservamos el lugar. Cualquier duda, me escriben por acá. ¡Un abrazo!`;
+
+// "showAlways: false" limita el botón a clientes con sesión de fotos
+// habilitada (mismo criterio que usa toda la app: ver canScheduleSession).
+const SPEECH_TYPES = [
+  { key: "groupPresentation", label: "Presentación en el grupo", default: GROUP_PRESENTATION_TEMPLATE, showAlways: true },
+  { key: "sessionCoordination", label: "Coordinación del book", default: SESSION_COORDINATION_TEMPLATE, showAlways: false },
+];
+
 const ADDONS = [
   ["pant", "Pantalla"], ["pixel", "Pixel"], ["miniflex", "Mini Flex"], ["flex", "Flex"],
   ["sansSouci", "Sans Souci"], ["libro", "Libro Combo"], ["maqui", "Maquillaje"], ["maquiplus", "Maquillaje Plus"], ["maquix2plus", "Maquillaje x2 Plus"], ["moda", "Producción de Moda"],
@@ -256,6 +302,15 @@ function monthText(value) { return new Intl.DateTimeFormat("es-AR", { month: "sh
 function money(value) { return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value || 0); }
 function daysUntil(value) { return Math.round((parseDate(value) - parseDate(todayIso())) / 86400000); }
 function packLabel(pack) { return ({ silver: "Silver", gold: "Golden / All Inclusive", vip: "VIP", informal: "Informal" })[pack] || pack; }
+// Une una lista en prosa en español: "a, b y c" (o "e" en vez de "y" si el
+// último ítem arranca con sonido "i", como "Ituzaingó").
+function joinSpanishList(items) {
+  const list = items.filter(Boolean);
+  if (list.length <= 1) return list.join("");
+  const last = list[list.length - 1];
+  const connector = /^(i|hi(?!a))/i.test(last) ? "e" : "y";
+  return `${list.slice(0, -1).join(", ")} ${connector} ${last}`;
+}
 
 function createTasks(client) {
   let definitions = [];
@@ -551,7 +606,34 @@ function whatsappTemplateForType(type){
   const map=whatsappTemplatesByType();
   return map[type]||map.general||DEFAULT_WHATSAPP_TEMPLATE;
 }
-function whatsappMessage(client){const metadata=currentUser?.user_metadata||{};const sender=activeWhatsappSender();const template=whatsappTemplateForType(client.type);const values={nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:sender?.name||metadata.first_name||metadata.full_name||"el equipo"};return Object.entries(values).reduce((message,[key,value])=>message.split(`{${key}}`).join(String(value||"")),template);}
+// Valores de variables compartidos por todos los mensajes (presentación
+// privada y speeches de grupo), para no duplicar esta lista en cada uno.
+function messagePlaceholderValues(client){const metadata=currentUser?.user_metadata||{};const sender=activeWhatsappSender();return {nombre:client.clientName||client.honoree,homenajeado:client.honoree,fecha:dateText(client.eventDate),salon:client.salon,tipo:client.type,codigo:client.code,remitente:sender?.name||metadata.first_name||metadata.full_name||"el equipo",salonesSesion:joinSpanishList(SESSION_SALONS)};}
+function fillTemplate(template,values){return Object.entries(values).reduce((message,[key,value])=>message.split(`{${key}}`).join(String(value||"")),template);}
+function whatsappMessage(client){const template=whatsappTemplateForType(client.type);return fillTemplate(template,messagePlaceholderValues(client));}
+// Mensajes de grupo (speeches): plantillas fijas, no por tipo de evento,
+// guardadas en state.settings.speechTemplates. Editables en Configuración,
+// con el mismo patrón de "Restaurar mensaje original" que los de arriba.
+function speechTemplates(){const map=state.settings?.speechTemplates;return (map&&typeof map==="object")?map:{};}
+function speechTemplateFor(key){const def=SPEECH_TYPES.find(s=>s.key===key)?.default||"";return speechTemplates()[key]||def;}
+function speechMessage(client,key){return fillTemplate(speechTemplateFor(key),messagePlaceholderValues(client));}
+function saveSpeechTemplates(){const updated={};SPEECH_TYPES.forEach(s=>{const value=document.querySelector(`[data-speech-template="${CSS.escape(s.key)}"]`)?.value.trim()||"";updated[s.key]=value||s.default;});state.settings={...(state.settings||{}),speechTemplates:updated};saveState();renderSettings();toast("Mensajes de grupo guardados");}
+// Abre WhatsApp con el mensaje ya cargado, igual que contactClient(), pero
+// sin número de destino: wa.me/?text=... (sin teléfono) abre el selector de
+// chats de WhatsApp con el texto precargado, y ahí elegís el grupo del
+// cliente — así no hace falta pegar nada, solo elegir el chat y tocar
+// enviar. Es la forma en que WhatsApp permite prellenar texto hacia un
+// grupo ya existente (wa.me con un número fijo solo abre chats 1 a 1).
+function sendSpeech(clientId,key){
+  const client=state.clients.find(c=>c.id===clientId); if(!client)return;
+  const speechDef=SPEECH_TYPES.find(s=>s.key===key);
+  const message=speechMessage(client,key);
+  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`,"_blank","noopener,noreferrer");
+  client.history=client.history||[];
+  client.history.push({date:new Date().toISOString(),text:`Speech "${speechDef?.label||key}" enviado`,type:"speech_sent",speechKey:key});
+  saveState();
+  toast("WhatsApp abierto con el mensaje listo · elegí el grupo y enviá");
+}
 function addWhatsappSender(){
   const senders=whatsappSenders();
   const newSender={id:uid(),name:""};
@@ -760,6 +842,14 @@ function photoSessionSummary(client){const session=client.photoSession;if(!sessi
 function canScheduleSession(c) { return ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || normalizeFlexServices(c.flexServices).includes("extraSession") || normalizeFlexServices(c.pixelServices).includes("extraSession"); }
 // Silver sin "Sesión extra" no tiene sesión de fotos incluida: no mostramos el botón.
 function photoSessionButtonHtml(c) { if (c.pack === "silver" && !canScheduleSession(c)) return ""; return `<button class="secondary-btn" data-photo-session="${c.id}">${c.photoSession?.date?"Reprogramar sesión":"Agendar sesión de fotos"}</button>`; }
+// Panel con los speeches de grupo aplicables a este cliente. "Coordinación
+// del book" solo aparece si tiene sesión de fotos habilitada; el resto
+// (por ahora solo "Presentación en el grupo") se muestra siempre.
+function speechPanelHtml(c) {
+  const applicable = SPEECH_TYPES.filter(s => s.showAlways || canScheduleSession(c));
+  if (!applicable.length) return "";
+  return `<div class="speech-panel"><div class="speech-panel-head"><h3>Mensajes para el grupo</h3><span class="muted">Copia el texto y abre el grupo de WhatsApp</span></div><div class="speech-buttons">${applicable.map(s => `<button class="secondary-btn" type="button" data-send-speech="${c.id}|${s.key}">${escapeHtml(s.label)}</button>`).join("")}</div></div>`;
+}
 function isSessionDayValid(y,m,d){const dow=new Date(y,m,d).getDay();if(![1,2,3,4].includes(dow))return false;const s=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;if(SESSION_HOLIDAYS.has(s))return false;return s>todayIso();}
 function sessionsOnDate(dateStr,excludeClientId){return state.clients.filter(c=>c.id!==excludeClientId&&c.photoSession?.date===dateStr).map(c=>({salon:c.photoSession.location,time:c.photoSession.time}));}
 function renderSessionCalendar(){const{y,m,date}=sessionPicker;const fd=new Date(y,m,1).getDay();const off=(fd+6)%7;const dim=new Date(y,m+1,0).getDate();let cells="";for(let i=0;i<off;i++)cells+=`<div class="cd"></div>`;for(let d=1;d<=dim;d++){const s=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`,ok=isSessionDayValid(y,m,d),sel=date===s,today=s===todayIso();cells+=`<div class="cd${ok?" av":""}${sel?" sel":""}${today?" today":""}" ${ok?`data-session-day="${s}"`:""}>${d}</div>`;}const monthLabel=new Intl.DateTimeFormat("es-AR",{month:"long",year:"numeric"}).format(new Date(y,m,1));return `<div class="cal-wrap"><div class="cal-top"><button type="button" class="cal-nav" data-session-cal-prev>&lsaquo;</button><div class="cal-mo">${monthLabel}</div><button type="button" class="cal-nav" data-session-cal-next>&rsaquo;</button></div><div class="cal-inner"><div class="cal-wds">${["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(w=>`<div class="wd">${w}</div>`).join("")}</div><div class="cal-days-mini">${cells}</div></div></div>`;}
@@ -941,8 +1031,12 @@ function whatsappSendersPanelBody(){
   const typeMap=whatsappTemplatesByType();
   return `<p class="muted">¿Quién sos en este dispositivo? Marcá tu nombre en la lista de abajo. Esta elección se guarda solo en este celular/computadora — cada persona la elige una vez, en el suyo. Solo define con qué nombre se firma (variable {remitente}): el texto del mensaje es el mismo para todos, y se elige según el tipo de evento.</p><div class="whatsapp-name-list">${senders.map(s=>`<div class="whatsapp-sender-row"><label class="whatsapp-sender-pick" title="Elegir como quién sos en este dispositivo"><input type="radio" name="whatsappActiveSenderPick" value="${s.id}" ${s.id===activeId?"checked":""}></label><input type="text" data-sender-name="${s.id}" value="${escapeHtml(s.name)}" placeholder="Ej: Melani">${senders.length>1?`<button class="danger-btn" type="button" data-delete-sender="${s.id}">Eliminar</button>`:""}</div>`).join("")}</div><div class="modal-actions"><button class="secondary-btn" type="button" id="addWhatsappSender">+ Agregar remitente</button></div><h3 class="whatsapp-types-title">Mensajes según el tipo de evento</h3><p class="muted">Cada cliente tiene un "Tipo de evento" cargado en su ficha (Boda, 15, Cumpleaños, Corporativo, Egresados u Otro). El mensaje inicial se elige automáticamente según ese tipo; "Otros eventos" se usa para Corporativo, Egresados y Otro.</p>${WHATSAPP_TYPE_TEMPLATES.map(t=>`<div class="whatsapp-type-block"><h4>${escapeHtml(t.label)}</h4><textarea rows="7" data-type-template="${t.key}">${escapeHtml(typeMap[t.key]||t.default||typeMap.general||DEFAULT_WHATSAPP_TEMPLATE)}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-type="${t.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code></p><div class="modal-actions"><button class="primary-btn" id="saveWhatsappTemplate">Guardar mensajes</button></div>`;
 }
+function speechTemplatesPanelBody(){
+  const map=speechTemplates();
+  return `<p class="muted">Estos mensajes son fijos (no cambian según el tipo de evento) y se envían al grupo de WhatsApp del cliente: al tocar el botón en la ficha, WhatsApp se abre con el texto ya cargado y elegís el grupo para enviarlo.</p>${SPEECH_TYPES.map(s=>`<div class="whatsapp-type-block"><h4>${escapeHtml(s.label)}</h4><textarea rows="10" data-speech-template="${s.key}">${escapeHtml(map[s.key]||s.default||"")}</textarea><div class="modal-actions"><button class="secondary-btn" type="button" data-reset-speech="${s.key}">Restaurar mensaje original</button></div></div>`).join("")}<p class="template-help">Variables disponibles: <code>{nombre}</code> <code>{homenajeado}</code> <code>{fecha}</code> <code>{salon}</code> <code>{tipo}</code> <code>{codigo}</code> <code>{remitente}</code> <code>{salonesSesion}</code></p><div class="modal-actions"><button class="primary-btn" id="saveSpeechTemplates">Guardar mensajes de grupo</button></div>`;
+}
 function renderSettings() {
-  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Cuentas de Drive</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${driveAccountsPanelBody()}</div></details></div>`;
+  document.getElementById("settingsView").innerHTML = `<div class="settings-grid"><details class="panel rates-panel"><summary class="panel-head rates-summary"><h2>Modificar tarifas vigentes</h2><span class="collapse-icon">▶</span></summary><div class="panel-body"><p class="muted">Las tarifas marcadas con «temporada» se calculan según la tabla de temporada para eventos con fecha cubierta por ella; el valor de abajo solo aplica a fechas fuera de esa tabla.</p>${Object.entries(state.rates).map(([key,val])=>`<label class="rate-row"><span>${rateLabel(key)}${SEASONAL_RATE_KEYS.includes(key)?` <small class="muted" title="Para eventos con fecha dentro de la tabla de temporada se usa esa tabla, no este valor.">· temporada</small>`:""}</span><input type="number" min="0" data-rate="${key}" value="${Number(val)||0}"></label>`).join("")}<div class="modal-actions"><button class="primary-btn" id="saveRates">Guardar tarifas</button></div></div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Datos y copias de seguridad</h2><span class="collapse-icon">▶</span></summary><div class="panel-body stack"><p class="muted">Generá una copia de seguridad periódicamente. Incluye clientes, tareas, rendiciones y tarifas.</p><button class="secondary-btn" id="exportBackup">Exportar copia JSON</button><label class="secondary-btn" style="text-align:center">Importar copia<input id="importBackup" type="file" accept="application/json" hidden></label><p class="muted">Usá este botón si cambiaron los servicios contratados de un evento (pack, adicionales o flex) y las tareas no se actualizaron. No borra el progreso ya cargado.</p><button class="secondary-btn" id="regenerateTasks">Actualizar plan de trabajo de todos los eventos</button><button class="danger-btn" id="clearData">Borrar todos los datos</button></div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensaje inicial de WhatsApp</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${whatsappSendersPanelBody()}</div></details><details class="panel whatsapp-settings"><summary class="panel-head rates-summary"><h2>Mensajes para el grupo (speeches)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${speechTemplatesPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Mi cuenta de email (Zoho)</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${zohoAccountsPanelBody()}</div></details><details class="panel"><summary class="panel-head rates-summary"><h2>Cuentas de Drive</h2><span class="collapse-icon">▶</span></summary><div class="panel-body">${driveAccountsPanelBody()}</div></details></div>`;
 }
 function accessDate(value){return value?new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value)):"Nunca";}
 function renderUsers(){const view=document.getElementById("usersView");if(!view)return;if(accessProfile.role!=="admin"){view.innerHTML="";return;}view.innerHTML=`<div class="panel users-panel"><div class="panel-head"><div><h2>Usuarios registrados</h2><span class="muted">${adminUsers.length} cuentas</span></div></div><div class="user-row header"><span>Usuario</span><span>WhatsApp</span><span>Registro</span><span>Último acceso</span><span>Estado</span></div>${adminUsers.map(user=>`<div class="user-row"><div><strong>${escapeHtml(user.display_name||"Sin nombre")}</strong><small>${escapeHtml(user.email||"")}${user.role==="admin"?" · Administrador":""}</small></div><span>${escapeHtml(user.whatsapp||"Sin informar")}</span><span>${accessDate(user.created_at)}</span><span>${accessDate(user.last_seen_at)}</span><div>${user.role==="admin"?`<span class="status-pill active">Administrador</span>`:`<button class="small-btn ${user.status==="blocked"?"":"danger"}" data-user-status="${user.id}" data-next-status="${user.status==="blocked"?"active":"blocked"}">${user.status==="blocked"?"Reactivar":"Bloquear"}</button><button class="small-btn danger" data-delete-user="${user.id}">Eliminar</button>`}</div></div>`).join("")}</div>`;}
@@ -1439,7 +1533,7 @@ endlocal`;
 
 function openClientDetail(id) {
   const c=state.clients.find(x=>x.id===id); if(!c)return; const phases=[...new Set(c.tasks.map(t=>t.phase))];
-  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div><details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button>${!c.driveUrl&&driveAutoAvailable(c.salon)?`<button class="drive-btn missing" type="button" data-create-drive-folder="${c.id}">Crear carpeta en Drive</button>`:`<button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button>`}<button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Reenviar material</span><small>Material enviado ${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
+  document.getElementById("clientDetail").innerHTML=`<div class="detail-wrap"><div class="detail-title"><div><p class="eyebrow">#${escapeHtml(c.code)} · ${escapeHtml(c.salon)}</p><h2>${escapeHtml(c.honoree)}</h2><p>${dateText(c.eventDate)} · ${packLabel(c.pack)} · ${escapeHtml(c.type)}</p></div><button class="icon-btn" data-close-detail>×</button></div><div class="detail-summary"><div class="summary-box"><span>Progreso</span><strong>${progress(c)}%</strong></div><div class="summary-box"><span>Cliente</span><strong>${escapeHtml(c.clientName||"Sin informar")}</strong></div><div class="summary-box"><span>Invitados</span><strong>${c.guests||"-"}</strong></div><div class="summary-box"><span>Para rendir</span><strong>${c.tasks.filter(t=>t.payable&&t.status==="done").length}</strong></div></div><div class="photo-session-panel"><div><span>Sesión de fotos</span><strong>${escapeHtml(photoSessionSummary(c))}</strong></div>${photoSessionButtonHtml(c)}${c.photoSession?.date?`<button class="ghost-btn" data-cancel-session="${c.id}">Quitar sesión</button>`:""}</div>${c.isExternal?"":speechPanelHtml(c)}<details class="photo-selection-panel"><summary class="panel-head photo-selection-summary"><div class="summary-left"><h3>Selección de fotos</h3><small>Generá un script para copiar las fotos elegidas por el cliente</small></div><span class="collapse-icon">▶</span></summary><div class="panel-body"><div class="photo-selection-fields"><label class="photo-selection-label">Números seleccionados<textarea id="seleccion-numeros-${c.id}" class="photo-selection-textarea" placeholder="Ej: 10, 11, 16, 20, 31..." rows="4"></textarea></label><label class="photo-selection-label">Prefijo de archivo<input id="seleccion-prefijo-${c.id}" class="photo-selection-input" type="text" placeholder="Ej: GARCIA" maxlength="40"></label></div><div class="modal-actions" style="margin-top:0.75rem"><button class="primary-btn" data-generate-bat="${c.id}">Descargar script</button></div></div></details>${phases.map(p=>`<h3 class="phase-title">${p}</h3>${c.tasks.filter(t=>t.phase===p).map(t=>taskRow(c,t)).join("")}`).join("")}<div class="modal-actions"><button class="danger-btn" data-delete-client="${c.id}">Eliminar</button><button class="whatsapp-btn ${!c.clientPhone?"missing":c.contactedAt?"contacted":""}" type="button" data-contact-client="${c.id}">${!c.clientPhone?"Agregar WhatsApp":c.contactedAt?`<span>Contactado</span><small>${dateText(isoDate(c.contactedAt))}</small>`:"Contactar"}</button><button class="whatsapp-btn ${!c.whatsappGroupUrl?"missing":""}" type="button" data-whatsapp-group="${c.id}">${c.whatsappGroupUrl?"Grupo WhatsApp":"Agregar grupo"}</button>${!c.driveUrl&&driveAutoAvailable(c.salon)?`<button class="drive-btn missing" type="button" data-create-drive-folder="${c.id}">Crear carpeta en Drive</button>`:`<button class="drive-btn ${!c.driveUrl?"missing":""}" type="button" data-drive-folder="${c.id}">${c.driveUrl?"Ver Drive":"Agregar Drive"}</button>`}<button class="email-btn ${!c.driveUrl||!c.clientEmail?"missing":c.linkSentAt?"sent":""}" type="button" data-send-email="${c.id}">${!c.driveUrl||!c.clientEmail?"Falta Drive/Email":c.linkSentAt?`<span>Reenviar material</span><small>Material enviado ${dateText(isoDate(c.linkSentAt))}</small>`:"Enviar material"}</button><button class="secondary-btn" data-edit-client="${c.id}">Editar ficha</button><button class="primary-btn" data-close-detail>Cerrar</button></div></div>`;
   const dialog=document.getElementById("detailDialog"); if(!dialog.open)dialog.showModal();
 }
 function taskRow(c,t){
@@ -1546,6 +1640,7 @@ document.addEventListener("click", e => {
   const open=e.target.closest("[data-open-client]"); if(open)openClientDetail(open.dataset.openClient);
   const contact=e.target.closest("[data-contact-client]");if(contact)contactClient(contact.dataset.contactClient);
   const whatsappGroup=e.target.closest("[data-whatsapp-group]");if(whatsappGroup)openWhatsappGroup(whatsappGroup.dataset.whatsappGroup);
+  const sendSpeechBtn=e.target.closest("[data-send-speech]");if(sendSpeechBtn){const [clientId,speechKey]=sendSpeechBtn.dataset.sendSpeech.split("|");sendSpeech(clientId,speechKey);}
   const driveFolder=e.target.closest("[data-drive-folder]");if(driveFolder)openDriveFolder(driveFolder.dataset.driveFolder);
   const createDrive=e.target.closest("[data-create-drive-folder]");if(createDrive)createDriveFolder(createDrive.dataset.createDriveFolder);
   const sendEmail=e.target.closest("[data-send-email]");if(sendEmail)sendDriveEmail(sendEmail.dataset.sendEmail);
@@ -1581,6 +1676,8 @@ document.addEventListener("click", e => {
   if(e.target.id==="addWhatsappSender")addWhatsappSender();
   const deleteSender=e.target.closest("[data-delete-sender]");if(deleteSender)deleteWhatsappSender(deleteSender.dataset.deleteSender);
   const resetType=e.target.closest("[data-reset-type]");if(resetType){const key=resetType.dataset.resetType;const def=WHATSAPP_TYPE_TEMPLATES.find(t=>t.key===key)?.default||DEFAULT_WHATSAPP_TEMPLATE;const field=document.querySelector(`[data-type-template="${CSS.escape(key)}"]`);if(field)field.value=def;}
+  if(e.target.id==="saveSpeechTemplates")saveSpeechTemplates();
+  const resetSpeech=e.target.closest("[data-reset-speech]");if(resetSpeech){const key=resetSpeech.dataset.resetSpeech;const def=SPEECH_TYPES.find(s=>s.key===key)?.default||"";const field=document.querySelector(`[data-speech-template="${CSS.escape(key)}"]`);if(field)field.value=def;}
   const saveZoho=e.target.closest("[data-save-zoho]");if(saveZoho)saveZohoAccount(saveZoho.dataset.saveZoho);
   const clearZoho=e.target.closest("[data-clear-zoho]");if(clearZoho)clearZohoAccount(clearZoho.dataset.clearZoho);
   const connectDrive_=e.target.closest("[data-connect-drive]");if(connectDrive_)connectDrive(connectDrive_.dataset.connectDrive);
