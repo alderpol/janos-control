@@ -313,6 +313,7 @@ function renderDashboard() {
   const nextEvents = activeClients.sort((a,b) => parseDate(a.eventDate) - parseDate(b.eventDate)).slice(0, 7);
   const waiting = state.clients.flatMap(c => c.tasks).filter(t => t.status === "waiting").length;
   const contactList = contactWatchClients();
+  const sessionList = pendingSessionClients();
   const attn = attentionItemsBuckets();
   document.getElementById("dashboardView").innerHTML = `
     <div class="kpi-strip">
@@ -322,6 +323,7 @@ function renderDashboard() {
       ${kpiMini("Próx. 30 días", state.clients.filter(c => { const d=daysUntil(c.eventDate); return d>=0&&d<=30; }).length, "Eventos por preparar")}
     </div>
     ${contactList.length ? `<div class="panel contact-panel"><div class="panel-head"><h2>Clientes sin contactar</h2><span class="tag contact-count-tag">${contactList.length}</span></div><div class="panel-body contact-grid">${contactWatchItemsHtml(contactList)}</div></div>` : ""}
+    ${sessionList.length ? `<div class="panel session-panel"><div class="panel-head"><h2>Sesión de fotos sin realizar</h2><span class="tag session-count-tag">${sessionList.length}</span></div><div class="panel-body session-grid">${pendingSessionItemsHtml(sessionList)}</div></div>` : ""}
     <div class="content-grid attention-grid">
       <div class="panel"><div class="panel-head"><h2>Ya realizados · requieren atención</h2>${attn.realizedCount ? `<span class="muted">${attn.realizedCount}</span>` : ""}</div><div class="panel-body stack">
         ${attn.realizedHtml || `<div class="empty"><strong>Todo al día</strong>No hay coberturas pendientes de confirmar.</div>`}
@@ -385,6 +387,25 @@ function contactWatchItemsHtml(list) {
       const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
       const when = days < 0 ? `venció hace ${Math.abs(days)} d` : days === 0 ? "es hoy" : `faltan ${days} d`;
       return `<button class="contact-watch-item ${level}" data-open-client="${c.id}" title="Sin contactar por WhatsApp · evento ${dateText(c.eventDate)}"><span class="contact-watch-dot"></span><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span>${escapeHtml(c.honoree)} · ${when}</button>`;
+    }).join("");
+}
+// Clientes cuyo evento tiene una sesión de fotos previa habilitada (pack
+// gold/vip, Sans Souci, o "Sesión extra" en Flex/Pixel) pero todavía no la
+// agendaron (photoSession.date vacío), con el evento entre 30 y 90 días.
+// Antes de los 30 días ya aparece la alerta roja "Sesión de fotos sin
+// agendar" en el panel "Por venir · requieren atención"; este listado es el
+// aviso temprano, en la misma línea que "Clientes sin contactar".
+function pendingSessionClients() {
+  return state.clients
+    .filter(c => !c.isExternal && canScheduleSession(c) && !c.photoSession?.date)
+    .filter(c => { const d = daysUntil(c.eventDate); return d >= 30 && d <= 90; })
+    .sort((a,b) => daysUntil(a.eventDate) - daysUntil(b.eventDate));
+}
+function pendingSessionItemsHtml(list) {
+  return list.map(c => {
+      const days = daysUntil(c.eventDate), level = days <= 60 ? "danger" : "warning";
+      const when = `faltan ${days} d`;
+      return `<button class="session-watch-item ${level}" data-open-client="${c.id}" title="Sesión de fotos sin agendar · evento ${dateText(c.eventDate)}"><span class="session-watch-dot"></span><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span>${escapeHtml(c.honoree)} · ${when}</button>`;
     }).join("");
 }
 
