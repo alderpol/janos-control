@@ -52,6 +52,8 @@
     .maps-msg { font-size:12.5px; margin:8px 0 0; }
     .maps-msg.error { color:#f0a; color:#ff8a8a; }
     .maps-msg.success { color:var(--gold-2); }
+    select { font: inherit; background:var(--input-bg); border:1px solid var(--input-border); border-radius:8px; color:var(--ink); padding:6px 8px; width:100%; }
+    .maps-hint { font-size:11.5px; color:var(--muted); margin:4px 0 0; }
   </style>
 </head>
 <body>
@@ -69,11 +71,18 @@
 
       <div class="maps-box">
         <div class="maps-field">
+          <label for="salonSelect">Salón (origen del evento)</label>
+          <select id="salonSelect">
+            <option value="">Elegí un salón Jano's…</option>
+          </select>
+          <p class="maps-hint">Elegir un salón completa la dirección de origen abajo; también podés escribirla a mano.</p>
+        </div>
+        <div class="maps-field">
           <label for="origin">Dirección de origen</label>
           <input type="text" id="origin" placeholder="Ej. Av. Corrientes 1000, CABA">
         </div>
         <div class="maps-field">
-          <label for="destination">Dirección de destino</label>
+          <label for="destination">Dirección de destino (sesión de fotos)</label>
           <input type="text" id="destination" placeholder="Ej. Ruta Panamericana Km 34, Pilar">
         </div>
         <button type="button" class="maps-btn" id="calcDistanceBtn">Calcular distancia con Google Maps</button>
@@ -157,6 +166,38 @@
       document.getElementById(id).addEventListener('input', recalc);
     });
     recalc();
+
+    // Salones de la franquicia Jano's Eventos (salonesjanos.com). No se
+    // guardan direcciones a mano: Google Maps ya tiene estos locales
+    // indexados como lugares, así que alcanza con "Jano's <nombre>" para
+    // que el geocoder de la Distance Matrix API resuelva la dirección real.
+    const JANOS_SALONS = [
+      "Acceso Oeste","Acceso Oeste 2","Adrogué","Avellaneda 1","Avellaneda 2","Avellaneda 3","Avellaneda 4",
+      "Bella Vista 1","Bella Vista 2","Benavidez 1","Benavidez 2","Berazategui 2","Berisso",
+      "Caballito 1","Caballito 2","Caba Boutique","Campana","Canning","Champagnat Boutique",
+      "Costanera 1","Costanera 2","Dardo Rocha","Darwin 1","Darwin 2","Del Viso","DOT",
+      "Escobar","General Rodriguez","Haedo","House","Hudson","Hudson 2","Hurlingham",
+      "Ituzaingó","Ituzaingó 2","José C. Paz","La Plata","La Plata Boutique","Liniers",
+      "Lomas de Zamora","Lomas de Zamora Boutique","Los Naranjos","Martinez","Maschwitz",
+      "Merlo","Merlo 2","Morón","Moreno","Nuñez","Olivos","Olivos 2","Palermo Hollywood",
+      "Palermo Soho","Paseo Colon","Pilar","Pilar Boutique","Pilar Hotel","Playa Grande",
+      "Puerto Madero","Puerto Madero Boutique","Quilmes Boutique","Quinta","Ramos Boutique 2",
+      "Ramos Mejia","Recoleta","San Isidro","San Justo","San Justo 2","San Martin 1",
+      "San Martin 2","San Martin 3","San Miguel","San Telmo","San Telmo Boutique","Temperley",
+      "Vicente Lopez","Villa de Mayo","Villa de Mayo Boutique",
+    ];
+
+    const salonSelect = document.getElementById('salonSelect');
+    const originInput = document.getElementById('origin');
+    JANOS_SALONS.slice().sort((a, b) => a.localeCompare(b, 'es')).forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = `Jano's ${name}, Argentina`;
+      opt.textContent = `Jano's ${name}`;
+      salonSelect.appendChild(opt);
+    });
+    salonSelect.addEventListener('change', () => {
+      if (salonSelect.value) originInput.value = salonSelect.value;
+    });
 
     const calcBtn = document.getElementById('calcDistanceBtn');
     const mapsMsg = document.getElementById('mapsMsg');
