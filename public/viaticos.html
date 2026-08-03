@@ -39,9 +39,19 @@
     .viaticos-eyebrow { color:var(--muted); font-size:12px; margin:0 0 2px; text-transform:uppercase; letter-spacing:.04em; }
     .viaticos-title { margin:0; font-size:20px; color:var(--ink); }
     input[type="range"] { accent-color: var(--gold); }
-    input[type="number"] { font: inherit; background:var(--input-bg); border:1px solid var(--input-border); border-radius:8px; color:var(--ink); padding:6px 8px; }
+    input[type="number"], input[type="text"] { font: inherit; background:var(--input-bg); border:1px solid var(--input-border); border-radius:8px; color:var(--ink); padding:6px 8px; }
+    input[type="text"] { width:100%; }
     .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
     details summary::-webkit-details-marker { color: var(--ink-2); }
+    .maps-box { background:var(--surface-2); border:1px solid var(--line-2); border-radius:var(--radius); padding:1rem; margin-bottom:1.5rem; }
+    .maps-field { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
+    .maps-field label { font-size:13px; color:var(--ink-2); }
+    .maps-btn { background:var(--gold); color:#1a1000; border:0; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+    .maps-btn:hover { background:var(--gold-2); }
+    .maps-btn:disabled { opacity:.6; cursor:default; }
+    .maps-msg { font-size:12.5px; margin:8px 0 0; }
+    .maps-msg.error { color:#f0a; color:#ff8a8a; }
+    .maps-msg.success { color:var(--gold-2); }
   </style>
 </head>
 <body>
@@ -56,6 +66,20 @@
       </div>
 
       <h2 class="sr-only">Calculadora interactiva de viáticos por kilometraje</h2>
+
+      <div class="maps-box">
+        <div class="maps-field">
+          <label for="origin">Dirección de origen</label>
+          <input type="text" id="origin" placeholder="Ej. Av. Corrientes 1000, CABA">
+        </div>
+        <div class="maps-field">
+          <label for="destination">Dirección de destino</label>
+          <input type="text" id="destination" placeholder="Ej. Ruta Panamericana Km 34, Pilar">
+        </div>
+        <button type="button" class="maps-btn" id="calcDistanceBtn">Calcular distancia con Google Maps</button>
+        <p id="mapsMsg" class="maps-msg" style="display:none;"></p>
+      </div>
+
       <div style="display:flex; align-items:center; gap:12px; margin:0 0 1.5rem;">
         <label for="km" style="font-size:14px; color:var(--ink-2); min-width:150px;">Km totales (ida y vuelta)</label>
         <input type="range" id="km" min="0" max="300" step="1" value="54" style="flex:1;" />
@@ -133,6 +157,51 @@
       document.getElementById(id).addEventListener('input', recalc);
     });
     recalc();
+
+    const calcBtn = document.getElementById('calcDistanceBtn');
+    const mapsMsg = document.getElementById('mapsMsg');
+
+    function showMapsMsg(text, type){
+      mapsMsg.textContent = text;
+      mapsMsg.className = 'maps-msg' + (type ? ' ' + type : '');
+      mapsMsg.style.display = 'block';
+    }
+
+    calcBtn.addEventListener('click', async () => {
+      const origin = document.getElementById('origin').value.trim();
+      const destination = document.getElementById('destination').value.trim();
+      if (!origin || !destination) {
+        showMapsMsg('Completá origen y destino.', 'error');
+        return;
+      }
+
+      calcBtn.disabled = true;
+      calcBtn.textContent = 'Calculando…';
+      mapsMsg.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/distance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ origin, destination }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'No se pudo calcular la distancia.');
+
+        const roundTripKm = Math.round(data.km * 2 * 10) / 10;
+        const kmInput = document.getElementById('km');
+        kmInput.max = Math.max(Number(kmInput.max), Math.ceil(roundTripKm));
+        kmInput.value = roundTripKm;
+        recalc();
+
+        showMapsMsg(`${data.distanceText} (ida) · ${roundTripKm} km ida y vuelta cargados abajo.`, 'success');
+      } catch (err) {
+        showMapsMsg(err.message || 'Error al calcular la distancia.', 'error');
+      } finally {
+        calcBtn.disabled = false;
+        calcBtn.textContent = 'Calcular distancia con Google Maps';
+      }
+    });
   </script>
 </body>
 </html>
