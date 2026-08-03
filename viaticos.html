@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#5b2a86">
+  <title>Calculadora de viáticos · Janos Control</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; }
+    .viaticos-wrap { width:100%; max-width:560px; }
+    .viaticos-back { display:inline-flex; align-items:center; gap:6px; color:var(--ink-2); text-decoration:none; font-size:13px; margin-bottom:18px; }
+    .viaticos-back:hover { color:var(--ink); }
+    .viaticos-card { background:var(--surface); border:1px solid var(--line-2); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:28px; }
+    .viaticos-head { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+    .viaticos-eyebrow { color:var(--muted); font-size:12px; margin:0 0 2px; text-transform:uppercase; letter-spacing:.04em; }
+    .viaticos-title { margin:0; font-size:20px; color:var(--ink); }
+    input[type="range"] { accent-color: var(--gold); }
+    input[type="number"] { background:var(--input-bg); border:1px solid var(--input-border); border-radius:8px; color:var(--ink); padding:6px 8px; }
+  </style>
+</head>
+<body>
+  <div class="viaticos-wrap">
+    <a class="viaticos-back" href="/">← Volver a Janos Control</a>
+    <div class="viaticos-card">
+      <div class="viaticos-head">
+        <div class="brand-mark">J</div>
+        <div>
+          <p class="viaticos-eyebrow">Janos Control</p>
+          <h1 class="viaticos-title">Calculadora de viáticos</h1>
+        </div>
+      </div>
+
+      <h2 class="sr-only">Calculadora interactiva de viáticos por kilometraje</h2>
+      <div style="display:flex; align-items:center; gap:12px; margin:0 0 1.5rem;">
+        <label for="km" style="font-size:14px; color:var(--ink-2); min-width:150px;">Km totales (ida y vuelta)</label>
+        <input type="range" id="km" min="0" max="300" step="1" value="54" style="flex:1;" />
+        <span id="km-out" style="font-size:14px; font-weight:500; min-width:60px; text-align:right; color:var(--ink);">54 km</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:1.5rem;">
+        <div style="background:var(--surface-2); border-radius:var(--radius); padding:1rem;">
+          <p style="font-size:13px; color:var(--ink-2); margin:0 0 4px;">Tramo 1 (franquicia)</p>
+          <p id="t1" style="font-size:20px; font-weight:500; margin:0; color:var(--ink);">$0</p>
+        </div>
+        <div style="background:var(--surface-2); border-radius:var(--radius); padding:1rem;">
+          <p style="font-size:13px; color:var(--ink-2); margin:0 0 4px;">Tramo 2</p>
+          <p id="t2" style="font-size:20px; font-weight:500; margin:0; color:var(--ink);">$0</p>
+        </div>
+        <div style="background:var(--surface-2); border-radius:var(--radius); padding:1rem;">
+          <p style="font-size:13px; color:var(--ink-2); margin:0 0 4px;">Tramo 3 (excedente)</p>
+          <p id="t3" style="font-size:20px; font-weight:500; margin:0; color:var(--ink);">$0</p>
+        </div>
+      </div>
+
+      <div style="background:var(--gold-soft); border:1px solid var(--gold-border); border-radius:var(--radius); padding:1rem 1.25rem; display:flex; align-items:baseline; justify-content:space-between;">
+        <span style="font-size:14px; color:var(--gold-2);">Total a abonar</span>
+        <span id="total" style="font-size:24px; font-weight:500; color:var(--gold-2);">$0</span>
+      </div>
+
+      <details style="margin-top:1.5rem;">
+        <summary style="font-size:13px; color:var(--ink-2); cursor:pointer;">Parámetros de tramos</summary>
+        <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label style="font-size:13px; color:var(--ink-2); min-width:170px;">Franquicia (km sin cargo)</label>
+            <input type="number" id="lim1" value="40" min="0" style="width:90px;" />
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label style="font-size:13px; color:var(--ink-2); min-width:170px;">Límite tramo 2 (km acumulados)</label>
+            <input type="number" id="lim2" value="90" min="0" style="width:90px;" />
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label style="font-size:13px; color:var(--ink-2); min-width:170px;">Tarifa tramo 2 ($/km)</label>
+            <input type="number" id="rate2" value="2000" min="0" style="width:90px;" />
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label style="font-size:13px; color:var(--ink-2); min-width:170px;">Tarifa tramo 3 ($/km)</label>
+            <input type="number" id="rate3" value="1000" min="0" style="width:90px;" />
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    const fmt = n => '$' + Math.round(n).toLocaleString('es-AR');
+    function recalc(){
+      const km = parseFloat(document.getElementById('km').value) || 0;
+      const lim1 = parseFloat(document.getElementById('lim1').value) || 0;
+      const lim2 = parseFloat(document.getElementById('lim2').value) || 0;
+      const rate2 = parseFloat(document.getElementById('rate2').value) || 0;
+      const rate3 = parseFloat(document.getElementById('rate3').value) || 0;
+
+      const km1 = Math.min(km, lim1);
+      const km2 = Math.max(0, Math.min(km, lim2) - lim1);
+      const km3 = Math.max(0, km - lim2);
+
+      const m1 = 0;
+      const m2 = km2 * rate2;
+      const m3 = km3 * rate3;
+
+      document.getElementById('km-out').textContent = Math.round(km) + ' km';
+      document.getElementById('t1').textContent = fmt(m1);
+      document.getElementById('t2').textContent = fmt(m2);
+      document.getElementById('t3').textContent = fmt(m3);
+      document.getElementById('total').textContent = fmt(m1 + m2 + m3);
+    }
+    ['km','lim1','lim2','rate2','rate3'].forEach(id => {
+      document.getElementById(id).addEventListener('input', recalc);
+    });
+    recalc();
+  </script>
+</body>
+</html>
