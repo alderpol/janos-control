@@ -1530,7 +1530,18 @@ for /f "usebackq tokens=* delims=" %%N in ("!TMPFILE!") do (
   set "FOUND=0"
 
   if not "!RAW!"=="" (
-    set /a "INTNUM=!RAW!"
+    rem Saca los ceros a la izquierda como texto (NO con "set /a": cmd
+    rem interpreta cualquier numero que arranca con 0 como octal, y
+    rem numeros con 8 o 9 -como 069 u 097- tiran error directamente, mientras
+    rem que otros -como 023- se leen mal en silencio y copian el archivo
+    rem equivocado sin avisar). Se repite la resta de un cero varias veces
+    rem en vez de usar un loop con goto, que dentro de un bloque for /f
+    rem entre parentesis es poco confiable en cmd.exe.
+    set "INTNUM=!RAW!"
+    if "!INTNUM:~0,1!"=="0" if not "!INTNUM!"=="0" set "INTNUM=!INTNUM:~1!"
+    if "!INTNUM:~0,1!"=="0" if not "!INTNUM!"=="0" set "INTNUM=!INTNUM:~1!"
+    if "!INTNUM:~0,1!"=="0" if not "!INTNUM!"=="0" set "INTNUM=!INTNUM:~1!"
+    if "!INTNUM:~0,1!"=="0" if not "!INTNUM!"=="0" set "INTNUM=!INTNUM:~1!"
 
     if exist "%ORIGEN%\\%PREFIJO%-!RAW!.jpg" (
       copy "%ORIGEN%\\%PREFIJO%-!RAW!.jpg" "%DESTINO%\\%PREFIJO%-!RAW!.jpg" >nul
