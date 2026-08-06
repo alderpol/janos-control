@@ -1,9 +1,15 @@
 // Calcula la distancia en auto (ida) entre dos direcciones usando la
-// Distance Matrix API de Google. Se usa desde la calculadora de viáticos
+// Directions API de Google. Se usa desde la calculadora de viáticos
 // (public/viaticos.html), que es una página pública sin login, por eso
 // este endpoint no exige autenticación de Supabase como los demás en /api.
 // La API key de Google vive solo en el servidor (GOOGLE_MAPS_API_KEY) para
 // no quedar expuesta en el HTML público.
+// Usamos Directions (con alternatives=true) en vez de Distance Matrix: Distance
+// Matrix devuelve una sola ruta (la que Google arma como "mejor", priorizando
+// tiempo/tráfico, que puede ser más larga en km por ir toda por autopista) y no
+// deja elegir otra. Para viáticos nos interesan los km reales del trayecto más
+// corto, así que pedimos las rutas alternativas y nos quedamos con la de menor
+// distancia.
 
 const CORS = {
   "Access-Control-Allow-Origin": "https://janos-control.vercel.app",
@@ -28,32 +34,37 @@ export async function handler(event) {
     if (!origin || !destination) return json(400, { error: "Faltan origin y/o destination" });
 
     const params = new URLSearchParams({
-      origins: origin,
-      destinations: destination,
+      origin,
+      destination,
+      alternatives: "true",
       units: "metric",
       mode: "driving",
       language: "es",
       key: process.env.GOOGLE_MAPS_API_KEY,
     });
 
-    const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params}`);
+    const res = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${params}`);
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok || data.status !== "OK") {
       return json(502, { error: data.error_message || `Google Maps respondió: ${data.status || res.status}` });
     }
 
-    const element = data.rows?.[0]?.elements?.[0];
-    if (!element || element.status !== "OK") {
+    const routes = (data.routes || []).filter(r => r.legs?.[0]?.distance?.value != null);
+    if (!routes.length) {
       return json(422, { error: "No se pudo calcular la ruta entre esas direcciones. Verificá que estén bien escritas." });
     }
 
+    // De todas las rutas alternativas, la de menor distancia (no la más rápida).
+    const best = routes.reduce((shortest, r) => r.legs[0].distance.value < shortest.legs[0].distance.value ? r : shortest);
+    const leg = best.legs[0];
+
     return json(200, {
-      km: Math.round((element.distance.value / 1000) * 10) / 10,
-      distanceText: element.distance.text,
-      durationText: element.duration.text,
-      originAddress: data.origin_addresses?.[0] || origin,
-      destinationAddress: data.destination_addresses?.[0] || destination,
+      km: Math.round((leg.distance.value / 1000) * 10) / 10,
+      distanceText: leg.distance.text,
+      durationText: leg.duration.text,
+      originAddress: leg.start_address || origin,
+      destinationAddress: leg.end_address || destination,
     });
   } catch (err) {
     console.error("distance error:", err);
