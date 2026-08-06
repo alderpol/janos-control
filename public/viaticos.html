@@ -99,20 +99,29 @@
         <div style="background:var(--surface-2); border-radius:var(--radius); padding:1rem;">
           <p style="font-size:13px; color:var(--ink-2); margin:0 0 4px;">Tramo 1 (franquicia)</p>
           <p id="t1" style="font-size:20px; font-weight:500; margin:0; color:var(--ink);">$0</p>
+          <p id="t1km" style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">0 km</p>
         </div>
         <div style="background:var(--surface-2); border-radius:var(--radius); padding:1rem;">
           <p style="font-size:13px; color:var(--ink-2); margin:0 0 4px;">Tramo 2</p>
           <p id="t2" style="font-size:20px; font-weight:500; margin:0; color:var(--ink);">$0</p>
+          <p id="t2km" style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">0 km</p>
         </div>
         <div style="background:var(--surface-2); border-radius:var(--radius); padding:1rem;">
           <p style="font-size:13px; color:var(--ink-2); margin:0 0 4px;">Tramo 3 (excedente)</p>
           <p id="t3" style="font-size:20px; font-weight:500; margin:0; color:var(--ink);">$0</p>
+          <p id="t3km" style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">0 km</p>
         </div>
       </div>
 
-      <div style="background:var(--gold-soft); border:1px solid var(--gold-border); border-radius:var(--radius); padding:1rem 1.25rem; display:flex; align-items:baseline; justify-content:space-between;">
-        <span style="font-size:14px; color:var(--gold-2);">Total a abonar</span>
-        <span id="total" style="font-size:24px; font-weight:500; color:var(--gold-2);">$0</span>
+      <div style="background:var(--gold-soft); border:1px solid var(--gold-border); border-radius:var(--radius); padding:1rem 1.25rem;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between;">
+          <span style="font-size:14px; color:var(--gold-2);">Total a abonar</span>
+          <span id="total" style="font-size:24px; font-weight:500; color:var(--gold-2);">$0</span>
+        </div>
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-top:6px;">
+          <span style="font-size:12.5px; color:var(--ink-2);">Km extra que paga el cliente (por encima de la franquicia)</span>
+          <span id="kmExtra" style="font-size:13px; font-weight:500; color:var(--ink);">0 km</span>
+        </div>
       </div>
 
       <details style="margin-top:1.5rem;">
@@ -158,6 +167,10 @@
 
       document.getElementById('km-out').textContent = Math.round(km) + ' km';
       document.getElementById('t1').textContent = fmt(m1);
+      document.getElementById('t1km').textContent = (Math.round(km1 * 10) / 10) + ' km';
+      document.getElementById('t2km').textContent = (Math.round(km2 * 10) / 10) + ' km';
+      document.getElementById('t3km').textContent = (Math.round(km3 * 10) / 10) + ' km';
+      document.getElementById('kmExtra').textContent = (Math.round((km2 + km3) * 10) / 10) + ' km';
       document.getElementById('t2').textContent = fmt(m2);
       document.getElementById('t3').textContent = fmt(m3);
       document.getElementById('total').textContent = fmt(m1 + m2 + m3);
