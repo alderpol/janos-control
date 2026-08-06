@@ -114,7 +114,7 @@ const FLEX_SERVICES = [
   ["church", "Iglesia o templo"], ["civilPhoto", "Civil (fotógrafo)"], ["civilVideo", "Civil (videógrafo)"], ["droneEvent", "Drone en recepción"],
   ["droneBook", "Drone en sesión"], ["photoExtra", "Fotógrafo extra"], ["videoExtra", "Videógrafo extra"],
   ["signatureBook", "Libro de firmas"], ["partyBook", "Libro de fiesta"], ["liveEditor", "Editor en vivo"],
-  ["friendsVideo", "Video con amigos"], ["extraSession", "Sesión extra"]
+  ["friendsVideo", "Video con amigos"], ["extraSession", "Sesión extra"], ["chronoVideo", "Video cronológico"]
 ];
 
 // Salones habilitados para sesión de fotos previa al evento (coinciden con los
@@ -196,7 +196,8 @@ const CORE_TASKS = [
 const GOLD_TASKS = [
   task("coordinateSession", "Coordinar y reservar sesión de fotos", "Pre-evento"),
   task("bookCoveragePhoto", "Realizar sesión de fotos y editar fotos de la sesión", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
-  task("bookCoverageVideo", "Realizar sesión de video y editar video backstage", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (grabacion + edicion back)", "book")
+  task("bookCoverageVideo", "Realizar sesión de video y editar video backstage", "Pre-evento", true, "PERSONAL VIDEO", "Sesion de fotos (grabacion + edicion back)", "book"),
+  task("goldChronoVideo", "Editar video cronológico del evento", "Pre-evento", true, "COMPLEMENTOS", "Video cronologico", "videoExtraClip")
 ];
 
 const VIP_TASKS = [
@@ -219,7 +220,8 @@ const FLEX_TASKS = {
   liveEditor: task("flexLive", "Realizar edición en vivo", "Servicios elegidos", true, "COMPLEMENTOS", "Edicion en vivo video", "liveEditor"),
   friendsVideo: task("flexFriends", "Realizar video con amigos", "Servicios elegidos", true, "COMPLEMENTOS", "Video con amigos", "book"),
   extraSession: task("flexSessionPhoto", "Realizar sesión extra - fotografía", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
-  extraSessionVideo: task("flexSessionVideo", "Realizar sesión extra - video", "Servicios elegidos", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage")
+  extraSessionVideo: task("flexSessionVideo", "Realizar sesión extra - video", "Servicios elegidos", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage"),
+  chronoVideo: task("flexChronoVideo", "Editar video cronológico del evento", "Servicios elegidos", true, "COMPLEMENTOS", "Video cronologico", "videoExtraClip")
 };
 
 // Mismas opciones que Flex/Mini Flex pero para clientes con el adicional Pixel
@@ -247,11 +249,11 @@ function task(key, title, phase, payable = false, category = "", work = "", rate
 const TASK_ROLES = {
   coveragePhoto: "foto", coveragePhotoEdit: "foto", coverageVideoCapture: "video", coverageVideoEdit: "video", videoHighlight: "video",
   sendPhotos: "foto", sendVideo: "video",
-  bookCoveragePhoto: "foto", bookCoverageVideo: "video",
+  bookCoveragePhoto: "foto", bookCoverageVideo: "video", goldChronoVideo: "video",
   vipLive: "video", vipPhotoExtra: "foto", vipVideoExtra: "video",
   flexChurch: "foto", flexCivilPhoto: "foto", flexCivilVideo: "video", flexPhotoExtra: "foto", flexVideoExtra: "video",
   flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
-  flexSessionPhoto: "foto", flexSessionVideo: "video",
+  flexSessionPhoto: "foto", flexSessionVideo: "video", flexChronoVideo: "video",
   pixelChurch: "foto", pixelCivilPhoto: "foto", pixelCivilVideo: "video", pixelPhotoExtra: "foto", pixelVideoExtra: "video",
   pixelSignature: "foto", pixelPartyBook: "foto", pixelLive: "video", pixelFriends: "video",
   pixelSessionPhoto: "foto", pixelSessionVideo: "video",
@@ -946,17 +948,22 @@ function renderTasks() {
 
 let renditionCategoryFilter = "";
 let renditionStatusFilter = "";
+let renditionSalonFilter = "";
 let selectedRenditionIds = new Set();
+// Rendiciones ligadas a tarea toman el salón del cliente; las manuales tienen su propio campo "salon".
+function renditionSalon(r) { if (r.isManual) return r.salon || ""; const c = state.clients.find(x => x.id === r.clientId); return c?.salon || ""; }
 function renderRenditions() {
   const activeCount=state.renditions.filter(r=>!r.archivedAt).length,archivedCount=state.renditions.length-activeCount;
   const rows=state.renditions.filter(r=>renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
   const categories=["PERSONAL FOTOGRAFIA","PERSONAL VIDEO","COMPLEMENTOS","GUARDIA FOTO","GUARDIA VIDEO"];
   const categorySummary=categories.map(cat=>{const total=rows.filter(r=>r.category===cat).reduce((s,r)=>s+Number(r.amount||0),0);return total>0?`<div class="category-kpi"><span>${cat}</span><strong>${money(total)}</strong></div>`:""}).join("");
-  document.getElementById("renditionsView").innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Archivo de rendiciones"><button class="${renditionViewMode==="active"?"active":""}" data-rendition-view="active">Activas <b>${activeCount}</b></button><button class="${renditionViewMode==="archived"?"active":""}" data-rendition-view="archived">Archivadas <b>${archivedCount}</b></button></div><select id="renditionCategoryFilter"><option value="">Todas las categorías</option>${categories.map(c=>`<option value="${c}">${c}</option>`).join("")}</select><select id="renditionFilter"><option value="">Todos los estados</option>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select><button class="secondary-btn" id="exportRenditionsCsv" title="Exporta las rendiciones pendientes en el formato que usa el script de carga automática">Exportar CSV</button></div>${categorySummary?`<div class="category-summary">${categorySummary}</div>`:""}<div id="renditionBulkBar" class="rendition-bulk-bar"></div><div class="rendition-total" aria-live="polite"><div><span>Total a cobrar</span><small id="renditionTotalCount">${renditionCountLabel(rows.length)}</small></div><strong id="renditionTotalAmount">${money(renditionTotal(rows))}</strong></div><div class="panel"><div class="rendition-row header"><span class="rendition-select-cell"><input type="checkbox" id="renditionSelectAll" aria-label="Seleccionar todas"> Trabajo</span><span>Evento</span><span>Categoría</span><span>Importe</span><span>Estado</span><span>Acciones</span></div><div id="renditionRows">${renditionRows(rows)}</div></div>`;
+  const salons=salonsInUse();
+  document.getElementById("renditionsView").innerHTML = `<div class="rendition-controls"><div class="view-switch" aria-label="Archivo de rendiciones"><button class="${renditionViewMode==="active"?"active":""}" data-rendition-view="active">Activas <b>${activeCount}</b></button><button class="${renditionViewMode==="archived"?"active":""}" data-rendition-view="archived">Archivadas <b>${archivedCount}</b></button></div><select id="renditionCategoryFilter"><option value="">Todas las categorías</option>${categories.map(c=>`<option value="${c}">${c}</option>`).join("")}</select><select id="renditionSalonFilter" aria-label="Filtrar por salón"><option value="">Todos los salones</option>${salons.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select><select id="renditionFilter"><option value="">Todos los estados</option>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select><button class="secondary-btn" id="exportRenditionsCsv" title="Exporta las rendiciones pendientes en el formato que usa el script de carga automática">Exportar CSV</button></div>${categorySummary?`<div class="category-summary">${categorySummary}</div>`:""}<div id="renditionBulkBar" class="rendition-bulk-bar"></div><div class="rendition-total" aria-live="polite"><div><span>Total a cobrar</span><small id="renditionTotalCount">${renditionCountLabel(rows.length)}</small></div><strong id="renditionTotalAmount">${money(renditionTotal(rows))}</strong></div><div class="panel"><div class="rendition-row header"><span class="rendition-select-cell"><input type="checkbox" id="renditionSelectAll" aria-label="Seleccionar todas"> Trabajo</span><span>Evento</span><span>Categoría</span><span>Importe</span><span>Estado</span><span>Acciones</span></div><div id="renditionRows">${renditionRows(rows)}</div></div>`;
   const cf=document.getElementById("renditionCategoryFilter");if(cf)cf.value=renditionCategoryFilter;
+  const sf=document.getElementById("renditionSalonFilter");if(sf)sf.value=renditionSalonFilter;
   const rf=document.getElementById("renditionFilter");if(rf)rf.value=renditionStatusFilter;
   updateRenditionBulkBar(rows);
-  if(renditionCategoryFilter||renditionStatusFilter)filterRenditions();
+  if(renditionCategoryFilter||renditionStatusFilter||renditionSalonFilter)filterRenditions();
 }
 function renditionTotal(rows){return rows.reduce((total,item)=>total+Number(item.amount||0),0);}
 function renditionCountLabel(count){return `${count} ${count===1?"trabajo visible":"trabajos visibles"}`;}
@@ -975,7 +982,7 @@ function updateRenditionBulkBar(rows){
     selectAll.indeterminate=!allSelected&&visibleIds.some(id=>selectedRenditionIds.has(id));
   }
 }
-function currentRenditionRows(){return state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!renditionStatusFilter||r.status===renditionStatusFilter)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));}
+function currentRenditionRows(){return state.renditions.filter(r=>(renditionViewMode==="archived"?Boolean(r.archivedAt):!r.archivedAt)&&(!renditionStatusFilter||r.status===renditionStatusFilter)&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)&&(!renditionSalonFilter||renditionSalon(r)===renditionSalonFilter)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));}
 function toggleRenditionSelect(id,checked){if(checked)selectedRenditionIds.add(id);else selectedRenditionIds.delete(id);const rows=currentRenditionRows();updateRenditionTotal(rows);updateRenditionBulkBar(rows);}
 function toggleRenditionSelectAll(checked){const rows=currentRenditionRows();rows.forEach(r=>checked?selectedRenditionIds.add(r.id):selectedRenditionIds.delete(r.id));document.getElementById("renditionRows").innerHTML=renditionRows(rows);updateRenditionBulkBar(rows);}
 function bulkArchiveRenditions(){
@@ -1009,7 +1016,7 @@ function bulkDeleteRenditions(){
   saveState();
   toast(`${ids.length} rendición${ids.length===1?"":"es"} eliminada${ids.length===1?"":"s"}`);
 }
-function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId),processed=r.status!=="pending";const actions=r.archivedAt?`<button class="small-btn" data-restore-rendition="${r.id}">Restaurar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:processed?`<button class="small-btn" data-archive-rendition="${r.id}">Archivar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:`<span class="muted">Rendila para archivar</span>`; return `<div class="rendition-row ${selectedRenditionIds.has(r.id)?"selected":""}"><div class="rendition-work-cell"><input type="checkbox" class="rendition-check" data-rendition-select="${r.id}" ${selectedRenditionIds.has(r.id)?"checked":""} aria-label="Seleccionar"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(r.isManual?(r.salon||"Sin salón"):(c?`#${c.code} · ${c.honoree}`:"Cliente eliminado"))} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div></div><span>${r.isManual?dateText(r.eventDate):(c?dateText(c.eventDate):"-")}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}" ${r.archivedAt?"disabled title=\"Restaurá la rendición para cambiar su estado\"":""}>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select><div class="rendition-actions">${actions}</div></div>`;}).join("") : empty(renditionViewMode==="archived"?"No hay rendiciones archivadas":"Sin rendiciones activas", renditionViewMode==="archived"?"Las rendiciones que archives aparecerán aquí.":"Al completar un trabajo remunerado aparecerá aquí."); }
+function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId),processed=r.status!=="pending";const actions=r.archivedAt?`<button class="small-btn" data-restore-rendition="${r.id}">Restaurar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:processed?`<button class="small-btn" data-archive-rendition="${r.id}">Archivar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:`<span class="muted">Rendila para archivar</span>`; return `<div class="rendition-row ${selectedRenditionIds.has(r.id)?"selected":""}"><div class="rendition-work-cell"><input type="checkbox" class="rendition-check" data-rendition-select="${r.id}" ${selectedRenditionIds.has(r.id)?"checked":""} aria-label="Seleccionar"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(r.isManual?(r.salon||"Sin salón"):(c?`#${c.code} · ${c.honoree} · ${c.salon||"Sin salón"}`:"Cliente eliminado"))} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div></div><span>${r.isManual?dateText(r.eventDate):(c?dateText(c.eventDate):"-")}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}" ${r.archivedAt?"disabled title=\"Restaurá la rendición para cambiar su estado\"":""}>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select><div class="rendition-actions">${actions}</div></div>`;}).join("") : empty(renditionViewMode==="archived"?"No hay rendiciones archivadas":"Sin rendiciones activas", renditionViewMode==="archived"?"Las rendiciones que archives aparecerán aquí.":"Al completar un trabajo remunerado aparecerá aquí."); }
 
 function logRenditionArchive(item, archived){const client=state.clients.find(c=>c.id===item.clientId);if(!client)return;client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición ${archived?"archivada":"restaurada"}: ${item.work}`,type:"rendition_archive",renditionId:item.id,archived});}
 function archiveRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;if(item.status==="pending"){toast("Primero marcá la rendición como rendida.");return;}item.archivedAt=new Date().toISOString();logRenditionArchive(item,true);saveState();toast("Rendición archivada");}
@@ -1248,7 +1255,7 @@ function renderFormChecks(client) {
   const selected=client?.addons||[], flex=normalizeFlexServices(client?.flexServices), pixel=normalizeFlexServices(client?.pixelServices);
   document.getElementById("addonChecks").innerHTML=ADDONS.map(([v,l])=>`<label><input type="checkbox" name="addons" value="${v}" ${selected.includes(v)?"checked":""}>${l}</label>`).join("");
   document.getElementById("flexChecks").innerHTML=FLEX_SERVICES.map(([v,l])=>`<label><input type="checkbox" name="flexServices" value="${v}" ${flex.includes(v)?"checked":""}>${l}</label>`).join("");
-  document.getElementById("pixelChecks").innerHTML=FLEX_SERVICES.map(([v,l])=>`<label><input type="checkbox" name="pixelServices" value="${v}" ${pixel.includes(v)?"checked":""}>${l}</label>`).join("");
+  document.getElementById("pixelChecks").innerHTML=FLEX_SERVICES.filter(([v])=>v!=="chronoVideo").map(([v,l])=>`<label><input type="checkbox" name="pixelServices" value="${v}" ${pixel.includes(v)?"checked":""}>${l}</label>`).join("");
 }
 function updateFlexField() {
   const checked=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value), limit=checked.includes("flex")?5:checked.includes("miniflex")?2:0;
@@ -1481,7 +1488,7 @@ async function importClientCsv(file){
 }
 function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;homenajeado;cliente;email;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones\n43828;04/07/2026;Pilar Hotel;15;Cliente de ejemplo;Contacto;contacto@ejemplo.com;+54 9 11 1234 5678;120;(SILVER)(GOLD)(PANT);PIXEL;;\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plantilla_clientes_janos.csv";a.click();URL.revokeObjectURL(a.href);}
 function escapeCsvCell(value){const text=String(value??"");return /[",\n\r]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;}
-function exportRenditionsCsv(){const rows=state.renditions.filter(r=>r.status==="pending"&&!r.archivedAt);if(!rows.length){toast("No hay rendiciones pendientes para exportar.");return;}const header=["categoria","fecha","salon","trabajo","observaciones"];const lines=rows.map(r=>{const client=state.clients.find(c=>c.id===r.clientId);return [r.category,dateText(r.workDate),client?.salon||"",r.work,r.observations||""].map(escapeCsvCell).join(",");});const content=[header.join(","),...lines].join("\r\n")+"\r\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`rendiciones_pendientes_${todayIso()}.csv`;a.click();URL.revokeObjectURL(a.href);toast(`${rows.length} rendici\u00F3n${rows.length===1?"":"es"} exportada${rows.length===1?"":"s"}`);}
+function exportRenditionsCsv(){const rows=state.renditions.filter(r=>r.status==="pending"&&!r.archivedAt&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)&&(!renditionSalonFilter||renditionSalon(r)===renditionSalonFilter));if(!rows.length){toast("No hay rendiciones pendientes para exportar.");return;}const header=["categoria","fecha","salon","trabajo","observaciones"];const lines=rows.map(r=>[r.category,dateText(r.workDate),renditionSalon(r),r.work,r.observations||""].map(escapeCsvCell).join(","));const content=[header.join(","),...lines].join("\r\n")+"\r\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`rendiciones_pendientes_${renditionSalonFilter?renditionSalonFilter.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")+"_":""}${todayIso()}.csv`;a.click();URL.revokeObjectURL(a.href);toast(`${rows.length} rendici\u00F3n${rows.length===1?"":"es"} exportada${rows.length===1?"":"s"}`);}
 
 function generateSelectionBat(clientId) {
   const numerosRaw = document.getElementById(`seleccion-numeros-${clientId}`)?.value.trim();
@@ -1773,7 +1780,7 @@ document.addEventListener("change", e => {
   if(e.target.id==="renditionSelectAll")toggleRenditionSelectAll(e.target.checked);
   if(e.target.name==="whatsappActiveSenderPick"){localStorage.setItem("janosActiveSender",e.target.value);toast("Este dispositivo va a firmar como ese remitente de acá en más");}
 
-  if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter")filterRenditions();
+  if(e.target.id==="renditionFilter"||e.target.id==="renditionCategoryFilter"||e.target.id==="renditionSalonFilter")filterRenditions();
   if(e.target.id==="taskSalonFilter")setTaskSalonFilter(e.target.value);
   if(e.target.id==="calendarSalonFilter"){calendarSalonFilter=e.target.value;localStorage.setItem("janosCalendarSalon",calendarSalonFilter);renderCalendar();}
   if(["clientSalonFilter","clientMonthFilter","clientPackFilter","clientAddonFilter"].includes(e.target.id))filterClients();
@@ -1783,7 +1790,7 @@ document.addEventListener("change", e => {
 document.addEventListener("input",e=>{if(e.target.id==="clientSearch")filterClients();if(e.target.id==="taskSearch")filterTasks();if(e.target.id==="sessionCustomLocation"){sessionPicker.salon=e.target.value;syncSessionFormFields();}if(e.target.id==="sessionCustomTime"){sessionPicker.time=e.target.value;syncSessionFormFields();}});
 document.addEventListener("change",e=>{if(e.target.dataset.taskCheck){const[c,t]=e.target.dataset.taskCheck.split("|");if(!e.target.checked&&!confirm("¿Marcar esta tarea como pendiente de nuevo? Si había generado una rendición, se va a quitar.")){e.target.checked=true;return;}updateTask(c,t,e.target.checked?"done":"pending");}});
 function filterClients(){const q=(document.getElementById("clientSearch")?.value||"").toLowerCase(),salon=document.getElementById("clientSalonFilter")?.value||"",month=document.getElementById("clientMonthFilter")?.value||"",pack=document.getElementById("clientPackFilter")?.value||"",addon=document.getElementById("clientAddonFilter")?.value||"";clientFilters={search:q,salon,month,pack,addon};const filtered=state.clients.filter(c=>(clientViewMode==="archived"?isPastEvent(c):!isPastEvent(c))&&(!salon||c.salon===salon)&&(!month||monthKey(c.eventDate)===month)&&(!pack||c.pack===pack)&&(!addon||(c.addons||[]).includes(addon))&&[c.honoree,c.clientName,c.code].some(v=>String(v||"").toLowerCase().includes(q)));document.getElementById("clientGrid").innerHTML=clientCards(filtered);const count=document.getElementById("clientResultCount");if(count)count.textContent=eventCountLabel(filtered.length);}
-function filterRenditions(){renditionStatusFilter=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";selectedRenditionIds.clear();const filtered=currentRenditionRows();document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);updateRenditionBulkBar(filtered);}
+function filterRenditions(){renditionStatusFilter=document.getElementById("renditionFilter")?.value||"";renditionCategoryFilter=document.getElementById("renditionCategoryFilter")?.value||"";renditionSalonFilter=document.getElementById("renditionSalonFilter")?.value||"";selectedRenditionIds.clear();const filtered=currentRenditionRows();document.getElementById("renditionRows").innerHTML=renditionRows(filtered);updateRenditionTotal(filtered);updateRenditionBulkBar(filtered);}
 document.getElementById("newClientBtn").addEventListener("click",()=>openClientForm());
 document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
 
