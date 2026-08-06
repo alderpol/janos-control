@@ -104,7 +104,7 @@ const SPEECH_TYPES = [
 ];
 
 const ADDONS = [
-  ["pant", "Pantalla"], ["pixel", "Pixel"], ["miniflex", "Mini Flex"], ["flex", "Flex"],
+  ["pant", "Pantalla"], ["miniflex", "Mini Flex"], ["flex", "Flex"],
   ["sansSouci", "Sans Souci"], ["libro", "Libro Combo"], ["maqui", "Maquillaje"], ["maquiplus", "Maquillaje Plus"], ["maquix2plus", "Maquillaje x2 Plus"], ["moda", "Producción de Moda"],
   ["drone", "Drone"], ["vipExtras", "Extras VIP"], ["glamCam", "Glam Cam"], ["alfombraRoja", "Alfombra Roja"],
   ["invitacion", "Invitación Interactiva"], ["fotoIman", "Foto Imán"], ["vipUpgrade", "Upgrade VIP"], ["cere", "Ceremonia"]
@@ -224,22 +224,6 @@ const FLEX_TASKS = {
   chronoVideo: task("flexChronoVideo", "Editar video cronológico del evento", "Servicios elegidos", true, "COMPLEMENTOS", "Video cronologico", "videoExtraClip")
 };
 
-// Mismas opciones que Flex/Mini Flex pero para clientes con el adicional Pixel
-const PIXEL_TASKS = {
-  church: task("pixelChurch", "Cubrir iglesia o templo (Pixel)", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Iglesia (servicio extra por upgrade)", "churchUpgrade"),
-  civilPhoto: task("pixelCivilPhoto", "Cubrir ceremonia civil - fotografía (Pixel)", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Civil", "book"),
-  civilVideo: task("pixelCivilVideo", "Cubrir ceremonia civil - video (Pixel)", "Servicios elegidos", true, "PERSONAL VIDEO", "Civil (valor book)", "book"),
-  droneEvent: task("pixelDroneEvent", "Realizar drone en recepción (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Drone en evento", "drone"),
-  droneBook: task("pixelDroneBook", "Realizar drone en sesión (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Drone en sesión de fotos", "drone"),
-  photoExtra: task("pixelPhotoExtra", "Cubrir evento como fotógrafo extra (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Fiesta (segundo fotografo)", "photoExtra"),
-  videoExtra: task("pixelVideoExtra", "Cubrir evento como videógrafo extra (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Fiesta (segundo videógrafo)", "videoExtra"),
-  signatureBook: task("pixelSignature", "Diseñar libro de firmas y mural (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Libro firmas (Fotografia Digital)", "signatureDesign"),
-  partyBook: task("pixelPartyBook", "Diseñar libro de fotos de la fiesta (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Libro Fiesta (Fotografia Digital)", "partyBookDesign"),
-  liveEditor: task("pixelLive", "Realizar edición en vivo (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Edicion en vivo video", "liveEditor"),
-  friendsVideo: task("pixelFriends", "Realizar video con amigos (Pixel)", "Servicios elegidos", true, "COMPLEMENTOS", "Video con amigos", "book"),
-  extraSession: task("pixelSessionPhoto", "Realizar sesión extra - fotografía (Pixel)", "Servicios elegidos", true, "PERSONAL FOTOGRAFIA", "Sesion de fotos (cobertura + edicion)", "book"),
-  extraSessionVideo: task("pixelSessionVideo", "Realizar sesión extra - video (Pixel)", "Servicios elegidos", true, "PERSONAL VIDEO", "Sesion de fotos (cobertura)", "bookCoverage")
-};
 
 function task(key, title, phase, payable = false, category = "", work = "", rateKey = "") {
   return { key, title, phase, payable, category, work, rateKey };
@@ -254,10 +238,7 @@ const TASK_ROLES = {
   flexChurch: "foto", flexCivilPhoto: "foto", flexCivilVideo: "video", flexPhotoExtra: "foto", flexVideoExtra: "video",
   flexSignature: "foto", flexPartyBook: "foto", flexLive: "video", flexFriends: "video",
   flexSessionPhoto: "foto", flexSessionVideo: "video", flexChronoVideo: "video",
-  pixelChurch: "foto", pixelCivilPhoto: "foto", pixelCivilVideo: "video", pixelPhotoExtra: "foto", pixelVideoExtra: "video",
-  pixelSignature: "foto", pixelPartyBook: "foto", pixelLive: "video", pixelFriends: "video",
-  pixelSessionPhoto: "foto", pixelSessionVideo: "video",
-  screenVideo: "video", pixelCheck: "foto", bookModa: "foto",
+  screenVideo: "video", bookModa: "foto",
   signatureBook: "foto", partyBookSelection: "foto", partyBook: "foto", totemDigital: "foto",
   informal: "foto"
 };
@@ -331,7 +312,6 @@ function createTasks(client) {
     if (client.pack === "vip") definitions.push(...VIP_TASKS);
   }
   if (client.addons.includes("pant")) definitions.push(task("screenVideo", "Preparar video de entrada para pantalla", "Pre-evento", true, "COMPLEMENTOS", "Video de entrada para pantalla", "videoExtraClip"));
-  if (client.addons.includes("pixel")) definitions.push(task("pixelCheck", "Confirmar contenido y funcionamiento de Pixel", "Pre-evento"));
   if (client.addons.includes("moda") || client.photoSession?.includesFashionProduction) definitions.push(task("bookModa", "Realizar adicional de book con producción de moda", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Adicional book con Moda", "bookModa"));
   if (client.addons.includes("sansSouci")) definitions.push(
     task("sansSouciCoverage", "Realizar sesión de fotos en Palacio Sans Souci", "Adicionales", true, "PERSONAL FOTOGRAFIA", "Sesion Sans Souci (cobertura + edicion)", "book")
@@ -350,7 +330,6 @@ function createTasks(client) {
     if (videoIdx !== -1) definitions.splice(videoIdx + 1, 0, ceremonyVideo); else definitions.push(ceremonyVideo);
   }
   normalizeFlexServices(client.flexServices).forEach(code => { if (FLEX_TASKS[code]) definitions.push(FLEX_TASKS[code]); });
-  normalizeFlexServices(client.pixelServices).forEach(code => { if (client.addons.includes("pixel") && PIXEL_TASKS[code]) definitions.push(PIXEL_TASKS[code]); });
   const hasSession = definitions.some(item => ["bookCoveragePhoto", "flexSessionPhoto"].includes(item.key));
   if (hasSession) definitions.push(task("totemDigital", "Preparar mural / tótem digital de la sesión", "Pre-evento", true, "COMPLEMENTOS", "Televisor Fotografia Digital", "totemDigital"));
   // Salvaguarda: nunca generar dos tareas con la misma key para un mismo cliente
@@ -430,7 +409,7 @@ function attentionItemsBuckets() {
     if(!c.isExternal&&hasPrintedBook&&!hasPhotoSession&&!c.dismissedConflicts?.libroCombo) upcoming.push({days:-1,html:`<div class="attention-alert attention-conflict"><button data-open-client="${c.id}" class="attention-alert-main"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span></div><span>Conflicto de venta: Libro Combo sin sesión</span><small>El Libro Combo requiere una sesión de fotos. Agregá Mini Flex/Flex con "Sesión extra - fotografía", o Sans Souci, para habilitarla.</small></button><button type="button" class="ghost-btn attention-dismiss" data-dismiss-conflict="${c.id}" data-conflict-key="libroCombo" title="Ya lo resolví con el cliente">Marcar resuelto</button></div>`});
     const sessionTask=c.tasks.find(t=>t.key==="coordinateSession"), sessionDue=sessionTask&&!["done","na"].includes(sessionTask.status)&&days>=0&&days<=30;
     if(!c.isExternal&&sessionDue){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;upcoming.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span></div><span>Sesión de fotos sin agendar</span><small>${when} · Coordinar y reservar la sesión de fotos.</small></button>`});}
-    const extraServiceKeys=["flexLive","flexPhotoExtra","flexVideoExtra","pixelLive","pixelPhotoExtra","pixelVideoExtra"];
+    const extraServiceKeys=["flexLive","flexPhotoExtra","flexVideoExtra"];
     const extraServicesPending=c.tasks.filter(t=>extraServiceKeys.includes(t.key)&&!["done","na"].includes(t.status));
     if(!c.isExternal&&extraServicesPending.length&&days>=0&&days<=20){const when=days===0?"Evento hoy":`Faltan ${days} ${days===1?"día":"días"}`;upcoming.push({days:sortDays,html:`<button class="attention-alert ${attentionUrgency(days)} attention-blink" data-open-client="${c.id}"><div class="attention-top"><strong>${escapeHtml(c.honoree)}</strong><span class="tag attention-salon-tag${salonTagClass(c.salon)}">${escapeHtml(c.salon||"")}</span></div><span>Servicios extra sin confirmar</span><small>${when} · ${extraServicesPending.map(t=>t.title).join(" · ")}</small></button>`});}
   });
@@ -454,7 +433,7 @@ function contactWatchItemsHtml(list) {
     }).join("");
 }
 // Clientes cuyo evento tiene una sesión de fotos previa habilitada (pack
-// gold/vip, Sans Souci, o "Sesión extra" en Flex/Pixel) pero todavía no la
+// gold/vip, Sans Souci, o "Sesión extra" en Flex) pero todavía no la
 // agendaron (photoSession.date vacío), con el evento entre 30 y 90 días.
 // Antes de los 30 días ya aparece la alerta roja "Sesión de fotos sin
 // agendar" en el panel "Por venir · requieren atención"; este listado es el
@@ -888,8 +867,8 @@ function sessionMapsUrl(session){
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 function photoSessionSummary(client){const session=client.photoSession;if(!session?.date)return "Sin sesión agendada";return `${sessionDateTimeText(session)} · ${session.location||client.salon}`;}
-// Silver no incluye sesión de fotos salvo que contrate "Sesión extra" (Mini Flex/Flex/Pixel), Sans Souci, o sea Gold/VIP.
-function canScheduleSession(c) { return ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || normalizeFlexServices(c.flexServices).includes("extraSession") || normalizeFlexServices(c.pixelServices).includes("extraSession"); }
+// Silver no incluye sesión de fotos salvo que contrate "Sesión extra" (Mini Flex/Flex), Sans Souci, o sea Gold/VIP.
+function canScheduleSession(c) { return ["gold","vip"].includes(c.pack) || (c.addons||[]).includes("sansSouci") || normalizeFlexServices(c.flexServices).includes("extraSession"); }
 // Silver sin "Sesión extra" no tiene sesión de fotos incluida: no mostramos el botón.
 function photoSessionButtonHtml(c) { if (c.pack === "silver" && !canScheduleSession(c)) return ""; return `<button class="secondary-btn" data-photo-session="${c.id}">${c.photoSession?.date?"Reprogramar sesión":"Agendar sesión de fotos"}</button>`; }
 // Panel con los speeches de grupo aplicables a este cliente. "Coordinación
@@ -1249,13 +1228,12 @@ function openClientForm(client=null) {
   populateClientSalonSelect(client?.salon);
   if(client) ["code","eventDate","salon","type","honoree","clientName","clientPhone","clientEmail","whatsappGroupUrl","driveUrl","guests","pack","notes"].forEach(k=>form.elements[k].value=client[k]??"");
   form.elements.isExternal.checked=Boolean(client?.isExternal);
-  renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField(); updatePixelField();
+  renderFormChecks(client); document.getElementById("clientDialog").showModal(); updateFlexField();
 }
 function renderFormChecks(client) {
-  const selected=client?.addons||[], flex=normalizeFlexServices(client?.flexServices), pixel=normalizeFlexServices(client?.pixelServices);
+  const selected=client?.addons||[], flex=normalizeFlexServices(client?.flexServices);
   document.getElementById("addonChecks").innerHTML=ADDONS.map(([v,l])=>`<label><input type="checkbox" name="addons" value="${v}" ${selected.includes(v)?"checked":""}>${l}</label>`).join("");
   document.getElementById("flexChecks").innerHTML=FLEX_SERVICES.map(([v,l])=>`<label><input type="checkbox" name="flexServices" value="${v}" ${flex.includes(v)?"checked":""}>${l}</label>`).join("");
-  document.getElementById("pixelChecks").innerHTML=FLEX_SERVICES.filter(([v])=>v!=="chronoVideo").map(([v,l])=>`<label><input type="checkbox" name="pixelServices" value="${v}" ${pixel.includes(v)?"checked":""}>${l}</label>`).join("");
 }
 function updateFlexField() {
   const checked=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value), limit=checked.includes("flex")?5:checked.includes("miniflex")?2:0;
@@ -1266,13 +1244,8 @@ function updateFlexField() {
   document.getElementById("flexLimitHelp").textContent=limit?`(${count}/${limit})`:"";
   if(limit)document.querySelectorAll('[name="flexServices"]').forEach(input=>{input.disabled=!input.checked&&count>=limit&&!usedSlots.has(flexServiceSlot(input.value));});
 }
-function updatePixelField() {
-  const checked=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value), active=checked.includes("pixel");
-  if(!active)document.querySelectorAll('[name="pixelServices"]').forEach(input=>input.checked=false);
-  document.getElementById("pixelField").classList.toggle("hidden",!active);
-}
 function saveClient(form) {
-  const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value); const pixelServices=[...form.querySelectorAll('[name="pixelServices"]:checked')].map(x=>x.value);
+  const data=Object.fromEntries(new FormData(form)); const addons=[...form.querySelectorAll('[name="addons"]:checked')].map(x=>x.value); const flexServices=[...form.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value);
   data.isExternal=form.elements.isExternal.checked;
   data.whatsappGroupUrl=String(data.whatsappGroupUrl||"").trim();
   data.driveUrl=String(data.driveUrl||"").trim();
@@ -1280,8 +1253,8 @@ function saveClient(form) {
   if(data.clientPhone){const phoneDigits=whatsappNumber(data.clientPhone).length;if(phoneDigits<10||phoneDigits>15){toast("Ingresá el WhatsApp con código de país, por ejemplo +54 9 11 1234 5678 o +34 697 94 15 66.");form.elements.clientPhone.focus();return false;}}
   const limit=addons.includes("flex")?5:addons.includes("miniflex")?2:0; if(limit&&countFlexSlots(flexServices)>limit){toast(`Elegí como máximo ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`); return false;}
   const duplicate=state.clients.find(c=>c.code===data.code&&c.id!==data.id); if(duplicate){toast("Ya existe un cliente con ese código."); return false;}
-  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,pixelServices,guests:Number(data.guests||0)}); syncTasks(c);}
-  else {const client={...data,id:uid(),addons,flexServices,pixelServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
+  if(data.id){const c=state.clients.find(x=>x.id===data.id); Object.assign(c,data,{addons,flexServices,guests:Number(data.guests||0)}); syncTasks(c);}
+  else {const client={...data,id:uid(),addons,flexServices,guests:Number(data.guests||0),createdAt:new Date().toISOString(),history:[{date:new Date().toISOString(),text:"Cliente creado"}]}; client.tasks=createTasks(client); state.clients.push(client);}
   saveState(); toast(data.id?"Cliente actualizado":"Cliente creado con su plan de trabajo"); return true;
 }
 function syncTasks(client) { const existing=new Map(client.tasks.map(t=>[t.key,t])); const newTasks=createTasks(client); const newKeys=new Set(newTasks.map(t=>t.key)); const removedTasks=client.tasks.filter(t=>!newKeys.has(t.key)); removedTasks.forEach(t=>{const r=state.renditions.find(r=>r.taskId===t.id); if(r&&r.status==="pending"){state.renditions=state.renditions.filter(x=>x.id!==r.id); client.history.push({date:new Date().toISOString(),text:`Rendición eliminada automáticamente (servicio quitado): ${r.work}`,type:"rendition_delete",renditionId:r.id});}}); client.tasks=newTasks.map(t=>existing.has(t.key)?{...existing.get(t.key),title:t.title,phase:t.phase,payable:t.payable,category:t.category,work:t.work,rateKey:t.rateKey}:t); client.history.push({date:new Date().toISOString(),text:"Datos del cliente actualizados"}); }
@@ -1399,7 +1372,7 @@ function normalizeHeader(value){return String(value||"").normalize("NFD").replac
 function firstValue(row,keys){for(const key of keys){if(row[key]!==undefined&&String(row[key]).trim()!=="")return String(row[key]).trim();}return "";}
 function normalizeDate(value){const text=String(value||"").trim();if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(text)){const[y,m,d]=text.split("-");return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;}const match=text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);if(!match)return "";const year=match[3].length===2?`20${match[3]}`:match[3];return `${year}-${match[2].padStart(2,"0")}-${match[1].padStart(2,"0")}`;}
 function parsePack(raw){const text=String(raw||"").toUpperCase();if(text.includes("VIP"))return "vip";if(text.includes("INFORMAL"))return "informal";if(text.includes("GOLD")||text.includes("ALL INCLUSIVE")||text.includes("GOLDEN"))return "gold";return "silver";}
-function parseAddons(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["pant",/PANT/],["pixel",/PIXEL/],["miniflex",/UP\.?MFLEX|MINI\s*FLEX/],["flex",/UP\.FLEX|\bFLEX\b/],["libro",/LIBRO/],["maquix2plus",/MAQUI\s*X\s*2\s*PLUS/],["maquiplus",/MAQUI\s*PLUS/],["maqui",/MAQUI/],["moda",/\bMODA\b/],["drone",/DRONE/],["sansSouci",/SANS\s*SOUCI/],["glamCam",/G\.?\s*CAM/],["alfombraRoja",/A\.?\s*ROJA/],["invitacion",/INVITACION/],["fotoIman",/FOTO\.?\s*IMAN/],["vipUpgrade",/UP\.?\s*VIP/],["cere",/\bCERE\b/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});let result=[...new Set(items)];if(result.includes("miniflex"))result=result.filter(x=>x!=="flex");if(result.includes("maquix2plus"))result=result.filter(x=>x!=="maqui"&&x!=="maquiplus");else if(result.includes("maquiplus"))result=result.filter(x=>x!=="maqui");return result;}
+function parseAddons(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["pant",/PANT/],["miniflex",/UP\.?MFLEX|MINI\s*FLEX/],["flex",/UP\.FLEX|\bFLEX\b/],["libro",/LIBRO/],["maquix2plus",/MAQUI\s*X\s*2\s*PLUS/],["maquiplus",/MAQUI\s*PLUS/],["maqui",/MAQUI/],["moda",/\bMODA\b/],["drone",/DRONE/],["sansSouci",/SANS\s*SOUCI/],["glamCam",/G\.?\s*CAM/],["alfombraRoja",/A\.?\s*ROJA/],["invitacion",/INVITACION/],["fotoIman",/FOTO\.?\s*IMAN/],["vipUpgrade",/UP\.?\s*VIP/],["cere",/\bCERE\b/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});let result=[...new Set(items)];if(result.includes("miniflex"))result=result.filter(x=>x!=="flex");if(result.includes("maquix2plus"))result=result.filter(x=>x!=="maqui"&&x!=="maquiplus");else if(result.includes("maquiplus"))result=result.filter(x=>x!=="maqui");return result;}
 function parseFlexServices(raw){const text=String(raw||"").toUpperCase(),items=[];const rules=[["church",/IGLESIA|TEMPLO/],["civilPhoto",/CIVIL/],["droneEvent",/DRONE.*(EVENTO|RECEPC)/],["droneBook",/DRONE.*(BOOK|SESION)/],["photoExtra",/FOTOGRAFO EXTRA/],["videoExtra",/VIDEOGRAFO EXTRA/],["signatureBook",/LIBRO.*FIRMA/],["partyBook",/LIBRO.*FIESTA/],["liveEditor",/EDITOR.*VIVO|EDICION EN VIVO/],["friendsVideo",/VIDEO.*AMIG/],["extraSession",/SESION EXTRA/]];rules.forEach(([key,regex])=>{if(regex.test(text))items.push(key);});return items;}
 function askCsvConflict(client, diffs, remaining) {
   return new Promise(resolve => {
@@ -1486,7 +1459,7 @@ async function importClientCsv(file){
     toast("Ocurrió un error al importar el archivo. Verificá el formato del CSV y volvé a intentar.");
   }
 }
-function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;homenajeado;cliente;email;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones\n43828;04/07/2026;Pilar Hotel;15;Cliente de ejemplo;Contacto;contacto@ejemplo.com;+54 9 11 1234 5678;120;(SILVER)(GOLD)(PANT);PIXEL;;\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plantilla_clientes_janos.csv";a.click();URL.revokeObjectURL(a.href);}
+function downloadClientTemplate(){const content="codigo;fecha_evento;salon;tipo;homenajeado;cliente;email;whatsapp;invitados;pack_upgrades;adicionales;servicios_flex;observaciones\n43828;04/07/2026;Pilar Hotel;15;Cliente de ejemplo;Contacto;contacto@ejemplo.com;+54 9 11 1234 5678;120;(SILVER)(GOLD)(PANT);;;\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plantilla_clientes_janos.csv";a.click();URL.revokeObjectURL(a.href);}
 function escapeCsvCell(value){const text=String(value??"");return /[",\n\r]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;}
 function exportRenditionsCsv(){const rows=state.renditions.filter(r=>r.status==="pending"&&!r.archivedAt&&(!renditionCategoryFilter||r.category===renditionCategoryFilter)&&(!renditionSalonFilter||renditionSalon(r)===renditionSalonFilter));if(!rows.length){toast("No hay rendiciones pendientes para exportar.");return;}const header=["categoria","fecha","salon","trabajo","observaciones"];const lines=rows.map(r=>[r.category,dateText(r.workDate),renditionSalon(r),r.work,r.observations||""].map(escapeCsvCell).join(","));const content=[header.join(","),...lines].join("\r\n")+"\r\n";const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`rendiciones_pendientes_${renditionSalonFilter?renditionSalonFilter.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")+"_":""}${todayIso()}.csv`;a.click();URL.revokeObjectURL(a.href);toast(`${rows.length} rendici\u00F3n${rows.length===1?"":"es"} exportada${rows.length===1?"":"s"}`);}
 
@@ -1770,7 +1743,6 @@ document.addEventListener("change", e => {
   if(e.target.matches('[name="addons"][value="miniflex"], [name="addons"][value="flex"]')&&e.target.checked){const other=e.target.value==="flex"?"miniflex":"flex";const otherInput=document.querySelector(`[name="addons"][value="${other}"]`);if(otherInput)otherInput.checked=false;}
   if(e.target.matches('[name="flexServices"]')&&e.target.checked){const checkedAddons=[...document.querySelectorAll('[name="addons"]:checked')].map(x=>x.value),limit=checkedAddons.includes("flex")?5:checkedAddons.includes("miniflex")?2:0,count=countFlexSlots([...document.querySelectorAll('[name="flexServices"]:checked')].map(x=>x.value));if(limit&&count>limit){e.target.checked=false;toast(`Ya elegiste el máximo de ${limit} servicios para ${limit===2?"Mini Flex":"Flex"}.`);}}
   if(e.target.matches('[name="addons"], [name="flexServices"]'))updateFlexField();
-  if(e.target.matches('[name="addons"], [name="pixelServices"]'))updatePixelField();
   if(e.target.dataset.taskStatus){const [c,t]=e.target.dataset.taskStatus.split("|");updateTask(c,t,e.target.value);}
   if(e.target.dataset.taskResponsible){const [c,t]=e.target.dataset.taskResponsible.split("|");const task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.responsible=e.target.value;saveState();}}
   if(e.target.dataset.taskDate){const [c,t]=e.target.dataset.taskDate.split("|"),task=state.clients.find(x=>x.id===c)?.tasks.find(x=>x.id===t);if(task){task.completedAt=e.target.value;const rendition=state.renditions.find(r=>r.taskId===task.id);if(rendition&&e.target.value){rendition.workDate=e.target.value;rendition.periodEnd=periodEndFor(e.target.value);}saveState();}}
