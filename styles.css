@@ -166,6 +166,9 @@ nav { display: grid; gap: 3px; }
 .attention-alert .attention-top span.attention-salon-tag { display: inline-flex; flex-shrink: 0; margin-top: 0; font-size: 10.5px; font-weight: 700; text-transform: none; letter-spacing: .02em; }
 .tag.attention-salon-tag.salon-tag-quinta { color: #2dd4bf; background: rgba(45,212,191,.14); border: 1px solid rgba(45,212,191,.4); }
 .tag.attention-salon-tag.salon-tag-pilarhotel { color: var(--purple-2); background: var(--purple-soft); border: 1px solid rgba(139,92,246,.4); }
+/* Solo estético: fecha de "Coordinar sesión" una vez agendada, coloreada como el salón */
+.session-date-tag.salon-tag-quinta { color: #2dd4bf; border-color: rgba(45,212,191,.4); }
+.session-date-tag.salon-tag-pilarhotel { color: var(--purple-2); border-color: rgba(139,92,246,.4); }
 .attention-alert span { margin-top: 4px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .attention-alert small { margin-top: 5px; line-height: 1.4; }
 .attention-alert.urgency-red { color: white; border: 1px solid rgba(248,113,113,.3); border-left: 3px solid #f87171; background: rgba(248,113,113,.12); box-shadow: 0 4px 16px rgba(248,113,113,.15); }
