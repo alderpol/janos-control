@@ -863,6 +863,10 @@ function sessionSpeechTimeText(time){
 // busca tal cual la escribiste.
 function sessionMapsUrl(session){
   if(!session?.location) return "";
+  // Palacio Sans Souci no es un salón propio de Jano's (es una locación externa),
+  // así que buscarlo como "Jano's Sans Souci" en Maps devuelve un lugar equivocado.
+  // Usamos el link directo que confirmó Pablo en vez de armar una búsqueda.
+  if(session.location==="Sans Souci") return "https://maps.app.goo.gl/UHLRSXnCAbsFduSN6";
   const query=SESSION_SALONS.includes(session.location) ? `Jano's ${session.location}, Argentina` : session.location;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
