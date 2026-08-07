@@ -1224,7 +1224,12 @@ function populateClientSalonSelect(currentSalon){
   if(currentSalon&&!mySalons.includes(currentSalon))mySalons.push(currentSalon);
   select.innerHTML='<option value="">Seleccionar</option>'+mySalons.map(s=>`<option>${escapeHtml(s)}</option>`).join("")+'<option>Otro</option>';
 }
-function openClientForm(client=null) {
+// Si el formulario se abrió desde "Editar ficha" dentro de la ficha del cliente
+// (que se cierra al abrir el form), acá guardamos a quién volver a abrir después
+// de guardar, para no perder el contexto de tareas/rendición del cliente.
+let clientFormReopenDetailId = null;
+function openClientForm(client=null, reopenDetailId=null) {
+  clientFormReopenDetailId = reopenDetailId;
   const form=document.getElementById("clientForm"); form.reset(); form.elements.id.value=client?.id||"";
   document.getElementById("clientDialogTitle").textContent=client?"Editar cliente":"Nuevo cliente";
   document.getElementById("deleteClientFromForm").classList.toggle("hidden",!client);
@@ -1713,7 +1718,7 @@ document.addEventListener("click", e => {
   const dismissConflict=e.target.closest("[data-dismiss-conflict]");if(dismissConflict){const c=state.clients.find(x=>x.id===dismissConflict.dataset.dismissConflict);if(c){const key=dismissConflict.dataset.conflictKey||"general";c.dismissedConflicts=c.dismissedConflicts||{};c.dismissedConflicts[key]=true;c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Alerta de conflicto marcada como resuelta manualmente",type:"conflict_dismissed"});saveState();renderDashboard();toast("Alerta ocultada. Podés reactivarla si el conflicto real cambia editando la ficha.");}}
   const userStatus=e.target.closest("[data-user-status]");if(userStatus)changeUserStatus(userStatus.dataset.userStatus,userStatus.dataset.nextStatus);
   const deleteUserBtn=e.target.closest("[data-delete-user]");if(deleteUserBtn)deleteUserAccount(deleteUserBtn.dataset.deleteUser);
-  const edit=e.target.closest("[data-edit-client]"); if(edit){document.getElementById("detailDialog").close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient));}
+  const edit=e.target.closest("[data-edit-client]"); if(edit){const detail=document.getElementById("detailDialog");const wasDetailOpen=detail.open;if(wasDetailOpen)detail.close();openClientForm(state.clients.find(c=>c.id===edit.dataset.editClient), wasDetailOpen?edit.dataset.editClient:null);}
   if(e.target.closest("[data-close-detail]"))document.getElementById("detailDialog").close();
   if(e.target.closest("[data-close-client-form]"))document.getElementById("clientDialog").close();
   if(e.target.closest("[data-close-photo-session]"))document.getElementById("photoSessionDialog").close();
@@ -1777,7 +1782,7 @@ document.getElementById("newClientBtn").addEventListener("click",()=>openClientF
 document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
 
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
-document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
+document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget)){document.getElementById("clientDialog").close();if(clientFormReopenDetailId){const id=clientFormReopenDetailId;clientFormReopenDetailId=null;openClientDetail(id);}}});
 // Cerrar el diálogo al clickear el fondo (fuera del contenido), pero solo si
 // el click "empezó y terminó" en el fondo. Antes se chequeaba únicamente el
 // target del click, así que arrastrar el mouse para seleccionar texto adentro
