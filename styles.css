@@ -182,7 +182,7 @@ nav { display: grid; gap: 3px; }
 .attention-alert.urgency-green small { color: var(--muted); }
 .attention-alert.attention-blink span { animation: attention-blink-anim 1.4s ease-in-out infinite; }
 .attention-alert.attention-conflict { border: 1.5px solid #111827; background: #ffffff; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
-.attention-alert.attention-conflict span { color: #111827; }
+.attention-alert.attention-conflict span, .attention-alert.attention-conflict strong, .attention-alert.attention-conflict small { color: #111827; }
 .attention-alert-main { width: 100%; text-align: left; background: transparent; border: none; padding: 0; cursor: pointer; }
 .attention-alert-main strong, .attention-alert-main span, .attention-alert-main small { display: block; }
 .attention-alert-main .attention-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
