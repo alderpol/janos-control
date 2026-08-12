@@ -85,7 +85,11 @@
           <label for="destination">Dirección de destino (sesión de fotos)</label>
           <input type="text" id="destination" placeholder="Ej. Ruta Panamericana Km 34, Pilar">
         </div>
-        <button type="button" class="maps-btn" id="calcDistanceBtn">Calcular distancia con Google Maps</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="maps-btn" data-route="shortest" id="calcShortBtn">Ruta corta</button>
+          <button type="button" class="maps-btn" data-route="longest" id="calcLongBtn">Ruta larga</button>
+          <button type="button" class="maps-btn" data-route="fastest" id="calcFastBtn">Ruta rápida</button>
+        </div>
         <p id="mapsMsg" class="maps-msg" style="display:none;"></p>
       </div>
 
@@ -212,7 +216,12 @@
       if (salonSelect.value) originInput.value = salonSelect.value;
     });
 
-    const calcBtn = document.getElementById('calcDistanceBtn');
+    const routeBtns = [
+      document.getElementById('calcShortBtn'),
+      document.getElementById('calcLongBtn'),
+      document.getElementById('calcFastBtn'),
+    ];
+    const routeBtnLabels = new Map(routeBtns.map(btn => [btn, btn.textContent]));
     const mapsMsg = document.getElementById('mapsMsg');
 
     function showMapsMsg(text, type){
@@ -221,40 +230,41 @@
       mapsMsg.style.display = 'block';
     }
 
-    calcBtn.addEventListener('click', async () => {
-      const origin = document.getElementById('origin').value.trim();
-      const destination = document.getElementById('destination').value.trim();
-      if (!origin || !destination) {
-        showMapsMsg('Completá origen y destino.', 'error');
-        return;
-      }
+    routeBtns.forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const origin = document.getElementById('origin').value.trim();
+        const destination = document.getElementById('destination').value.trim();
+        if (!origin || !destination) {
+          showMapsMsg('Completá origen y destino.', 'error');
+          return;
+        }
 
-      calcBtn.disabled = true;
-      calcBtn.textContent = 'Calculando…';
-      mapsMsg.style.display = 'none';
+        routeBtns.forEach(b => { b.disabled = true; });
+        btn.textContent = 'Calculando…';
+        mapsMsg.style.display = 'none';
 
-      try {
-        const res = await fetch('/api/distance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ origin, destination }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'No se pudo calcular la distancia.');
+        try {
+          const res = await fetch('/api/distance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ origin, destination, routeType: btn.dataset.route }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'No se pudo calcular la distancia.');
 
-        const roundTripKm = Math.round(data.km * 2 * 10) / 10;
-        const kmInput = document.getElementById('km');
-        kmInput.max = Math.max(Number(kmInput.max), Math.ceil(roundTripKm));
-        kmInput.value = roundTripKm;
-        recalc();
+          const roundTripKm = Math.round(data.km * 2 * 10) / 10;
+          const kmInput = document.getElementById('km');
+          kmInput.max = Math.max(Number(kmInput.max), Math.ceil(roundTripKm));
+          kmInput.value = roundTripKm;
+          recalc();
 
-        showMapsMsg(`${data.distanceText} (ida) · ${roundTripKm} km ida y vuelta cargados abajo.`, 'success');
-      } catch (err) {
-        showMapsMsg(err.message || 'Error al calcular la distancia.', 'error');
-      } finally {
-        calcBtn.disabled = false;
-        calcBtn.textContent = 'Calcular distancia con Google Maps';
-      }
+          showMapsMsg(`${data.distanceText} (ida) · ${data.durationText} · ${roundTripKm} km ida y vuelta cargados abajo.`, 'success');
+        } catch (err) {
+          showMapsMsg(err.message || 'Error al calcular la distancia.', 'error');
+        } finally {
+          routeBtns.forEach(b => { b.disabled = false; b.textContent = routeBtnLabels.get(b); });
+        }
+      });
     });
   </script>
 </body>

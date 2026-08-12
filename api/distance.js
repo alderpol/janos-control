@@ -7,9 +7,9 @@
 // Usamos Directions (con alternatives=true) en vez de Distance Matrix: Distance
 // Matrix devuelve una sola ruta (la que Google arma como "mejor", priorizando
 // tiempo/tráfico, que puede ser más larga en km por ir toda por autopista) y no
-// deja elegir otra. Para viáticos nos interesan los km reales del trayecto más
-// corto, así que pedimos las rutas alternativas y nos quedamos con la de menor
-// distancia.
+// deja elegir otra. Pedimos las rutas alternativas y, según el parámetro
+// `routeType` que manda el front (shortest | longest | fastest), nos quedamos
+// con la de menor distancia, mayor distancia, o menor duración.
 
 const CORS = {
   "Access-Control-Allow-Origin": "https://janos-control.vercel.app",
@@ -30,8 +30,9 @@ export async function handler(event) {
       return json(500, { error: "Falta la variable GOOGLE_MAPS_API_KEY en Vercel" });
     }
 
-    const { origin, destination } = JSON.parse(event.body || "{}");
+    const { origin, destination, routeType } = JSON.parse(event.body || "{}");
     if (!origin || !destination) return json(400, { error: "Faltan origin y/o destination" });
+    const type = ["shortest", "longest", "fastest"].includes(routeType) ? routeType : "shortest";
 
     const params = new URLSearchParams({
       origin,
@@ -55,8 +56,12 @@ export async function handler(event) {
       return json(422, { error: "No se pudo calcular la ruta entre esas direcciones. Verificá que estén bien escritas." });
     }
 
-    // De todas las rutas alternativas, la de menor distancia (no la más rápida).
-    const best = routes.reduce((shortest, r) => r.legs[0].distance.value < shortest.legs[0].distance.value ? r : shortest);
+    // De todas las rutas alternativas, elegimos según el criterio pedido.
+    const best = routes.reduce((acc, r) => {
+      if (type === "longest") return r.legs[0].distance.value > acc.legs[0].distance.value ? r : acc;
+      if (type === "fastest") return r.legs[0].duration.value < acc.legs[0].duration.value ? r : acc;
+      return r.legs[0].distance.value < acc.legs[0].distance.value ? r : acc; // shortest
+    });
     const leg = best.legs[0];
 
     return json(200, {
@@ -65,6 +70,7 @@ export async function handler(event) {
       durationText: leg.duration.text,
       originAddress: leg.start_address || origin,
       destinationAddress: leg.end_address || destination,
+      routeType: type,
     });
   } catch (err) {
     console.error("distance error:", err);
