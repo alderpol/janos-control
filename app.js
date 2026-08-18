@@ -180,6 +180,58 @@ function getRate(rateKey, eventDateStr) {
   return state.rates[rateKey] || 0;
 }
 
+// Direccion fija para calcular el viatico a Palacio Sans Souci (no es un
+// salon propio de Jano's). Misma logica de tramos que usa la calculadora
+// publica (public/viaticos.html): franquicia sin cargo, despues dos tramos
+// con tarifa por km. Se recalcula por cliente porque el origen (el salon
+// donde el cliente hace la fiesta) cambia la distancia.
+const SANS_SOUCI_VIATICO_ADDRESS = "Palacio Sans Souci, Victoria, Buenos Aires, Argentina";
+const VIATICO_TRAMOS = { franquiciaKm: 40, limiteTramo2Km: 90, tarifaTramo2: 2000, tarifaTramo3: 1000 };
+function viaticoTramosAmount(kmIdaYVuelta) {
+  const { franquiciaKm, limiteTramo2Km, tarifaTramo2, tarifaTramo3 } = VIATICO_TRAMOS;
+  const km2 = Math.max(0, Math.min(kmIdaYVuelta, limiteTramo2Km) - franquiciaKm);
+  const km3 = Math.max(0, kmIdaYVuelta - limiteTramo2Km);
+  return Math.round(km2 * tarifaTramo2 + km3 * tarifaTramo3);
+}
+async function calculateSansSouciViatico(clientId, taskId, triggerBtn) {
+  const c = state.clients.find(x => x.id === clientId);
+  const t = c?.tasks.find(x => x.id === taskId);
+  if (!c || !t) return;
+  if (!c.salon) { toast("Este cliente no tiene salon cargado."); return; }
+  const originalLabel = triggerBtn?.textContent;
+  if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = "Calculando…"; }
+  try {
+    const res = await fetch("/api/distance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ origin: `Jano's ${c.salon}, Argentina`, destination: SANS_SOUCI_VIATICO_ADDRESS, routeType: "fastest" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "No se pudo calcular la distancia.");
+    const kmIdaYVuelta = Math.round(data.km * 2 * 10) / 10;
+    const amount = viaticoTramosAmount(kmIdaYVuelta);
+    t.notes = `Viatico Sans Souci: ${data.km} km ida (ruta rapida) · ${kmIdaYVuelta} km ida y vuelta · ${money(amount)}`;
+    if (!t.completedAt) t.completedAt = todayIso();
+    t.status = "done";
+    const existing = state.renditions.find(r => r.taskId === t.id);
+    if (existing) {
+      existing.amount = amount;
+      existing.observations = t.notes;
+    } else {
+      const workDate = isoDate(t.completedAt) || todayIso();
+      state.renditions.push({ id: uid(), clientId: c.id, taskId: t.id, category: t.category, work: t.work, amount, status: "pending", createdAt: new Date().toISOString(), workDate, periodEnd: periodEndFor(workDate), observations: t.notes });
+    }
+    saveState();
+    refreshTaskViews(c.id);
+    toast(`Viatico calculado: ${kmIdaYVuelta} km ida y vuelta -> ${money(amount)}`);
+  } catch (err) {
+    console.error(err);
+    toast(err.message || "No se pudo calcular el viatico.");
+  } finally {
+    if (triggerBtn) { triggerBtn.disabled = false; triggerBtn.textContent = originalLabel; }
+  }
+}
+
 const CORE_TASKS = [
   task("contact", "Contactar al cliente y explicar el servicio", "Preparación"),
   task("verify", "Verificar pack, upgrades y elecciones", "Preparación"),
@@ -240,7 +292,8 @@ const TASK_ROLES = {
   flexSessionPhoto: "foto", flexSessionVideo: "video", flexChronoVideo: "video",
   screenVideo: "video", bookModa: "foto",
   signatureBook: "foto", partyBookSelection: "foto", partyBook: "foto", totemDigital: "foto",
-  informal: "foto"
+  informal: "foto",
+  sansSouciCoverage: "foto", sansSouciVideoCoverage: "video"
 };
 function taskRole(key) { return TASK_ROLES[key] || "ambos"; }
 
@@ -314,11 +367,16 @@ function createTasks(client) {
   if (client.addons.includes("pant")) definitions.push(task("screenVideo", "Preparar video de entrada para pantalla", "Pre-evento", true, "COMPLEMENTOS", "Video de entrada para pantalla", "videoExtraClip"));
   if (client.addons.includes("moda") || client.photoSession?.includesFashionProduction) definitions.push(task("bookModa", "Realizar adicional de book con producción de moda", "Pre-evento", true, "PERSONAL FOTOGRAFIA", "Adicional book con Moda", "bookModa"));
   if (client.addons.includes("sansSouci")) {
-    // La sesión en Palacio Sans Souci reemplaza a la sesión de fotos estándar del pack: nunca conviven las dos
-    // (si no se saca bookCoveragePhoto acá, quedan dos tareas de $book pagándose por una sola sesión real).
-    definitions = definitions.filter(d => d.key !== "bookCoveragePhoto");
+    // La sesión en Palacio Sans Souci reemplaza a la sesión de fotos Y de video estándar del pack:
+    // nunca conviven la tarea genérica y la de Sans Souci (si no se sacan bookCoveragePhoto/bookCoverageVideo
+    // acá, quedan tareas de $book duplicadas pagándose por una sola sesión real). El paquete de Sans Souci
+    // ya incluye el drone (confirmado por Pablo), por eso se agrega esa tarea también.
+    definitions = definitions.filter(d => d.key !== "bookCoveragePhoto" && d.key !== "bookCoverageVideo");
     definitions.push(
-      task("sansSouciCoverage", "Realizar sesión de fotos en Palacio Sans Souci", "Adicionales", true, "PERSONAL FOTOGRAFIA", "Sesion Sans Souci (cobertura + edicion)", "book")
+      task("sansSouciCoverage", "Realizar sesión de fotos en Palacio Sans Souci", "Adicionales", true, "PERSONAL FOTOGRAFIA", "Sesion Sans Souci (cobertura + edicion)", "book"),
+      task("sansSouciVideoCoverage", "Realizar sesión de video en Palacio Sans Souci", "Adicionales", true, "PERSONAL VIDEO", "Sesion de fotos (grabacion + edicion back)", "book"),
+      task("sansSouciDrone", "Realizar drone en sesión en Palacio Sans Souci", "Adicionales", true, "COMPLEMENTOS", "Drone en sesión de fotos", "drone"),
+      task("sansSouciViatico", "Calcular y cargar viático a Palacio Sans Souci", "Adicionales", true, "PERSONAL FOTOGRAFIA", "VIATICOS (SOLO FOTOGRAFO)", "")
     );
   }
   if (client.addons.includes("libro")) definitions.push(
@@ -1189,7 +1247,6 @@ function openManualRenditionDialog() {
   const salons = [...MANAGED_SALONS];
   document.getElementById("manualRenditionSalon").innerHTML = salons.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") + '<option value="Otro">Otro</option>';
   document.getElementById("manualRenditionDate").value = "";
-  document.getElementById("manualRenditionWorkDate").value = todayIso();
   document.getElementById("manualRenditionAmount").value = "";
   document.getElementById("manualRenditionNotes").value = "";
   document.getElementById("manualRenditionCategory").value = "PERSONAL FOTOGRAFIA";
@@ -1212,7 +1269,6 @@ function updateManualRenditionRate() {
 }
 function saveManualRendition() {
   const date = document.getElementById("manualRenditionDate").value;
-  const workDate = document.getElementById("manualRenditionWorkDate").value || date;
   const salon = document.getElementById("manualRenditionSalon").value;
   const category = document.getElementById("manualRenditionCategory").value;
   const work = document.getElementById("manualRenditionWork").value;
@@ -1225,8 +1281,8 @@ function saveManualRendition() {
     id: uid(), clientId: null, taskId: null,
     work, category, amount,
     eventDate: date, salon,
-    workDate,
-    periodEnd: periodEndFor(workDate),
+    workDate: date,
+    periodEnd: periodEndFor(date),
     notes: notes || undefined,
     observations: notes || "",
     status: "pending",
@@ -1611,11 +1667,12 @@ function openClientDetail(id) {
 }
 function taskRow(c,t){
   const needsOrder=t.key==="partyBook";
+  const viaticoBtn=t.key==="sansSouciViatico"?`<button type="button" class="ghost-btn" data-calc-viatico="${c.id}|${t.id}">Calcular viático</button>`:"";
   // Solo estético: en la tarea de coordinar la sesión, cuando ya está agendada
   // (fecha cargada), la fecha se tiñe del color del salón (mismo look que el
   // tag de salón en el dashboard) para distinguir Quinta/Pilar Hotel de un vistazo.
   const sessionDateClass=(t.key==="coordinateSession"&&t.completedAt)?` session-date-tag${salonTagClass(c.salon)}`:"";
-  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""} ${t.status==="na"?"disabled":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)} · ${money(getRate(t.rateKey,c.eventDate))}</small>`:""}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" class="${sessionDateClass.trim()}" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}"></div>`;
+  return `<div class="task-row ${t.status==="done"?"done":""}"><input class="task-check" type="checkbox" data-task-check="${c.id}|${t.id}" ${t.status==="done"?"checked":""} ${t.status==="na"?"disabled":""}><div class="task-title"><strong>${escapeHtml(t.title)}</strong>${t.payable?`<small>Genera rendición: ${escapeHtml(t.category)} → ${escapeHtml(t.work)} · ${money(getRate(t.rateKey,c.eventDate))}</small>`:""}</div><select data-task-status="${c.id}|${t.id}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${t.status===k?"selected":""}>${v}</option>`).join("")}</select><input type="date" class="${sessionDateClass.trim()}" data-task-date="${c.id}|${t.id}" value="${isoDate(t.completedAt)}" title="Fecha real del trabajo"><input data-task-responsible="${c.id}|${t.id}" value="${escapeHtml(t.responsible)}" placeholder="Responsable"><input data-task-notes="${c.id}|${t.id}" value="${escapeHtml(t.notes)}" placeholder="${needsOrder?"N° pedido laboratorio":"Observaciones"}">${viaticoBtn}</div>`;
 }
 function refreshTaskViews(clientId){const dialog=document.getElementById("detailDialog");if(dialog.open)openClientDetail(clientId);else if(activeView==="tasks")renderTasks();}
 function updateTask(clientId,taskId,status){const c=state.clients.find(x=>x.id===clientId),t=c?.tasks.find(x=>x.id===taskId);if(!t)return;if(status==="done"&&t.key==="partyBook"&&!t.notes.trim()){toast("Ingresá el número de pedido del laboratorio antes de terminar esta tarea.");refreshTaskViews(c.id);return;}t.status=status;if(status==="done"&&!t.completedAt)t.completedAt=todayIso();if(status!=="done")t.completedAt="";const existing=state.renditions.find(r=>r.taskId===t.id);const amount=getRate(t.rateKey,c.eventDate);let removedRendition=false;if(status==="done"&&t.payable&&!existing){const workDate=isoDate(t.completedAt)||todayIso();state.renditions.push({id:uid(),clientId:c.id,taskId:t.id,category:t.category,work:t.work,amount,status:"pending",createdAt:new Date().toISOString(),workDate,periodEnd:periodEndFor(workDate),observations:t.notes||""});}if(status!=="done"&&existing?.status==="pending"){state.renditions=state.renditions.filter(r=>r.id!==existing.id);removedRendition=true;}saveState();refreshTaskViews(c.id);
@@ -1728,6 +1785,7 @@ document.addEventListener("click", e => {
   const driveFolder=e.target.closest("[data-drive-folder]");if(driveFolder)openDriveFolder(driveFolder.dataset.driveFolder);
   const createDrive=e.target.closest("[data-create-drive-folder]");if(createDrive)createDriveFolder(createDrive.dataset.createDriveFolder);
   const sendEmail=e.target.closest("[data-send-email]");if(sendEmail)sendDriveEmail(sendEmail.dataset.sendEmail);
+  const calcViatico=e.target.closest("[data-calc-viatico]");if(calcViatico){const [clientId,taskId]=calcViatico.dataset.calcViatico.split("|");calculateSansSouciViatico(clientId,taskId,calcViatico);}
   const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
   const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;const _ct=c.tasks.find(t=>t.key==="coordinateSession");if(_ct&&_ct.status==="done"){_ct.status="pending";_ct.completedAt="";}c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
   if(e.target.closest("[data-session-cal-prev]")){sessionPicker.m--;if(sessionPicker.m<0){sessionPicker.m=11;sessionPicker.y--;}renderSessionPicker();return;}
