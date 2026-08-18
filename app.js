@@ -1217,6 +1217,7 @@ function saveManualRendition() {
   const amount = Number(document.getElementById("manualRenditionAmount").value);
   const notes = document.getElementById("manualRenditionNotes").value.trim();
   if (!date) { toast("Ingresá la fecha del evento."); return; }
+  if (!salon) { toast("Elegí un salón."); return; }
   if (!amount || amount <= 0) { toast("Ingresá el importe."); return; }
   const rendition = {
     id: uid(), clientId: null, taskId: null,
