@@ -327,6 +327,8 @@ nav { display: grid; gap: 3px; }
 .rendition-select-cell { display: flex; align-items: center; gap: 8px; }
 .rendition-check, #renditionSelectAll { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0; }
 .rendition-row.selected { background: var(--gold-soft); }
+.rendition-row:not(.header) { cursor: pointer; }
+.rendition-row.row-highlight { background: var(--blue-soft); box-shadow: inset 3px 0 0 var(--blue); }
 .rendition-bulk-bar { display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; margin-bottom: 12px; border-radius: var(--radius); border: 1px solid var(--gold-border); background: var(--gold-soft); color: var(--ink); font-size: 13px; }
 .rendition-bulk-bar.show { display: flex; }
 .rendition-bulk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -410,7 +412,7 @@ legend { padding: 0 6px; }
 .task-groups { display: flex; flex-direction: column; gap: 16px; }
 .task-group .panel-head span { display: block; margin-top: 3px; }
 .task-group .panel-body .task-row:last-child { border-bottom: 0; }
-.task-row { display: grid; grid-template-columns: 32px minmax(190px, 1fr) 135px 138px 145px 175px; gap: 8px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.task-row { display: grid; grid-template-columns: 32px minmax(190px, 1fr) 135px 138px 145px 175px 150px; gap: 8px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); }
 .task-check { width: 20px; height: 20px; accent-color: var(--gold); }
 .task-row.done .task-title { text-decoration: line-through; color: var(--muted); }
 .task-title strong, .task-title small { display: block; }

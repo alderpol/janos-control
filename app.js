@@ -1006,6 +1006,7 @@ let renditionCategoryFilter = "";
 let renditionStatusFilter = "";
 let renditionSalonFilter = "";
 let selectedRenditionIds = new Set();
+let highlightedRenditionId = null; // fila resaltada al hacer clic, para guiar la vista al comparar con el sitio externo
 // Rendiciones ligadas a tarea toman el salón del cliente; las manuales tienen su propio campo "salon".
 function renditionSalon(r) { if (r.isManual) return r.salon || ""; const c = state.clients.find(x => x.id === r.clientId); return c?.salon || ""; }
 function renditionEventDate(r) { if (r.isManual) return r.eventDate || r.workDate; const c = state.clients.find(x => x.id === r.clientId); return c?.eventDate || r.workDate; }
@@ -1073,7 +1074,7 @@ function bulkDeleteRenditions(){
   saveState();
   toast(`${ids.length} rendición${ids.length===1?"":"es"} eliminada${ids.length===1?"":"s"}`);
 }
-function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId),processed=r.status!=="pending";const actions=r.archivedAt?`<button class="small-btn" data-restore-rendition="${r.id}">Restaurar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:processed?`<button class="small-btn" data-archive-rendition="${r.id}">Archivar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:`<span class="muted">Rendila para archivar</span>`; return `<div class="rendition-row ${selectedRenditionIds.has(r.id)?"selected":""}"><div class="rendition-work-cell"><input type="checkbox" class="rendition-check" data-rendition-select="${r.id}" ${selectedRenditionIds.has(r.id)?"checked":""} aria-label="Seleccionar"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(r.isManual?(r.salon||"Sin salón"):(c?`#${c.code} · ${c.honoree} · ${c.salon||"Sin salón"}`:"Cliente eliminado"))} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div></div><span>${r.isManual?dateText(r.eventDate):(c?dateText(c.eventDate):"-")}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}" ${r.archivedAt?"disabled title=\"Restaurá la rendición para cambiar su estado\"":""}>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select><div class="rendition-actions">${actions}</div></div>`;}).join("") : empty(renditionViewMode==="archived"?"No hay rendiciones archivadas":"Sin rendiciones activas", renditionViewMode==="archived"?"Las rendiciones que archives aparecerán aquí.":"Al completar un trabajo remunerado aparecerá aquí."); }
+function renditionRows(rows) { return rows.length ? rows.map(r=>{const c=state.clients.find(x=>x.id===r.clientId),processed=r.status!=="pending";const actions=r.archivedAt?`<button class="small-btn" data-restore-rendition="${r.id}">Restaurar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:processed?`<button class="small-btn" data-archive-rendition="${r.id}">Archivar</button><button class="small-btn danger" data-delete-rendition="${r.id}">Eliminar</button>`:`<span class="muted">Rendila para archivar</span>`; return `<div class="rendition-row ${selectedRenditionIds.has(r.id)?"selected":""}${highlightedRenditionId===r.id?" row-highlight":""}" data-rendition-row="${r.id}"><div class="rendition-work-cell"><input type="checkbox" class="rendition-check" data-rendition-select="${r.id}" ${selectedRenditionIds.has(r.id)?"checked":""} aria-label="Seleccionar"><div><strong>${escapeHtml(r.work)}</strong><small>${escapeHtml(r.isManual?(r.salon||"Sin salón"):(c?`#${c.code} · ${c.honoree} · ${c.salon||"Sin salón"}`:"Cliente eliminado"))} · realizado ${r.workDate?dateText(r.workDate):"sin fecha"}</small></div></div><span>${r.isManual?dateText(r.eventDate):(c?dateText(c.eventDate):"-")}</span><span class="muted">${escapeHtml(r.category)}<br><small>Cierre ${r.periodEnd?dateText(r.periodEnd):"-"}</small></span><span class="money">${money(r.amount)}</span><select data-rendition-status="${r.id}" ${r.archivedAt?"disabled title=\"Restaurá la rendición para cambiar su estado\"":""}>${Object.entries(RENDITION_STATUS).map(([k,v])=>`<option value="${k}" ${r.status===k?"selected":""}>${v}</option>`).join("")}</select><div class="rendition-actions">${actions}</div></div>`;}).join("") : empty(renditionViewMode==="archived"?"No hay rendiciones archivadas":"Sin rendiciones activas", renditionViewMode==="archived"?"Las rendiciones que archives aparecerán aquí.":"Al completar un trabajo remunerado aparecerá aquí."); }
 
 function logRenditionArchive(item, archived){const client=state.clients.find(c=>c.id===item.clientId);if(!client)return;client.history=client.history||[];client.history.push({date:new Date().toISOString(),text:`Rendición ${archived?"archivada":"restaurada"}: ${item.work}`,type:"rendition_archive",renditionId:item.id,archived});}
 function archiveRendition(id){const item=state.renditions.find(r=>r.id===id);if(!item)return;if(item.status==="pending"){toast("Primero marcá la rendición como rendida.");return;}item.archivedAt=new Date().toISOString();logRenditionArchive(item,true);saveState();toast("Rendición archivada");}
@@ -1765,6 +1766,16 @@ if(view==="calendar"&&!gcalLoading)fetchGcalEvents(calendarMonth);}
 function toast(msg,duration=2600){const el=document.getElementById("toast");const openDialog=document.querySelector("dialog[open]");(openDialog||document.body).appendChild(el);el.textContent=msg;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),duration);}
 
 document.addEventListener("click", e => {
+  const renditionRowsEl=document.getElementById("renditionRows");
+  if(renditionRowsEl){
+    const clickedRow=e.target.closest(".rendition-row:not(.header)");
+    if(renditionRowsEl.contains(e.target)&&clickedRow&&!e.target.closest("input, select, button, a")){
+      const rowId=clickedRow.dataset.renditionRow;
+      if(rowId&&highlightedRenditionId!==rowId){highlightedRenditionId=rowId;renditionRowsEl.innerHTML=renditionRows(currentRenditionRows());}
+    } else if(!renditionRowsEl.contains(e.target)&&highlightedRenditionId){
+      highlightedRenditionId=null;renditionRowsEl.innerHTML=renditionRows(currentRenditionRows());
+    }
+  }
   if(e.target.id==="reloadForConflict"){forceRetrySync();return;}
   if(e.target.id==="calGcalConnect"){connectGoogleCalendar();return;}
   if(e.target.id==="calGcalOpen"){window.open("https://calendar.google.com","janosExternal","noopener,noreferrer");return;}
