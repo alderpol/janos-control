@@ -1350,7 +1350,14 @@ function tasksAtRiskOnRegenerate(){const atRisk=[];state.clients.forEach(c=>{con
 
 function isUuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));}
 function normalizeIds(){const clientMap=new Map(),taskMap=new Map();state.clients.forEach(client=>{if(!isUuid(client.id)){const old=client.id;client.id=uid();clientMap.set(old,client.id);}client.tasks.forEach(task=>{if(!isUuid(task.id)){const old=task.id;task.id=uid();taskMap.set(old,task.id);}});});state.renditions.forEach(item=>{if(clientMap.has(item.clientId))item.clientId=clientMap.get(item.clientId);if(taskMap.has(item.taskId))item.taskId=taskMap.get(item.taskId);if(!isUuid(item.id))item.id=uid();});}
-function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;}
+function setSyncStatus(text){const el=document.getElementById("syncStatus");if(el)el.textContent=text;setBootStatus(text);}
+// Cartel de arranque: se ve mientras la app todavia no decidio si mostrar el
+// login o el panel (verificando sesion, trayendo datos de Supabase, etc.).
+// setBootStatus actualiza el textito chico con el paso actual; hideBootLoader
+// lo apaga apenas se muestra el login o el panel (se llama desde setAuthMode
+// y desde el final de startApplication, que cubren todas las salidas posibles).
+function setBootStatus(text){const el=document.getElementById("bootLoaderStatus");if(el)el.textContent=text;}
+function hideBootLoader(){document.getElementById("bootLoader")?.classList.add("hidden");}
 function renderSignupSalonChecks() {
   const container = document.getElementById("signupSalonChecks");
   if (!container) return;
@@ -1919,6 +1926,7 @@ function setFormSuccess(id, message = "") {
 }
 
 function setAuthMode(mode) {
+  hideBootLoader();
   const isSpecialMode = mode === "otp" || mode === "reset";
   document.getElementById("loginForm").classList.toggle("hidden", mode !== "login");
   document.getElementById("registerForm").classList.toggle("hidden", mode !== "register");
@@ -2118,14 +2126,36 @@ document.getElementById("signOutBtn").addEventListener("click",async()=>{await r
 
 async function startApplication(session){
   currentUser=session?.user||null;
-  if(cloudEnabled&&currentUser){storageKey=storageKeyForUser(currentUser);const pendingLocal=loadState(storageKey);state=pendingLocal;setSyncStatus("Cargando datos…");try{accessProfile=await getAccessProfile();if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}if(accessProfile.role==="admin")adminUsers=await listUserProfiles();const cloudState=await loadCloudState(BASE_RATES);const fullCloudState={...initialState(),...cloudState};const syncedBaseline=loadSyncedSnapshot(storageKey);if(syncedBaseline&&JSON.stringify(pendingLocal)!==JSON.stringify(syncedBaseline)){state=mergeForSync(fullCloudState,pendingLocal,syncedBaseline);localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Terminando de guardar cambios pendientes…");try{await syncCloudState(state,currentUser);}catch(pendingSyncError){console.error(pendingSyncError);}toast("Encontramos un cambio que había quedado sin guardar en este dispositivo y lo combinamos con lo último de la nube.");}else{state=fullCloudState;}localStorage.setItem(storageKey,JSON.stringify(state));lastSyncedState=JSON.parse(JSON.stringify(state));saveSyncedSnapshot(storageKey,state);setSyncStatus("Sincronizado");try{remoteSnapshotAt=await getLatestUpdateAt();}catch(snapshotError){console.error(snapshotError);remoteSnapshotAt=null;}}catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
+  if(cloudEnabled&&currentUser){
+    storageKey=storageKeyForUser(currentUser);const pendingLocal=loadState(storageKey);state=pendingLocal;
+    setSyncStatus("Verificando tu acceso…");
+    try{
+      // Estos 3 pedidos a Supabase no dependen uno del otro, asi que se disparan
+      // los 3 juntos en vez de uno atras del otro (antes cada uno esperaba a que
+      // terminara el anterior — esa fila de esperas era la razon principal por
+      // la que la app tardaba varios segundos en abrir).
+      const accessProfilePromise=getAccessProfile();
+      const cloudStatePromise=loadCloudState(BASE_RATES);
+      cloudStatePromise.catch(()=>{}); // evita "unhandled rejection" si se corta antes de usarla (ej. cuenta bloqueada)
+      const latestUpdatePromise=getLatestUpdateAt().catch(snapshotError=>{console.error(snapshotError);return null;});
+      accessProfile=await accessProfilePromise;
+      if(accessProfile.status==="blocked"){await signOut();currentUser=null;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormWarning("loginError","¡Tu cuenta fue creada con éxito! 🎉 Está pendiente de aprobación por el administrador. Podés contactarte por WhatsApp al +54 9 11 2862 5916.");return;}
+      setSyncStatus("Cargando tus clientes, tareas y rendiciones…");
+      if(accessProfile.role==="admin"){setSyncStatus("Cargando usuarios registrados…");adminUsers=await listUserProfiles();setSyncStatus("Cargando tus clientes, tareas y rendiciones…");}
+      const cloudState=await cloudStatePromise;
+      const fullCloudState={...initialState(),...cloudState};const syncedBaseline=loadSyncedSnapshot(storageKey);if(syncedBaseline&&JSON.stringify(pendingLocal)!==JSON.stringify(syncedBaseline)){state=mergeForSync(fullCloudState,pendingLocal,syncedBaseline);localStorage.setItem(storageKey,JSON.stringify(state));setSyncStatus("Terminando de guardar cambios pendientes…");try{await syncCloudState(state,currentUser);}catch(pendingSyncError){console.error(pendingSyncError);}toast("Encontramos un cambio que había quedado sin guardar en este dispositivo y lo combinamos con lo último de la nube.");}else{state=fullCloudState;}localStorage.setItem(storageKey,JSON.stringify(state));lastSyncedState=JSON.parse(JSON.stringify(state));saveSyncedSnapshot(storageKey,state);setSyncStatus("Sincronizado");
+      remoteSnapshotAt=await latestUpdatePromise;
+    }catch(error){console.error(error);setSyncStatus("Modo local · sin conexión");}}
   else{storageKey=STORAGE_KEY;state=loadState(storageKey);}
   const metadata = currentUser?.user_metadata || {};
+  setBootStatus("Preparando tu panel…");
   document.getElementById("signedInUser").textContent=accessProfile.display_name||metadata.full_name||currentUser?.email||"Modo local";
   document.getElementById("usersNav").classList.toggle("hidden",accessProfile.role!=="admin");
   document.getElementById("authGate").classList.add("hidden");document.getElementById("appShell").classList.remove("hidden");render();setView(activeView);
+  hideBootLoader();
 }
 async function bootstrap(){
+  setBootStatus("Verificando tu sesión…");
   if(!cloudEnabled){await startApplication(null);setSyncStatus("Modo local · Supabase sin configurar");return;}
   try{const recoveryType=new URLSearchParams(window.location.hash.replace(/^#/,"")).get("type");const session=await getSession();if(session&&recoveryType==="recovery"){currentUser=session.user;document.getElementById("appShell").classList.add("hidden");document.getElementById("authGate").classList.remove("hidden");setAuthMode("reset");}else if(session)await startApplication(session);else{document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");}}catch(error){console.error(error);document.getElementById("authGate").classList.remove("hidden");setAuthMode("login");setFormError("loginError","No se pudo conectar con Supabase.");}
 }

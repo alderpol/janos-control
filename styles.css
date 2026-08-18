@@ -372,6 +372,12 @@ legend { padding: 0 6px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .modal-actions > .danger-btn:first-child { margin-right: auto; }
 .hidden { display: none !important; }
+.boot-loader { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+.boot-loader-card { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.boot-loader-logo { box-shadow: 0 4px 20px rgba(201,168,76,.35); }
+.boot-loader-spinner { width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--line-2); border-top-color: var(--gold); animation: boot-spin .8s linear infinite; }
+.boot-loader-status { font-size: 12.5px; color: var(--ink-2); min-height: 16px; text-align: center; letter-spacing: .01em; }
+@keyframes boot-spin { to { transform: rotate(360deg); } }
 
 /* ── DETAIL MODAL ── */
 .detail-modal { width: min(1220px, calc(100vw - 28px)); }
