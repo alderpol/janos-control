@@ -293,7 +293,7 @@ const TASK_ROLES = {
   screenVideo: "video", bookModa: "foto",
   signatureBook: "foto", partyBookSelection: "foto", partyBook: "foto", totemDigital: "foto",
   informal: "foto",
-  sansSouciCoverage: "foto", sansSouciVideoCoverage: "video"
+  sansSouciCoverage: "foto", sansSouciVideoCoverage: "video", sansSouciDrone: "video"
 };
 function taskRole(key) { return TASK_ROLES[key] || "ambos"; }
 
@@ -375,7 +375,7 @@ function createTasks(client) {
     definitions.push(
       task("sansSouciCoverage", "Realizar sesión de fotos en Palacio Sans Souci", "Adicionales", true, "PERSONAL FOTOGRAFIA", "Sesion Sans Souci (cobertura + edicion)", "book"),
       task("sansSouciVideoCoverage", "Realizar sesión de video en Palacio Sans Souci", "Adicionales", true, "PERSONAL VIDEO", "Sesion de fotos (grabacion + edicion back)", "book"),
-      task("sansSouciDrone", "Realizar drone en sesión en Palacio Sans Souci", "Adicionales", true, "COMPLEMENTOS", "Drone en sesión de fotos", "drone"),
+      task("sansSouciDrone", "Realizar drone en sesión de Palacio Sans Souci (videógrafo)", "Adicionales", true, "COMPLEMENTOS", "Drone en sesión de fotos", "drone"),
       task("sansSouciViatico", "Calcular y cargar viático a Palacio Sans Souci", "Adicionales", true, "PERSONAL FOTOGRAFIA", "VIATICOS (SOLO FOTOGRAFO)", "")
     );
   }
