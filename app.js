@@ -1189,6 +1189,7 @@ function openManualRenditionDialog() {
   const salons = [...MANAGED_SALONS];
   document.getElementById("manualRenditionSalon").innerHTML = salons.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("") + '<option value="Otro">Otro</option>';
   document.getElementById("manualRenditionDate").value = "";
+  document.getElementById("manualRenditionWorkDate").value = todayIso();
   document.getElementById("manualRenditionAmount").value = "";
   document.getElementById("manualRenditionNotes").value = "";
   document.getElementById("manualRenditionCategory").value = "PERSONAL FOTOGRAFIA";
@@ -1211,6 +1212,7 @@ function updateManualRenditionRate() {
 }
 function saveManualRendition() {
   const date = document.getElementById("manualRenditionDate").value;
+  const workDate = document.getElementById("manualRenditionWorkDate").value || date;
   const salon = document.getElementById("manualRenditionSalon").value;
   const category = document.getElementById("manualRenditionCategory").value;
   const work = document.getElementById("manualRenditionWork").value;
@@ -1223,8 +1225,8 @@ function saveManualRendition() {
     id: uid(), clientId: null, taskId: null,
     work, category, amount,
     eventDate: date, salon,
-    workDate: date,
-    periodEnd: periodEndFor(date),
+    workDate,
+    periodEnd: periodEndFor(workDate),
     notes: notes || undefined,
     observations: notes || "",
     status: "pending",
