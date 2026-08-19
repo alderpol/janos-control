@@ -962,7 +962,11 @@ function renderSessionSlots(){const{date,salon,time,clientId,customTimeMode}=ses
 function syncSessionFormFields(){const form=document.getElementById("photoSessionForm");form.elements.date.value=sessionPicker.date;form.elements.location.value=sessionPicker.salon;form.elements.time.value=sessionPicker.time;const btn=document.getElementById("saveSessionBtn");if(btn)btn.disabled=!(sessionPicker.date&&sessionPicker.salon&&sessionPicker.time);}
 function updateSessionDerived(){document.getElementById("sessionSlotGrid").innerHTML=(sessionPicker.date&&sessionPicker.salon)?renderSessionSlots():`<p class="session-hint">Elegí un salón primero.</p>`;if(sessionPicker.customTimeMode)document.getElementById("sessionCustomTime")?.focus();syncSessionFormFields();}
 function renderSessionPicker(){document.getElementById("sessionCalendar").innerHTML=renderSessionCalendar();document.getElementById("sessionSalonGrid").innerHTML=sessionPicker.date?renderSessionSalons():`<p class="session-hint">Elegí un día primero.</p>`;if(sessionPicker.customMode)document.getElementById("sessionCustomLocation")?.focus();updateSessionDerived();}
-function openPhotoSessionForm(clientId){const client=state.clients.find(item=>item.id===clientId);if(!client)return;const form=document.getElementById("photoSessionForm"),session=client.photoSession||{};form.reset();form.elements.clientId.value=client.id;form.elements.team.value=session.team||"";form.elements.includesFashionProduction.checked=Boolean(session.includesFashionProduction);form.elements.includesMakeupHair.checked=Boolean(session.includesMakeupHair);form.elements.notes.value=session.notes||"";const base=session.date?parseDate(session.date):new Date();sessionPicker={clientId:client.id,y:base.getFullYear(),m:base.getMonth(),date:session.date||"",salon:session.location||"",time:session.time||"",customMode:Boolean(session.location)&&!SESSION_SALONS.includes(session.location),customTimeMode:Boolean(session.time)&&!SESSION_SLOTS.includes(session.time)};renderSessionPicker();document.getElementById("photoSessionDialog").showModal();}
+// Mismo patrón que clientFormReopenDetailId (ver openClientForm): si este
+// diálogo se abrió desde la ficha principal (que se cierra al abrirlo),
+// guardamos a quién volver a abrir cuando se cierre, sea guardando o cancelando.
+let photoSessionReopenDetailId = null;
+function openPhotoSessionForm(clientId, reopenDetailId=null){photoSessionReopenDetailId=reopenDetailId; const client=state.clients.find(item=>item.id===clientId);if(!client)return;const form=document.getElementById("photoSessionForm"),session=client.photoSession||{};form.reset();form.elements.clientId.value=client.id;form.elements.team.value=session.team||"";form.elements.includesFashionProduction.checked=Boolean(session.includesFashionProduction);form.elements.includesMakeupHair.checked=Boolean(session.includesMakeupHair);form.elements.notes.value=session.notes||"";const base=session.date?parseDate(session.date):new Date();sessionPicker={clientId:client.id,y:base.getFullYear(),m:base.getMonth(),date:session.date||"",salon:session.location||"",time:session.time||"",customMode:Boolean(session.location)&&!SESSION_SALONS.includes(session.location),customTimeMode:Boolean(session.time)&&!SESSION_SLOTS.includes(session.time)};renderSessionPicker();document.getElementById("photoSessionDialog").showModal();}
 function calendarDatePart(date,time){return `${date.replaceAll("-","")}T${time.replace(":","")}00`;}
 function addMinutesToTime(date,time,minutes){const value=new Date(`${date}T${time}:00`);value.setMinutes(value.getMinutes()+Number(minutes||90));return {date:`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`,time:`${String(value.getHours()).padStart(2,"0")}:${String(value.getMinutes()).padStart(2,"0")}`};}
 function googleCalendarUrl(client,session){const end=addMinutesToTime(session.date,session.time,90);const optional=[session.includesFashionProduction?"Incluye producción de moda":"",session.includesMakeupHair?"Incluye maquillaje y peinado":""].filter(Boolean);const details=[`Cliente: ${client.clientName||client.honoree}`,`Evento: #${client.code} · ${client.honoree}`,`Fecha del evento: ${dateText(client.eventDate)}`,optional.length?`Opcionales: ${optional.join(" · ")}`:"",session.notes?`Notas: ${session.notes}`:""].filter(Boolean).join("\n");const params=new URLSearchParams({action:"TEMPLATE",text:`#${client.code} Book ${client.honoree} · ${session.location} · ${session.time}`,dates:`${calendarDatePart(session.date,session.time)}/${calendarDatePart(end.date,end.time)}`,details,location:session.location,ctz:"America/Argentina/Buenos_Aires"});return `https://calendar.google.com/calendar/render?${params.toString()}`;}
@@ -1812,7 +1816,7 @@ document.addEventListener("click", e => {
   const createDrive=e.target.closest("[data-create-drive-folder]");if(createDrive)createDriveFolder(createDrive.dataset.createDriveFolder);
   const sendEmail=e.target.closest("[data-send-email]");if(sendEmail)sendDriveEmail(sendEmail.dataset.sendEmail);
   const calcViatico=e.target.closest("[data-calc-viatico]");if(calcViatico){const [clientId,taskId]=calcViatico.dataset.calcViatico.split("|");calculateSansSouciViatico(clientId,taskId,calcViatico);}
-  const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");if(detail.open)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession);}
+  const photoSession=e.target.closest("[data-photo-session]");if(photoSession){const detail=document.getElementById("detailDialog");const wasDetailOpen=detail.open;if(wasDetailOpen)detail.close();openPhotoSessionForm(photoSession.dataset.photoSession, wasDetailOpen?photoSession.dataset.photoSession:null);}
   const cancelSession=e.target.closest("[data-cancel-session]");if(cancelSession&&confirm("¿Quitar la sesión de fotos agendada?")){const c=state.clients.find(x=>x.id===cancelSession.dataset.cancelSession);if(c){c.photoSession=null;const _ct=c.tasks.find(t=>t.key==="coordinateSession");if(_ct&&_ct.status==="done"){_ct.status="pending";_ct.completedAt="";}c.history=c.history||[];c.history.push({date:new Date().toISOString(),text:"Sesión de fotos cancelada",type:"photo_session_cancel"});saveState();openClientDetail(c.id);toast("Sesión de fotos quitada");}}
   if(e.target.closest("[data-session-cal-prev]")){sessionPicker.m--;if(sessionPicker.m<0){sessionPicker.m=11;sessionPicker.y--;}renderSessionPicker();return;}
   if(e.target.closest("[data-session-cal-next]")){sessionPicker.m++;if(sessionPicker.m>11){sessionPicker.m=0;sessionPicker.y++;}renderSessionPicker();return;}
@@ -1888,7 +1892,21 @@ document.getElementById("newClientBtn").addEventListener("click",()=>openClientF
 document.getElementById("manualRenditionBtn").addEventListener("click",()=>openManualRenditionDialog());
 
 document.getElementById("mobileMenu").addEventListener("click",()=>document.querySelector(".sidebar").classList.toggle("open"));
-document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget)){document.getElementById("clientDialog").close();if(clientFormReopenDetailId){const id=clientFormReopenDetailId;clientFormReopenDetailId=null;openClientDetail(id);}}});
+document.getElementById("clientForm").addEventListener("submit",e=>{e.preventDefault();if(saveClient(e.currentTarget))document.getElementById("clientDialog").close();});
+// Si el form de cliente se abrió desde "Editar ficha" (lo que cierra la ficha
+// principal, ver openClientForm/clientFormReopenDetailId más arriba), acá
+// volvemos a abrir esa ficha sin importar CÓMO se haya cerrado el form:
+// guardando (submit → close()), con "Cancelar"/la X (data-close-client-form →
+// close()), clickeando el fondo (closeDialogOnBackdropClick → close()) o con
+// ESC (el <dialog> nativo dispara "close" solo). Antes solo se reabría en el
+// submit, así que cancelar sin guardar dejaba todo cerrado.
+document.getElementById("clientDialog").addEventListener("close",()=>{
+  if(clientFormReopenDetailId){
+    const id=clientFormReopenDetailId;
+    clientFormReopenDetailId=null;
+    openClientDetail(id);
+  }
+});
 // Cerrar el diálogo al clickear el fondo (fuera del contenido), pero solo si
 // el click "empezó y terminó" en el fondo. Antes se chequeaba únicamente el
 // target del click, así que arrastrar el mouse para seleccionar texto adentro
@@ -1903,6 +1921,15 @@ closeDialogOnBackdropClick(document.getElementById("clientDialog"));
 closeDialogOnBackdropClick(document.getElementById("detailDialog"));
 closeDialogOnBackdropClick(document.getElementById("photoSessionDialog"));
 document.getElementById("photoSessionForm").addEventListener("submit",e=>{e.preventDefault();if(savePhotoSession(e.currentTarget))document.getElementById("photoSessionDialog").close();});
+// Igual que con clientDialog: reabrir la ficha principal pase lo que pase
+// (guardar, cancelar, click afuera, ESC), usando el evento nativo "close".
+document.getElementById("photoSessionDialog").addEventListener("close",()=>{
+  if(photoSessionReopenDetailId){
+    const id=photoSessionReopenDetailId;
+    photoSessionReopenDetailId=null;
+    openClientDetail(id);
+  }
+});
 function authErrorMessage(error, fallback = "No pudimos completar la operación.") {
   const message = String(error?.message || "").toLowerCase();
   if(message.includes("invalid login")) return "Correo o contraseña incorrectos.";
