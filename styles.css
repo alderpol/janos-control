@@ -383,6 +383,7 @@ legend { padding: 0 6px; }
 .detail-modal { width: min(1220px, calc(100vw - 28px)); }
 .detail-wrap { padding: 24px; }
 .detail-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.detail-title-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .detail-title h2 { margin: 5px 0; font-size: 22px; }
 .detail-title p { margin: 0; color: var(--muted); }
 .detail-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 18px 0; }
