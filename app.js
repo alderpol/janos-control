@@ -64,6 +64,18 @@ A través de este grupo estaremos en contacto permanente para que puedan evacuar
 
 ¡Estamos a su entera disposición! ¡Gracias!`;
 
+const GROUP_PRESENTATION_SILVER_TEMPLATE = `Hola chicos, ¿cómo están?
+
+Soy {remitente}, ¡es un gusto por fin poder comenzar a trabajar con ustedes! Tendré el honor de ser parte del equipo que realice la cobertura fotográfica y de video de su fiesta.
+
+Les cuento un poco cómo trabajamos: el servicio que contrataron incluye la cobertura fotográfica y de video del día del evento (no incluye sesión de fotos previa/book).
+
+Si les interesa sumar algo más, tenemos el Mini Flex: pueden elegir hasta 2 servicios adicionales para completar su experiencia, por ejemplo una sesión de fotos (book) antes de la fiesta, un segundo fotógrafo o videógrafo para el evento, drone, libro de fiesta, video cronológico, video con amigos, entre otras opciones. Si les interesa, me avisan por acá y les paso el detalle y los valores.
+
+A través de este grupo estaremos en contacto permanente para que puedan evacuar cualquier duda respecto a lo que tenga que ver con fotografía y video para el día de la fiesta.
+
+¡Estamos a su entera disposición! ¡Gracias!`;
+
 const SESSION_COORDINATION_TEMPLATE = `Para comenzar: debemos coordinar una fecha y lugar para la realización del book de fotos, ese sería el primer paso.
 
 El servicio que contrataron incluye varios pasos previos a la fiesta. Acá les cuento el detalle de cada uno para que vayamos coordinando.
@@ -98,7 +110,8 @@ const SESSION_CONFIRMED_TEMPLATE = `¡Listo chicos! Agendado y reservado para el
 // habilitada, o si ya está agendada). Se evalúa contra el cliente al
 // armar el panel de la ficha (ver speechPanelHtml).
 const SPEECH_TYPES = [
-  { key: "groupPresentation", label: "Presentación en el grupo", default: GROUP_PRESENTATION_TEMPLATE, condition: () => true },
+  { key: "groupPresentation", label: "Presentación en el grupo (Gold/VIP – con sesión de fotos)", default: GROUP_PRESENTATION_TEMPLATE, condition: c => canScheduleSession(c) },
+  { key: "groupPresentationSilver", label: "Presentación en el grupo (Silver – sin sesión de fotos)", default: GROUP_PRESENTATION_SILVER_TEMPLATE, condition: c => !canScheduleSession(c) },
   { key: "sessionCoordination", label: "Coordinación del book", default: SESSION_COORDINATION_TEMPLATE, condition: c => canScheduleSession(c) },
   { key: "sessionConfirmed", label: "Sesión agendada (confirmación)", default: SESSION_CONFIRMED_TEMPLATE, condition: c => Boolean(c.photoSession?.date) },
 ];
