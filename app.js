@@ -1631,6 +1631,8 @@ function generateSelectionBat(clientId) {
   if (!tokens.length) { toast("No se encontraron números válidos."); return; }
   const bat = `@echo off
 setlocal enabledelayedexpansion
+set "LP=("
+set "RP=)"
 echo ================================================
 echo     COPIADOR DE SELECCION - ${prefijo}
 echo ================================================
@@ -1683,14 +1685,16 @@ for /f "usebackq tokens=* delims=" %%N in ("!TMPFILE!") do (
       set "FOUND=1"
     )
 
-    rem Algunas carpetas nombran las fotos como "PREFIJO (numero).jpg" en vez
-    rem de "PREFIJO-numero.jpg" (es el formato que usa, por ejemplo, el
-    rem renombrado automatico de Windows/otros programas). Se prueban ambos
-    rem formatos, con y sin ceros a la izquierda, antes de darla por perdida.
+    rem Algunas carpetas nombran las fotos con el numero entre parentesis
+    rem en vez de con guion adelante. Se prueban ambos formatos, con y sin
+    rem ceros a la izquierda, antes de darla por no encontrada. Los
+    rem parentesis se arman con variables (LP y RP) en vez de escribirlos
+    rem literal aca adentro, porque un parentesis suelto dentro de un
+    rem bloque if rompe la sintaxis del .bat en Windows.
     if "!FOUND!"=="0" (
-      if exist "%ORIGEN%\\%PREFIJO% (!RAW!).jpg" (
-        copy "%ORIGEN%\\%PREFIJO% (!RAW!).jpg" "%DESTINO%\\%PREFIJO% (!RAW!).jpg" >nul
-        echo   [OK] %PREFIJO% (!RAW!).jpg
+      if exist "%ORIGEN%\\%PREFIJO% !LP!!RAW!!RP!.jpg" (
+        copy "%ORIGEN%\\%PREFIJO% !LP!!RAW!!RP!.jpg" "%DESTINO%\\%PREFIJO% !LP!!RAW!!RP!.jpg" >nul
+        echo   [OK] %PREFIJO% !LP!!RAW!!RP!.jpg
         set /a COUNT+=1
         set "FOUND=1"
       )
@@ -1706,16 +1710,16 @@ for /f "usebackq tokens=* delims=" %%N in ("!TMPFILE!") do (
     )
 
     if "!FOUND!"=="0" (
-      if exist "%ORIGEN%\\%PREFIJO% (!INTNUM!).jpg" (
-        copy "%ORIGEN%\\%PREFIJO% (!INTNUM!).jpg" "%DESTINO%\\%PREFIJO% (!INTNUM!).jpg" >nul
-        echo   [OK] %PREFIJO% (!INTNUM!).jpg
+      if exist "%ORIGEN%\\%PREFIJO% !LP!!INTNUM!!RP!.jpg" (
+        copy "%ORIGEN%\\%PREFIJO% !LP!!INTNUM!!RP!.jpg" "%DESTINO%\\%PREFIJO% !LP!!INTNUM!!RP!.jpg" >nul
+        echo   [OK] %PREFIJO% !LP!!INTNUM!!RP!.jpg
         set /a COUNT+=1
         set "FOUND=1"
       )
     )
 
     if "!FOUND!"=="0" (
-      echo   [!!] NO ENCONTRADA: %PREFIJO%-!RAW!.jpg / %PREFIJO% (!RAW!).jpg
+      echo   [!!] NO ENCONTRADA: %PREFIJO%-!RAW!.jpg / %PREFIJO% !LP!!RAW!!RP!.jpg
       set /a MISSING+=1
     )
   )
