@@ -1683,6 +1683,19 @@ for /f "usebackq tokens=* delims=" %%N in ("!TMPFILE!") do (
       set "FOUND=1"
     )
 
+    rem Algunas carpetas nombran las fotos como "PREFIJO (numero).jpg" en vez
+    rem de "PREFIJO-numero.jpg" (es el formato que usa, por ejemplo, el
+    rem renombrado automatico de Windows/otros programas). Se prueban ambos
+    rem formatos, con y sin ceros a la izquierda, antes de darla por perdida.
+    if "!FOUND!"=="0" (
+      if exist "%ORIGEN%\\%PREFIJO% (!RAW!).jpg" (
+        copy "%ORIGEN%\\%PREFIJO% (!RAW!).jpg" "%DESTINO%\\%PREFIJO% (!RAW!).jpg" >nul
+        echo   [OK] %PREFIJO% (!RAW!).jpg
+        set /a COUNT+=1
+        set "FOUND=1"
+      )
+    )
+
     if "!FOUND!"=="0" (
       if exist "%ORIGEN%\\%PREFIJO%-!INTNUM!.jpg" (
         copy "%ORIGEN%\\%PREFIJO%-!INTNUM!.jpg" "%DESTINO%\\%PREFIJO%-!INTNUM!.jpg" >nul
@@ -1693,7 +1706,16 @@ for /f "usebackq tokens=* delims=" %%N in ("!TMPFILE!") do (
     )
 
     if "!FOUND!"=="0" (
-      echo   [!!] NO ENCONTRADA: %PREFIJO%-!RAW!.jpg
+      if exist "%ORIGEN%\\%PREFIJO% (!INTNUM!).jpg" (
+        copy "%ORIGEN%\\%PREFIJO% (!INTNUM!).jpg" "%DESTINO%\\%PREFIJO% (!INTNUM!).jpg" >nul
+        echo   [OK] %PREFIJO% (!INTNUM!).jpg
+        set /a COUNT+=1
+        set "FOUND=1"
+      )
+    )
+
+    if "!FOUND!"=="0" (
+      echo   [!!] NO ENCONTRADA: %PREFIJO%-!RAW!.jpg / %PREFIJO% (!RAW!).jpg
       set /a MISSING+=1
     )
   )
